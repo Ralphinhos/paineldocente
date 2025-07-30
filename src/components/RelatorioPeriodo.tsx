@@ -59,12 +59,14 @@ const RelatorioPeriodo: React.FC = () => {
             try {
                 const data = await fetchAllData();
                 setAllData(data);
+                console.log('[RelatorioPeriodo.tsx] Dados recebidos:', data);
                 if (data.length === 0) {
                     // Se não houver dados, podemos definir uma mensagem de erro ou apenas mostrar a tela vazia.
-                    console.log("Nenhum dado retornado para o relatório.");
+                    console.log("[RelatorioPeriodo.tsx] Nenhum dado retornado para o relatório.");
                 }
             } catch (err) {
                 const error = err as Error;
+                console.error('[RelatorioPeriodo.tsx] Erro ao buscar dados:', error);
                 setDataError(`Falha ao carregar dados para o relatório: ${error.message}`);
             } finally {
                 setIsLoading(false);
