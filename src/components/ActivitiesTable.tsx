@@ -70,14 +70,21 @@ export const ActivitiesTable: FC<ActivitiesTableProps> = ({ data, onDocenteSelec
     }
 
     const getStatusBadge = (statusCalculado: string) => {
-        // Aplicando o mesmo padrão de AccessTable.tsx para os badges de status
-        if (statusCalculado.includes('Pendente')) {
+        if (typeof statusCalculado !== 'string' || !statusCalculado.trim()) {
+            return <span className="text-slate-500 dark:text-gray-400">-</span>;
+        }
+    
+        const lowerStatus = statusCalculado.toLowerCase();
+    
+        if (lowerStatus.includes('pendente')) {
             return <span className="status-badge bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300">{statusCalculado}</span>;
         }
-        if (statusCalculado.includes('atraso')) {
-            return <span className="status-badge bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">{statusCalculado.replace('Entregue com ', '')}</span>;
+        if (lowerStatus.includes('atraso')) {
+            // Remove "Entregue com " de forma case-insensitive e mostra o resto (ex: "atraso")
+            const cleanedStatus = statusCalculado.replace(/entregue com /i, '');
+            return <span className="status-badge bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">{cleanedStatus}</span>;
         }
-        return <span className="text-slate-500 dark:text-gray-400">-</span>; // Para o caso de não haver status
+        return <span className="text-slate-500 dark:text-gray-400">{statusCalculado}</span>; // Mostra o status original se não for nenhum dos acima
     };
 
     const cardClasses = "bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-sm dark:shadow-md p-6";

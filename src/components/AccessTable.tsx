@@ -13,7 +13,7 @@ interface SortConfig {
   direction: 'asc' | 'desc';
 }
 
-export const AccessTable: FC<AccessTableProps> = ({ data }) => {
+const AccessTable: FC<AccessTableProps> = ({ data }) => {
     // Substituindo sortOrder por sortConfig
     // A coluna 'Dias s/ Acesso' (que alimenta o Status) é a padrão inicial para ordenação
     const [sortConfig, setSortConfig] = useState<SortConfig>({ 
@@ -185,3 +185,5 @@ export const AccessTable: FC<AccessTableProps> = ({ data }) => {
         </div>
     );
 };
+
+export default AccessTable;

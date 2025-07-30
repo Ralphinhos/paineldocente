@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { Sidebar } from '../components/Sidebar';
 import { FilterControls } from '../components/FilterControls';
-import { AccessTable } from '../components/AccessTable';
+import AccessTable from '../components/AccessTable';
 import { ActivitiesTable } from '../components/ActivitiesTable';
 import { PerformanceAnalysis } from '../components/PerformanceAnalysis';
 import { VisaoGeral } from '../components/VisaoGeral';
@@ -145,7 +145,10 @@ export default function Index() {
     }, [filteredData]);
     
     const handleNotification = async (action: string) => {
-        // Lógica de notificação
+        sonnerToast.info("Funcionalidade em Desenvolvimento", {
+            description: `A notificação para '${action}' está sendo preparada e estará disponível em breve.`,
+            duration: 5000,
+        });
     };
     
     if (isDataLoading && filteredData.length === 0) {
@@ -158,6 +161,57 @@ export default function Index() {
 
     return (
         <div className="flex h-screen bg-[#0f172a] font-sans overflow-hidden">
+            <style>{`
+                @keyframes sonner-progress-bar-animation {
+                  from { transform: scaleX(1); }
+                  to { transform: scaleX(0); }
+                }
+                .custom-toast-progress::after, 
+                .toast-progress-error::after, 
+                .toast-progress-success::after {
+                  content: '';
+                  position: absolute; 
+                  bottom: 0;
+                  left: 0;
+                  height: 2px;
+                  width: 100%; 
+                  background-color: rgba(255, 255, 255, 0.7); 
+                  transform-origin: left; 
+                  animation-name: sonner-progress-bar-animation;
+                  animation-timing-function: linear;
+                  animation-fill-mode: forwards;
+                  animation-duration: calc(var(--toast-duration, 4s) - 0.2s); 
+                }
+                .toast-progress-error::after {
+                  background-color: rgba(220, 53, 69, 0.8); 
+                }
+                .toast-progress-success::after {
+                  background-color: rgba(25, 135, 84, 0.8); 
+                }
+                
+                :root { 
+                    --scrollbar-thumb: #475569; 
+                    --scrollbar-track: transparent; 
+                }
+                html.dark {
+                    --scrollbar-thumb: #374151;
+                }
+                /* For Webkit Browsers */
+                ::-webkit-scrollbar { width: 8px; height: 8px; }
+                ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+                ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 10px; }
+                ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+                html.dark ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+                /* For Firefox */
+                html {
+                    scrollbar-width: thin;
+                    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+                }
+
+                .table-container { height: calc(30vh); min-height: 200px; }
+                .status-badge { font-size: 0.75rem; line-height: 1rem; font-weight: 500; padding: 0.25rem 0.625rem; border-radius: 9999px; white-space: nowrap; }
+            `}</style>
             <Sidebar kpis={kpis} userRole={user?.role ?? null} onNotification={handleNotification} isNotifying={isNotifying} />
             <main className="flex-1 p-6 lg:p-8 space-y-6 overflow-y-auto bg-gray-100 dark:bg-[#0f172a] text-slate-800 dark:text-gray-200">
                 <header className="space-y-4">
