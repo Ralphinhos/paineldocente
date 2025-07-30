@@ -121,9 +121,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     fetchFilterOptions();
   }, []);
 
-  const clearData = () => {
+  const clearData = useCallback(() => {
     setData([]);
-  };
+  }, []);
 
   const contextValue: IDataContextProps = {
     data,
