@@ -16,6 +16,7 @@ export interface IDataContextProps {
   isLoading: boolean;
   error: string | null;
   fetchData: (filters: FilterState, coordinatorCourses?: string[]) => Promise<void>;
+  fetchAllData: () => Promise<ProcessedData[]>;
   clearData: () => void;
 }
 
@@ -125,12 +126,40 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setData([]);
   }, []);
 
+  const fetchAllData = useCallback(async (): Promise<ProcessedData[]> => {
+    console.log("[DataContext] Buscando TODOS os dados para o relatório...");
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/dados`);
+      if (!response.ok) {
+        throw new Error(`Erro na rede: ${response.statusText}`);
+      }
+      const processed: ProcessedData[] = await response.json();
+      const dataWithDates = processed.map(item => ({
+        ...item,
+        DataTerminoPrevisto: item.DataTerminoPrevisto ? new Date(item.DataTerminoPrevisto) : null,
+        DataInicioSemestre: item.DataInicioSemestre ? new Date(item.DataInicioSemestre) : null,
+      }));
+      console.log("[DataContext] Todos os dados recebidos:", dataWithDates.length, "linhas");
+      return dataWithDates;
+    } catch (err) {
+      console.error("[DataContext] Erro ao buscar todos os dados:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Não foi possível carregar os dados completos. Detalhes: ${errorMessage}`);
+      return []; // Retorna array vazio em caso de erro
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const contextValue: IDataContextProps = {
     data,
     filterOptions,
     isLoading,
     error,
     fetchData,
+    fetchAllData,
     clearData,
   };
 

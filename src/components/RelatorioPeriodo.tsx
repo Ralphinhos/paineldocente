@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDataContext } from '../contexts/DataContext';
 import { ProcessedData, DocentePerformance, IKpisPeriodo, CursoPerformance } from '../types';
 import { LoadingScreen } from './LoadingScreen';
 import useIdleTimer from '../hooks/useIdleTimer';
@@ -21,6 +22,7 @@ const shortenName = (name: string): string => {
 
 const RelatorioPeriodo: React.FC = () => {
     const navigate = useNavigate();
+    const { fetchAllData } = useDataContext();
     
     const [allData, setAllData] = useState<ProcessedData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -52,23 +54,15 @@ const RelatorioPeriodo: React.FC = () => {
     }, [navigate]);
 
     useEffect(() => {
-        const fetchAllDataForReport = async () => {
+        const loadReportData = async () => {
             setIsLoading(true);
-            setDataError(null);
             try {
-                // Adicionado um parâmetro para indicar que queremos todos os dados para o relatório.
-                // O backend pode precisar disso para diferenciar de uma chamada de filtro vazia.
-                const response = await fetch('/api/dados?source=relatorio');
-                if (!response.ok) {
-                    throw new Error(`Erro na rede: ${response.statusText}`);
+                const data = await fetchAllData();
+                setAllData(data);
+                if (data.length === 0) {
+                    // Se não houver dados, podemos definir uma mensagem de erro ou apenas mostrar a tela vazia.
+                    console.log("Nenhum dado retornado para o relatório.");
                 }
-                const rawData: ProcessedData[] = await response.json();
-                const dataWithDates = rawData.map(item => ({
-                    ...item,
-                    DataTerminoPrevisto: item.DataTerminoPrevisto ? new Date(item.DataTerminoPrevisto) : null,
-                    DataInicioSemestre: item.DataInicioSemestre ? new Date(item.DataInicioSemestre) : null,
-                }));
-                setAllData(dataWithDates);
             } catch (err) {
                 const error = err as Error;
                 setDataError(`Falha ao carregar dados para o relatório: ${error.message}`);
@@ -76,8 +70,8 @@ const RelatorioPeriodo: React.FC = () => {
                 setIsLoading(false);
             }
         };
-        fetchAllDataForReport();
-    }, []);
+        loadReportData();
+    }, [fetchAllData]);
     
     const modalidadesUnicas = useMemo(() => {
         return [...new Set(allData.map(item => item.Modalidade).filter(Boolean).sort())] as string[];
