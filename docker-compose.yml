@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  # Serviço do Frontend (React App + Nginx)
+  frontend:
+    container_name: disciplinedash-frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+  # Serviço do Backend (Node.js API)
+  backend:
+    container_name: disciplinedash-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile

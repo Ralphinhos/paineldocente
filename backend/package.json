@@ -1,0 +1,17 @@
+{
+  "name": "disciplinedash-backend",
+  "version": "1.0.0",
+  "description": "Backend service for the Discipline Insight Dash.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "nodemailer": "^7.0.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
