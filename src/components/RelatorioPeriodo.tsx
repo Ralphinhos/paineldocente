@@ -54,8 +54,11 @@ const RelatorioPeriodo: React.FC = () => {
     useEffect(() => {
         const fetchAllDataForReport = async () => {
             setIsLoading(true);
+            setDataError(null);
             try {
-                const response = await fetch('/api/dados');
+                // Adicionado um parâmetro para indicar que queremos todos os dados para o relatório.
+                // O backend pode precisar disso para diferenciar de uma chamada de filtro vazia.
+                const response = await fetch('/api/dados?source=relatorio');
                 if (!response.ok) {
                     throw new Error(`Erro na rede: ${response.statusText}`);
                 }

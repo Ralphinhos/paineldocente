@@ -16,6 +16,7 @@ export interface IDataContextProps {
   isLoading: boolean;
   error: string | null;
   fetchData: (filters: FilterState, coordinatorCourses?: string[]) => Promise<void>;
+  clearData: () => void;
 }
 
 // Criar o Contexto
@@ -120,12 +121,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     fetchFilterOptions();
   }, []);
 
+  const clearData = () => {
+    setData([]);
+  };
+
   const contextValue: IDataContextProps = {
     data,
     filterOptions,
     isLoading,
     error,
     fetchData,
+    clearData,
   };
 
   return (

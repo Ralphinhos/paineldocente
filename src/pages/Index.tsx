@@ -18,7 +18,7 @@ import { toast as sonnerToast } from "@/components/ui/sonner";
 
 export default function Index() {
     const navigate = useNavigate();
-    const { data: filteredData, filterOptions, isLoading: isDataLoading, error: dataError, fetchData } = useDataContext();
+    const { data: filteredData, filterOptions, isLoading: isDataLoading, error: dataError, fetchData, clearData } = useDataContext();
     const { user, logout } = useAuth();
 
     // --- LOGS DE DEPURAÇÃO ---
@@ -37,9 +37,10 @@ export default function Index() {
             console.log('[Index.tsx] --- CALLING FETCHDATA ---');
             fetchData(filters, user.courses);
         } else {
-            console.log('[Index.tsx] --- CONDITIONS NOT MET for fetchData ---. User role:', user?.role, 'Modalidade:', filters.modalidade);
+            console.log('[Index.tsx] --- CLEARING DATA due to filters ---. User role:', user?.role, 'Modalidade:', filters.modalidade);
+            clearData();
         }
-    }, [filters, user, fetchData]);
+    }, [filters, user, fetchData, clearData]);
 
     const handleLogout = useCallback(() => {
         logout();
@@ -236,10 +237,16 @@ export default function Index() {
                 <Tabs defaultValue="detalhado" className="w-full">
                     {/* O resto do JSX permanece o mesmo */}
                     <TabsList className="bg-transparent p-0 gap-4">
-                        <TabsTrigger value="detalhado" className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:text-white">
+                        <TabsTrigger
+                            value="detalhado"
+                            className="px-4 py-2 rounded-md text-sm font-medium transition-all border text-slate-500 border-slate-300 hover:bg-slate-100 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:border-cyan-600"
+                        >
                             Visão Detalhada
                         </TabsTrigger>
-                        <TabsTrigger value="geral" className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:text-white">
+                        <TabsTrigger
+                            value="geral"
+                            className="px-4 py-2 rounded-md text-sm font-medium transition-all border text-slate-500 border-slate-300 hover:bg-slate-100 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:border-cyan-600"
+                        >
                             Visão Geral
                         </TabsTrigger>
                     </TabsList>
