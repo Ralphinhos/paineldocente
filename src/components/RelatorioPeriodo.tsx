@@ -20,7 +20,7 @@ const shortenName = (name: string): string => {
     return name;
 };
 
-export const RelatorioPeriodo: React.FC = () => {
+const RelatorioPeriodo: React.FC = () => {
     console.log('[DEBUG] Componente RelatorioPeriodo renderizado.');
     const navigate = useNavigate();
     const { allData, isLoading, error: dataError } = useDataContext();
