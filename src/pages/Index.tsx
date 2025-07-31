@@ -9,7 +9,7 @@ import { ActivitiesTable } from '../components/ActivitiesTable';
 import { PerformanceAnalysis } from '../components/PerformanceAnalysis';
 import { VisaoGeral } from '../components/VisaoGeral';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FilterState, KPIData } from '../types';
+import { ProcessedData, FilterState, KPIData } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, FileText } from 'lucide-react';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
@@ -18,35 +18,55 @@ import { toast as sonnerToast } from "@/components/ui/sonner";
 
 export default function Index() {
     const navigate = useNavigate();
-    const { data: filteredData, filterOptions, isLoading: isDataLoading, error: dataError, fetchData, clearData } = useDataContext();
+    const { allData, isLoading: isDataLoading, error: dataError } = useDataContext();
     const { user, logout } = useAuth();
-
-    // --- LOGS DE DEPURAÇÃO ---
-    console.log('[Index.tsx] Render - User from AuthContext:', user);
     
     const [filters, setFilters] = useState<FilterState>({ semestre: 'Todos', modalidade: 'Todos', modulo: 'Todos', curso: 'Todos' });
     const [selectedDocente, setSelectedDocente] = useState<string | null>(null);
     const [isNotifying, setIsNotifying] = useState(false);
-
-    // --- LOGS DE DEPURAÇÃO ---
-    console.log('[Index.tsx] Render - Current filters:', filters);
-
-    useEffect(() => {
-        console.log('[Index.tsx] useEffect triggered. User:', user, 'Filters:', filters);
-        if (user?.role && filters.modalidade !== 'Todos') {
-            console.log('[Index.tsx] --- CALLING FETCHDATA ---');
-            fetchData(filters, user.courses);
-        } else {
-            console.log('[Index.tsx] --- CLEARING DATA due to filters ---. User role:', user?.role, 'Modalidade:', filters.modalidade);
-            clearData();
-        }
-    }, [filters, user, fetchData, clearData]);
 
     const handleLogout = useCallback(() => {
         logout();
     }, [logout]);
 
     useIdleTimer(10 * 60 * 1000, handleLogout);
+
+    const baseDataForView = useMemo(() => {
+        if (!user) return [];
+        if (user.role === 'admin') {
+            return allData;
+        }
+        // Para coordenador
+        if (!user.username) return [];
+        return allData.filter(row => row.Login === user.username);
+    }, [allData, user]);
+
+    const filteredData = useMemo(() => {
+        if (filters.modalidade === 'Todos') {
+            return [];
+        }
+        const appliedFiltersResult = baseDataForView.filter(row =>
+            (filters.semestre === 'Todos' || row.Semestre === filters.semestre) &&
+            (row.Modalidade === filters.modalidade) &&
+            (filters.modulo === 'Todos' || row['Módulo'] === filters.modulo) &&
+            (filters.curso === 'Todos' || row.Curso === filters.curso)
+        );
+        return appliedFiltersResult;
+    }, [filters, baseDataForView]);
+
+    const filterOptions = useMemo(() => {
+        const semestres = [...new Set(baseDataForView.map(item => item.Semestre).filter(Boolean))].sort();
+        const modalidades = [...new Set(baseDataForView.map(item => item.Modalidade).filter(Boolean))].sort();
+        
+        const baseParaModulosECursos = filters.modalidade === 'Todos'
+            ? baseDataForView
+            : baseDataForView.filter(item => item.Modalidade === filters.modalidade);
+        
+        const modulos = [...new Set(baseParaModulosECursos.map(item => item['Módulo']).filter(Boolean))].sort();
+        const cursos = [...new Set(baseParaModulosECursos.map(item => item.Curso).filter(Boolean))].sort();
+        
+        return { semestres, modalidades, modulos, cursos };
+    }, [baseDataForView, filters.modalidade]);
 
     const handleFilterChange = (key: keyof FilterState, value: string) => {
         setFilters(prev => ({
@@ -152,7 +172,7 @@ export default function Index() {
         });
     };
     
-    if (isDataLoading && filteredData.length === 0) {
+    if (isDataLoading) {
         return <LoadingScreen message="Carregando dados..." />;
     }
 
@@ -235,7 +255,6 @@ export default function Index() {
                     </div>
                 </header>
                 <Tabs defaultValue="detalhado" className="w-full">
-                    {/* O resto do JSX permanece o mesmo */}
                     <TabsList className="bg-transparent p-0 gap-4">
                         <TabsTrigger
                             value="detalhado"
