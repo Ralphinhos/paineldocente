@@ -6,10 +6,11 @@ import { LoadingScreen } from './LoadingScreen';
 import useIdleTimer from '../hooks/useIdleTimer';
 import { KpiCard } from './ui/KpiCard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
-import { DetalhamentoPendentesModal } from './modals/DetalhamentoPendentesModal';
+import { DetalhamentoPendentesModal } from './modals/DetalhamentoPendentesModal'; // Importar o modal
 
-const COR_GRAFICO_POSITIVO = "#22c55e";
-const COR_GRAFICO_NEGATIVO = "#ef4444";
+// Definição de cores para os gráficos
+const COR_GRAFICO_POSITIVO = "#22c55e"; // green-500
+const COR_GRAFICO_NEGATIVO = "#ef4444"; // red-500
 
 const shortenName = (name: string): string => {
     if (typeof name !== 'string' || !name.trim()) return 'N/D';
@@ -20,14 +21,18 @@ const shortenName = (name: string): string => {
     return name;
 };
 
-const RelatorioPeriodo: React.FC = () => {
-    console.log('[DEBUG] Componente RelatorioPeriodo renderizado.');
+export const RelatorioPeriodo: React.FC = () => {
     const navigate = useNavigate();
     const { allData, isLoading, error: dataError } = useDataContext();
 
-    const IDLE_TIMEOUT_RELATORIO = 10 * 60 * 1000;
+    const IDLE_TIMEOUT_RELATORIO = 10 * 60 * 1000; // 10 minutos
     const handleRelatorioIdleLogout = useCallback(() => {
-        localStorage.clear();
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('loggedInCoordinator');
+        localStorage.removeItem('coordinatorCourses');
+        localStorage.removeItem('loggedInCoordinatorUsername');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('sessionExpireTime'); // Limpar o timestamp de expiração do idle timer
         navigate('/login');
     }, [navigate]);
     useIdleTimer(IDLE_TIMEOUT_RELATORIO, handleRelatorioIdleLogout);
@@ -38,7 +43,7 @@ const RelatorioPeriodo: React.FC = () => {
             navigate('/'); 
         }
     }, [navigate]);
-    
+
     const [anoSelecionado, setAnoSelecionado] = useState<string>(new Date().getFullYear().toString());
     const [semestreFiltro, setSemestreFiltro] = useState<string>('0');
     const [modalidadeSelecionada, setModalidadeSelecionada] = useState<string>('Todas');
@@ -63,6 +68,7 @@ const RelatorioPeriodo: React.FC = () => {
             setDadosPendentesParaModal(pendentes);
             setIsPendentesModalOpen(true);
         } else {
+            // Se não houver dados no relatório gerado, abre o modal com lista vazia (ele mostrará a mensagem)
             setDadosPendentesParaModal([]);
             setIsPendentesModalOpen(true);
         }
@@ -91,7 +97,9 @@ const RelatorioPeriodo: React.FC = () => {
             const perfDocentes = calcularPerformanceDocentes(dadosFiltrados);
             setTopDocentesMelhorPerformance([...perfDocentes].sort((a,b) => b.porcentagemEntreguesNoPrazo - a.porcentagemEntreguesNoPrazo || b.totalAtividades - a.totalAtividades).slice(0,5).map(d=>({...d, nomeAbreviado: shortenName(d.nomeDocente)})));
             setTopDocentesPontosAtencao([...perfDocentes].sort((a,b) => b.porcentagemAtraso - a.porcentagemAtraso || b.totalAtividades - a.totalAtividades).slice(0,5).map(d=>({...d, nomeAbreviado: shortenName(d.nomeDocente)})));
+            
             setKpisPeriodo(calcularKpisGerais(dadosFiltrados));
+            
             const perfCursos = calcularPerformanceCursos(dadosFiltrados);
             setTopCursosMelhorPerformance([...perfCursos].sort((a,b) => b.porcentagemEntreguesNoPrazoCurso - a.porcentagemEntreguesNoPrazoCurso || b.totalAtividadesCurso - a.totalAtividadesCurso).slice(0,5));
             setTopCursosPontosAtencao([...perfCursos].sort((a,b) => b.porcentagemAtrasoCurso - a.porcentagemAtrasoCurso || b.totalAtividadesCurso - a.totalAtividadesCurso).slice(0,5));
@@ -153,114 +161,288 @@ const RelatorioPeriodo: React.FC = () => {
     if (isLoading) return <LoadingScreen message="Carregando dados para o relatório..." />;
     if (dataError) return <div className="p-4 text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-md">Erro ao carregar dados: {dataError}</div>;
 
+    let chartContentDocentesMelhor = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topDocentesMelhorPerformance.length > 0) {
+        chartContentDocentesMelhor = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topDocentesMelhorPerformance} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeAbreviado" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 100]} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickFormatter={(value) => `${value.toFixed(0)}%`} 
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            if (name === 'porcentagemEntreguesNoPrazo') {
+                                return [
+                                    `${value.toFixed(1)}% No Prazo`,
+                                    `Entregues: ${props.payload.totalEntreguesNoPrazo} de ${props.payload.totalAtividades}`
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string, payload: any[]) => <span style={{ fontWeight: '600', color: '#334155' }}>{payload && payload.length ? payload[0].payload.nomeDocente : label}</span>} 
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="porcentagemEntreguesNoPrazo" fill={COR_GRAFICO_POSITIVO} >
+                        <LabelList 
+                            dataKey="porcentagemEntreguesNoPrazo" 
+                            position="center" 
+                            style={{ fill: '#FFFFFF', fontSize: 10 }} 
+                            formatter={(value: number) => `${value.toFixed(1)}%`}
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+    let chartContentDocentesAtencao = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topDocentesPontosAtencao.length > 0) {
+        chartContentDocentesAtencao = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topDocentesPontosAtencao} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeAbreviado" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 'auto']} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        allowDecimals={false}
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            // 'value' will be props.payload.porcentagemAtraso because of the Bar's dataKey for sorting logic,
+                            // but we want to display totalAtrasadas in the tooltip's primary line.
+                            // The 'name' variable will be 'porcentagemAtraso'.
+                            // We need to be careful here if we change Bar dataKey.
+                            // For now, assuming sorting is by 'porcentagemAtraso' but bar displays 'totalAtrasadas'.
+                            // Let's make the Bar dataKey 'totalAtrasadas' and adjust tooltip logic.
+                            if (name === 'totalAtrasadas') { // This 'name' comes from the Bar's dataKey
+                                return [
+                                    `${props.payload.totalAtrasadas} de ${props.payload.totalAtividades} atrasadas (${props.payload.porcentagemAtraso.toFixed(1)}%)`,
+                                    `Docente: ${props.payload.nomeDocente}` // Show full name here
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string, payload: any[]) => {
+                            // The XAxis label (nomeAbreviado) is the first arg. We can use payload for more details if needed.
+                            // For consistency, we can ensure the main label in tooltip is the full name if available from payload
+                             if (payload && payload.length && payload[0].payload.nomeDocente) {
+                                return <span style={{ fontWeight: '600', color: '#334155' }}>{payload[0].payload.nomeDocente}</span>;
+                            }
+                            return <span style={{ fontWeight: '600', color: '#334155' }}>{label}</span>;
+                        }}
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="totalAtrasadas" fill={COR_GRAFICO_NEGATIVO}>
+                        <LabelList 
+                            dataKey="totalAtrasadas" // Show the quantity on the bar
+                            position="center" 
+                            style={{ fill: '#fef2f2', fontSize: 10 }} 
+                            // No formatter needed if we want to show the raw number
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+    let chartContentCursosMelhor = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topCursosMelhorPerformance.length > 0) {
+        chartContentCursosMelhor = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topCursosMelhorPerformance} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeCurso" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 100]} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickFormatter={(value) => `${value.toFixed(0)}%`}
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            if (name === 'porcentagemEntreguesNoPrazoCurso') {
+                                return [
+                                    `${value.toFixed(1)}% No Prazo`,
+                                    `Entregues: ${props.payload.totalEntreguesNoPrazoCurso} de ${props.payload.totalAtividadesCurso}`
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string) => <span style={{ fontWeight: '600', color: '#334155' }}>{label}</span>} 
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="porcentagemEntreguesNoPrazoCurso" fill={COR_GRAFICO_POSITIVO} >
+                        <LabelList 
+                            dataKey="porcentagemEntreguesNoPrazoCurso" 
+                            position="center" 
+                            style={{ fill: '#FFFFFF', fontSize: 10 }} 
+                            formatter={(value: number) => `${value.toFixed(1)}%`}
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+    let chartContentCursosAtencao = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topCursosPontosAtencao.length > 0) {
+        chartContentCursosAtencao = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topCursosPontosAtencao} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeCurso" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 'auto']} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        allowDecimals={false}
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            if (name === 'totalAtrasadasCurso') { // This 'name' comes from the Bar's dataKey
+                                return [
+                                    `${props.payload.totalAtrasadasCurso} de ${props.payload.totalAtividadesCurso} atrasadas (${props.payload.porcentagemAtrasoCurso.toFixed(1)}%)`,
+                                    // `Curso: ${props.payload.nomeCurso}` // nomeCurso is already the label
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string) => <span style={{ fontWeight: '600', color: '#334155' }}>{label}</span>} 
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="totalAtrasadasCurso" fill={COR_GRAFICO_NEGATIVO}>
+                        <LabelList 
+                            dataKey="totalAtrasadasCurso" 
+                            position="center" 
+                            style={{ fill: '#fef2f2', fontSize: 10 }}
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
     return (
         <div className="p-6 lg:p-8 space-y-6 bg-gray-100 dark:bg-[#0f172a] text-slate-800 dark:text-gray-200 min-h-screen">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Relatório por Período</h1>
-                <button onClick={() => navigate('/')} className="text-sm text-blue-500 hover:underline">Voltar</button>
-            </div>
+            <header className="space-y-2 mb-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Relatório do Semestre</h2>
+                    <button
+                        onClick={() => navigate('/')}
+                        className="px-4 py-2 text-sm font-medium text-cyan-700 dark:text-cyan-500 bg-cyan-100 dark:bg-cyan-700/30 rounded-md hover:bg-cyan-200 dark:hover:bg-cyan-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                        &larr; Voltar ao Painel Principal
+                    </button>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-gray-400">
+                    Selecione o ano, semestre e modalidade para gerar o relatório consolidado.
+                </p>
+            </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-lg bg-white dark:bg-slate-800/50 shadow">
+            {/* Filtros */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end p-4 bg-white dark:bg-slate-800 rounded-lg shadow">
                 <div>
-                    <label htmlFor="ano-selecionado" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ano</label>
-                    <input type="number" id="ano-selecionado" name="ano-selecionado" value={anoSelecionado} onChange={e => setAnoSelecionado(e.target.value)} className="w-full p-2 rounded-md bg-gray-200 dark:bg-slate-700 border-gray-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500" />
+                    <label htmlFor="ano-relatorio" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Ano:</label>
+                    <input type="number" id="ano-relatorio" placeholder="Ex: 2024" value={anoSelecionado} onChange={(e) => setAnoSelecionado(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-white border-gray-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:placeholder-gray-400 dark:focus:ring-cyan-600 dark:focus:border-cyan-600" />
                 </div>
                 <div>
-                    <label htmlFor="semestre-filtro" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Semestre</label>
-                    <select id="semestre-filtro" name="semestre-filtro" value={semestreFiltro} onChange={e => setSemestreFiltro(e.target.value)} className="w-full p-2 rounded-md bg-gray-200 dark:bg-slate-700 border-gray-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="0">Ambos</option>
+                    <label htmlFor="semestre-relatorio" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Semestre:</label>
+                    <select id="semestre-relatorio" value={semestreFiltro} onChange={(e) => setSemestreFiltro(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-white border-gray-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:placeholder-gray-400 dark:focus:ring-cyan-600 dark:focus:border-cyan-600">
+                        <option value="0">Ambos os Semestres</option>
                         <option value="1">1º Semestre</option>
                         <option value="2">2º Semestre</option>
                     </select>
                 </div>
                 <div>
-                    <label htmlFor="modalidade-selecionada" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modalidade</label>
-                    <select id="modalidade-selecionada" name="modalidade-selecionada" value={modalidadeSelecionada} onChange={e => setModalidadeSelecionada(e.target.value)} className="w-full p-2 rounded-md bg-gray-200 dark:bg-slate-700 border-gray-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="Todas">Todas</option>
-                        {modalidadesUnicas.map(m => <option key={m} value={m}>{m}</option>)}
+                    <label htmlFor="modalidade-relatorio" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Modalidade:</label>
+                    <select id="modalidade-relatorio" value={modalidadeSelecionada} onChange={(e) => setModalidadeSelecionada(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-white border-gray-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:placeholder-gray-400 dark:focus:ring-cyan-600 dark:focus:border-cyan-600">
+                        <option value="Todas">Todas as Modalidades</option>
+                        {modalidadesUnicas.map(mod => (<option key={mod} value={mod}>{mod}</option>))}
                     </select>
                 </div>
-                <div className="flex items-end">
-                    <button onClick={handleGerarRelatorio} className="w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-md transition-colors duration-200">
-                        Gerar Relatório
-                    </button>
-                </div>
+                <button onClick={handleGerarRelatorio}
+                    className="w-full md:w-auto px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-md hover:bg-cyan-700 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800">
+                    Gerar Relatório
+                </button>
             </div>
 
-            {relatorioGerado && kpisPeriodo && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                        <KpiCard titulo="Total de Atividades" valor={kpisPeriodo.totalAtividadesConsideradas} />
-                        <KpiCard titulo="Entregues no Prazo" valor={`${kpisPeriodo.porcentagemEntreguesNoPrazo.toFixed(1)}%`} descricao={`Total: ${kpisPeriodo.totalEntreguesNoPrazo}`} />
-                        <KpiCard titulo="Entregues com Atraso" valor={`${kpisPeriodo.porcentagemComAtraso.toFixed(1)}%`} descricao={`Total: ${kpisPeriodo.totalEntreguesComAtraso}`} />
-                        <KpiCard titulo="Pendentes" valor={`${kpisPeriodo.porcentagemPendentes.toFixed(1)}%`} descricao={`Total: ${kpisPeriodo.totalPendentes}`} />
+            {/* KPIs Gerais do Período */}
+            {kpisPeriodo && (
+            <div className="mt-6 p-4 bg-slate-100 dark:bg-slate-900 rounded-lg shadow">
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">Resumo Geral do Semestre</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <KpiCard titulo="Total de Atividades" valor={kpisPeriodo.totalAtividadesConsideradas} />
+                    <KpiCard titulo="% Entregues no Prazo" valor={kpisPeriodo.porcentagemEntreguesNoPrazo.toFixed(1)} unidade="%" corValor={kpisPeriodo.porcentagemEntreguesNoPrazo >= 70 ? 'text-green-500 dark:text-green-400' : kpisPeriodo.porcentagemEntreguesNoPrazo >= 50 ? 'text-amber-500 dark:text-amber-400' : 'text-red-500 dark:text-red-400'} descricao={`${kpisPeriodo.totalEntreguesNoPrazo} atividades`} />
+                    <KpiCard titulo="% Entregues com Atraso" valor={kpisPeriodo.porcentagemComAtraso.toFixed(1)} unidade="%" corValor={kpisPeriodo.porcentagemComAtraso > 20 ? 'text-red-500 dark:text-red-400' : kpisPeriodo.porcentagemComAtraso > 10 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-white'} descricao={`${kpisPeriodo.totalEntreguesComAtraso} atividades`} />
+                    <div onClick={handleAbrirModalPendentes} className="cursor-pointer hover:opacity-80 transition-opacity">
+                        <KpiCard 
+                            titulo="% Pendentes" 
+                            valor={kpisPeriodo.porcentagemPendentes.toFixed(1)} 
+                            unidade="%" 
+                            corValor={kpisPeriodo.porcentagemPendentes > 15 ? 'text-red-500 dark:text-red-400' : kpisPeriodo.porcentagemPendentes > 5 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-white'} 
+                            descricao={`${kpisPeriodo.totalPendentes} atividades (clique para ver)`} 
+                        />
+                    </div>
+                    <KpiCard titulo="Média Dias de Atraso" valor={Math.round(kpisPeriodo.mediaDiasAtraso)} unidade="dias" descricao="Para atividades entregues com atraso" corValor={kpisPeriodo.mediaDiasAtraso > 7 ? 'text-red-500 dark:text-red-400' : kpisPeriodo.mediaDiasAtraso > 3 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-white'} />
+                </div>
+            </div>
+            )}
+
+            {/* Rankings de Docentes */}
+            {relatorioGerado && relatorioGerado.length > 0 && (
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Docentes (Melhor % Entregas no Prazo)</h4>
+                        {chartContentDocentesMelhor}
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="bg-white dark:bg-slate-800/50 p-4 rounded-lg shadow">
-                            <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">Top 5 Docentes - Melhor Performance</h3>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={topDocentesMelhorPerformance} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" domain={[0, 100]} />
-                                    <YAxis dataKey="nomeAbreviado" type="category" width={100} />
-                                    <Tooltip formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    <Bar dataKey="porcentagemEntreguesNoPrazo" fill={COR_GRAFICO_POSITIVO}>
-                                        <LabelList dataKey="porcentagemEntreguesNoPrazo" position="right" formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="bg-white dark:bg-slate-800/50 p-4 rounded-lg shadow">
-                            <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">Top 5 Docentes - Pontos de Atenção</h3>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={topDocentesPontosAtencao} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" domain={[0, 100]} />
-                                    <YAxis dataKey="nomeAbreviado" type="category" width={100} />
-                                    <Tooltip formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    <Bar dataKey="porcentagemAtraso" fill={COR_GRAFICO_NEGATIVO}>
-                                         <LabelList dataKey="porcentagemAtraso" position="right" formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="bg-white dark:bg-slate-800/50 p-4 rounded-lg shadow">
-                            <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">Top 5 Cursos - Melhor Performance</h3>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={topCursosMelhorPerformance} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" domain={[0, 100]} />
-                                    <YAxis dataKey="nomeCurso" type="category" width={150} />
-                                    <Tooltip formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    <Bar dataKey="porcentagemEntreguesNoPrazoCurso" fill={COR_GRAFICO_POSITIVO}>
-                                        <LabelList dataKey="porcentagemEntreguesNoPrazoCurso" position="right" formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="bg-white dark:bg-slate-800/50 p-4 rounded-lg shadow">
-                            <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">Top 5 Cursos - Pontos de Atenção</h3>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={topCursosPontosAtencao} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" domain={[0, 100]} />
-                                    <YAxis dataKey="nomeCurso" type="category" width={150} />
-                                    <Tooltip formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    <Bar dataKey="porcentagemAtrasoCurso" fill={COR_GRAFICO_NEGATIVO}>
-                                        <LabelList dataKey="porcentagemAtrasoCurso" position="right" formatter={(value:any) => `${value.toFixed(1)}%`} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Docentes (Maior Quantidade de Atrasos)</h4>
+                        {chartContentDocentesAtencao}
                     </div>
                 </div>
             )}
-            
-            <DetalhamentoPendentesModal
+
+            {/* Rankings de Cursos */}
+            {relatorioGerado && relatorioGerado.length > 0 && (
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Cursos (Melhor % Entregas no Prazo)</h4>
+                        {chartContentCursosMelhor}
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Cursos (Maior Quantidade de Atrasos)</h4>
+                        {chartContentCursosAtencao}
+                    </div>
+                </div>
+            )}
+
+            {/* Ranking de Disciplinas Problemáticas Removido */}
+
+            <DetalhamentoPendentesModal 
                 isOpen={isPendentesModalOpen}
                 onClose={() => setIsPendentesModalOpen(false)}
                 atividadesPendentes={dadosPendentesParaModal}
