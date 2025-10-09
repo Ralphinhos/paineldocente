@@ -15,7 +15,7 @@ app.use(express.json());
 const mockRawData = [
     // Coordenador: Ana Clara Tomaz (Engenharia, Física)
     { 'Docente': 'João da Silva', 'Disciplina': 'Cálculo I', 'Curso': 'Engenharia', 'Modalidade': 'Presencial', 'Semestre': '2024_1', 'Módulo': 'M1', 'Data Limite Construção': '15/08/2024', 'Entregue': null, 'Dias s/ Acesso': '10', 'Coordenador': 'Ana Clara Tomaz', 'Login': 'ana.tomaz', 'Senha': '123', 'DataTerminoPrevisto': '30/11/2024', 'DataInicioSemestre': '01/08/2024' },
-    { 'Docente': 'Maria Oliveira', 'Disciplina': 'Física Quântica', 'Curso': 'Física', 'Modalidade': 'EAD', 'Semestre': '2024_1', 'Módulo': 'M2', 'Data Limite Construção': '10/08/2024', 'Entregue': '12/08/2024', 'Dias s/ Acesso': '5', 'Coordenador': 'Ana Clara Tomaz', 'Login': 'ana.tomaz', 'Senha': 'password123', 'DataTerminoPrevisto': '30/11/2024', 'DataInicioSemestre': '01/08/2024' },
+    { 'Docente': 'Maria Oliveira', 'Disciplina': 'Física Quântica', 'Curso': 'Física', 'Modalidade': 'EAD', 'Semestre': '2024_1', 'Módulo': 'M2', 'Data Limite Construção': '10/08/2024', 'Entregue': '08/08/2024', 'Dias s/ Acesso': '5', 'Coordenador': 'Ana Clara Tomaz', 'Login': 'ana.tomaz', 'Senha': 'password123', 'DataTerminoPrevisto': '30/11/2024', 'DataInicioSemestre': '01/08/2024' },
     
     // Coordenador: Marcos Andrade (Ciência da Computação)
     { 'Docente': 'Carlos Pereira', 'Disciplina': 'Algoritmos Avançados', 'Curso': 'Ciência da Computação', 'Modalidade': 'Presencial', 'Semestre': '2024_2', 'Módulo': 'M3', 'Data Limite Construção': '20/09/2024', 'Entregue': '15/09/2024', 'Dias s/ Acesso': '2', 'Coordenador': 'Marcos Andrade', 'Login': 'marcos.andrade', 'Senha': 'senha321', 'DataTerminoPrevisto': '30/12/2024', 'DataInicioSemestre': '01/08/2024' },
