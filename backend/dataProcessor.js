@@ -46,14 +46,18 @@ const processData = (data) => {
         isEntregueNoPrazo = false;
         diasCalculado = Math.ceil((dataEntrega.getTime() - dataLimite.getTime()) / (1000 * 60 * 60 * 24));
         statusCalculado = `Entregue com ${diasCalculado} dia(s) de atraso`;
-      } else {
+      } else { // Entregue, e não está atrasado (dataEntrega <= dataLimite)
         isAtrasado = false;
         isEntregueNoPrazo = true;
-        statusCalculado = 'Entregue no prazo';
-        if (dataLimite) {
-          diasCalculado = Math.ceil((dataEntrega.getTime() - dataLimite.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (dataLimite && dataEntrega < dataLimite) {
+            const diasDeAntecedencia = Math.ceil((dataLimite.getTime() - dataEntrega.getTime()) / (1000 * 60 * 60 * 24));
+            statusCalculado = `Entregue com ${diasDeAntecedencia} dia(s) de antecedência`;
+            diasCalculado = 0; // Dias de ATRASO é 0
         } else {
-          diasCalculado = 0;
+            // Se dataEntrega for igual a dataLimite, ou não houver dataLimite
+            statusCalculado = 'Entregue no prazo';
+            diasCalculado = 0;
         }
       }
     } else {
