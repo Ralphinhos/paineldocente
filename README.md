@@ -1,71 +1,60 @@
-# Instruções para Execução e Homologação do Sistema
+# Instruções para Execução e Conexão ao Banco de Dados
 
-Este documento descreve como executar a aplicação localmente usando Docker e como conectar o sistema ao banco de dados da universidade.
+Este documento descreve como executar a aplicação localmente usando Docker e, mais importante, como conectar o sistema ao banco de dados Moodle.
 
 ## 1. Pré-requisitos
 
-Para executar este projeto, você precisará ter os seguintes softwares instalados em sua máquina:
-
 - **Docker Desktop:** [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
-
-O Docker Desktop inclui o Docker Engine e o Docker Compose, que são as ferramentas que vamos utilizar.
 
 ## 2. Como Executar a Aplicação Localmente
 
-Com o Docker em execução na sua máquina, siga os passos abaixo.
+1.  **Configure as Credenciais do Banco de Dados:**
+    - Vá para o diretório `backend/`.
+    - Renomeie o arquivo `.env.example` para `.env`.
+    - Abra o arquivo `.env` e preencha com as credenciais do seu banco de dados SQL Server (Moodle).
 
-1.  **Abra um terminal** (como o terminal integrado do VSCode) na raiz deste projeto.
-2.  **Execute o comando de build e inicialização:**
-
-    ```bash
-    docker-compose up --build
-    ```
-
-    - O comando `--build` força a reconstrução das imagens Docker. Isso é útil na primeira vez que você executa ou se fizer alguma alteração nos `Dockerfiles` ou no código-fonte.
-    - O Docker irá baixar as imagens base, instalar as dependências, construir os projetos de frontend e backend e iniciar os containers. Este processo pode levar alguns minutos na primeira vez.
+2.  **Execute o Docker Compose:**
+    - Abra um terminal na raiz do projeto.
+    - Execute o comando:
+      ```bash
+      docker-compose up --build
+      ```
+    - O Docker irá construir as imagens e iniciar os containers.
 
 3.  **Acesse a aplicação:**
+    - Abra seu navegador e acesse: [**http://localhost:8080**](http://localhost:8080)
+    - O dashboard agora deve carregar os dados diretamente do seu banco de dados Moodle.
 
-    Após a conclusão do comando, abra seu navegador e acesse a seguinte URL:
+---
 
-    [**http://localhost:8080**](http://localhost:8080)
+## 3. Dúvida Comum: "Pode dar algum problema na conexão com o DB?"
 
-    Você deverá ver o dashboard funcionando, carregando os dados de exemplo que configuramos no backend.
+**Sim, é a causa mais comum de problemas.** A conexão entre a aplicação e o banco de dados pode falhar por vários motivos. Para te ajudar, criamos ferramentas de diagnóstico.
 
-## 3. Próximo Passo: Integrar com o Banco de Dados
+### Principais Causas de Falha
 
-O sistema está atualmente funcionando com dados de exemplo. O próximo passo é conectá-lo ao banco de dados real da universidade.
+1.  **Credenciais Incorretas:** O usuário, senha, host ou nome do banco no arquivo `backend/.env` estão errados.
+2.  **Firewall ou Rede:** A máquina que executa o Docker pode não ter permissão para acessar o servidor do banco de dados na porta 1433.
+3.  **Configurações de Criptografia (SSL):** As configurações de `DB_ENCRYPT` e `DB_TRUST_SERVER_CERTIFICATE` no arquivo `.env` podem não ser compatíveis com as exigências do seu servidor.
 
-1.  **Localize o ponto de integração:**
-    Abra o arquivo `backend/server.js`. Dentro da rota `app.get('/api/dados', ...)` você encontrará um bloco de código claramente marcado:
+### Como Diagnosticar Rapidamente
 
-    ```javascript
-    // --- PONTO DE INTEGRAÇÃO COM O BANCO DE DADOS ---
-    // Aqui é onde você deverá substituir os dados mock pelos dados do seu banco.
-    // Exemplo de como seria com uma consulta a um banco de dados (usando um cliente fictício 'db'):
-    // const rawDataFromDB = await db.query('SELECT * FROM sua_tabela_de_disciplinas');
+Para verificar sua conexão de forma isolada, use o script de teste que criamos.
 
-    // Por enquanto, usamos dados mock para simular a resposta do banco.
-    const mockRawData = [ /* ... dados de exemplo ... */ ];
-    // --- FIM DO PONTO DE INTEGRAÇÃO ---
-
-    const processed = processData(mockRawData);
+1.  **Certifique-se de que o passo 1 (configuração do `.env`) foi feito.**
+2.  **Execute o script de teste no terminal:**
+    ```bash
+    node backend/test_connection.js
     ```
+3.  O script mostrará uma mensagem de **SUCESSO** ou de **ERRO**, indicando a causa mais provável.
 
-2.  **Implemente a conexão e a consulta:**
-    - **Instale o driver do banco de dados:** No terminal, dentro do diretório `backend`, instale o driver necessário (ex: `npm install pg` para PostgreSQL, `npm install mysql2` para MySQL, etc.). Não se esqueça de adicionar o driver ao `backend/package.json`.
-    - **Substitua os dados mock:** Remova ou comente a variável `mockRawData` e insira a sua lógica de conexão e consulta ao banco de dados. O resultado da sua consulta (`rawDataFromDB`) deve ser um array de objetos, onde cada objeto representa uma linha e as chaves correspondem aos nomes das colunas esperadas pelo `processData` (ex: `'Data Limite Construção'`).
-    - **Gerencie as credenciais:** É uma boa prática usar variáveis de ambiente para as credenciais do banco de dados (host, usuário, senha, etc.). Você pode usar um arquivo `.env` no diretório `backend` e a biblioteca `dotenv` (`npm install dotenv`) para carregá-las.
+Para um guia mais detalhado, consulte o arquivo `backend/DB_CONNECTION_GUIDE.md`.
 
-3.  **Reinicie a aplicação:**
-    Após fazer as alterações, execute `docker-compose up --build` novamente para reconstruir a imagem do backend com o novo código.
+---
 
 ## 4. Como Parar a Aplicação
 
-Para parar todos os containers da aplicação, pressione `Ctrl + C` no terminal onde o `docker-compose` está rodando. Em seguida, para garantir que os containers e a rede sejam removidos, execute:
-
+Para parar os containers, pressione `Ctrl + C` no terminal e depois execute:
 ```bash
 docker-compose down
 ```
-
-Isso finaliza a sessão e libera as portas utilizadas.
