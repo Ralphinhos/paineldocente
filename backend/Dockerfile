@@ -11,6 +11,12 @@ COPY package.json package-lock.json ./
 # 'npm ci' é recomendado para ambientes de produção/CI para garantir builds consistentes
 RUN npm ci --only=production
 
+# Copiar o arquivo de configuração customizado do OpenSSL a partir da pasta pai
+COPY ../openssl.cnf /etc/ssl/openssl.cnf
+
+# Definir a variável de ambiente para que o sistema use nosso arquivo de configuração
+ENV OPENSSL_CONF /etc/ssl/openssl.cnf
+
 # Copiar os arquivos da aplicação do diretório 'backend' do host para o container
 COPY . .
 

@@ -16,5 +16,5 @@ services:
   backend:
     container_name: disciplinedash-backend
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
