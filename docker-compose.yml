@@ -16,5 +16,5 @@ services:
   backend:
     container_name: disciplinedash-backend
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend  # <-- Garanta que esta linha está assim
+      dockerfile: Dockerfile      # <-- E esta também
