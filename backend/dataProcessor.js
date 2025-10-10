@@ -1,102 +1,52 @@
-// Função para validar e converter strings de data no formato 'DD/MM/YYYY' para objetos Date
-const parseDate = (dateStr) => {
-  if (!dateStr || typeof dateStr !== 'string' || !/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-    return null;
-  }
-  const [day, month, year] = dateStr.split('/');
-  const numMonth = parseInt(month, 10) - 1; 
-  const numDay = parseInt(day, 10);
-  const numYear = parseInt(year, 10);
+// A função `parseDate` foi removida, pois a lógica de datas complexas
+// foi transferida para a consulta SQL ou não é mais aplicável com os dados do Moodle.
 
-  if (numMonth < 0 || numMonth > 11 || numDay < 1 || numDay > 31 || numYear < 1900 || numYear > 2100) {
-    return null;
-  }
-  const dateObj = new Date(numYear, numMonth, numDay);
-  if (dateObj.getFullYear() !== numYear || dateObj.getMonth() !== numMonth || dateObj.getDate() !== numDay) {
-    return null;
-  }
-  return dateObj;
-};
-
-// Função principal que processa os dados brutos (que virão do banco de dados)
+// Função principal que processa os dados brutos vindos do Moodle
 const processData = (data) => {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
 
+  // Mapeia os dados recebidos do banco para o formato esperado pelo frontend
   return data.map((row) => {
-    // Os nomes das colunas (row['Data Limite Construção']) devem corresponder aos nomes dos campos do banco de dados
-    const dataLimiteConstrucaoStr = row['Data Limite Construção']; 
-    const dataEntregaStr = row['Entregue']; 
     
-    const dataLimite = parseDate(dataLimiteConstrucaoStr);
-    const dataEntrega = parseDate(dataEntregaStr);
-   
-    let statusCalculado = '';
-    let diasCalculado = 0; 
+    // A lógica de status agora é baseada diretamente na coluna 'Entregue' da query
+    const statusDaQuery = row['Entregue']; // Ex: 'Entregue', 'Não Entregue', 'N/A'
+
+    let statusCalculado = 'Status Desconhecido';
     let isPendente = false;
-    let isAtrasado = false;
     let isEntregueNoPrazo = false;
 
-    const entregueSim = dataEntrega !== null;
-
-    if (entregueSim) {
+    if (statusDaQuery === 'Entregue') {
+      statusCalculado = 'Entregue';
+      isEntregueNoPrazo = true;
       isPendente = false;
-      if (dataLimite && dataEntrega > dataLimite) {
-        isAtrasado = true;
-        isEntregueNoPrazo = false;
-        diasCalculado = Math.ceil((dataEntrega.getTime() - dataLimite.getTime()) / (1000 * 60 * 60 * 24));
-        statusCalculado = `Entregue com ${diasCalculado} dia(s) de atraso`;
-      } else { // Entregue, e não está atrasado (dataEntrega <= dataLimite)
-        isAtrasado = false;
-        isEntregueNoPrazo = true;
-
-        if (dataLimite && dataEntrega < dataLimite) {
-            const diasDeAntecedencia = Math.ceil((dataLimite.getTime() - dataEntrega.getTime()) / (1000 * 60 * 60 * 24));
-            statusCalculado = `Entregue com ${diasDeAntecedencia} dia(s) de antecedência`;
-            diasCalculado = 0; // Dias de ATRASO é 0
-        } else {
-            // Se dataEntrega for igual a dataLimite, ou não houver dataLimite
-            statusCalculado = 'Entregue no prazo';
-            diasCalculado = 0;
-        }
-      }
-    } else {
+    } else if (statusDaQuery === 'Não Entregue') {
+      statusCalculado = 'Pendente';
       isPendente = true;
-      isAtrasado = false;
       isEntregueNoPrazo = false;
-      if (dataLimite && hoje > dataLimite) {
-        diasCalculado = Math.ceil((hoje.getTime() - dataLimite.getTime()) / (1000 * 60 * 60 * 24));
-        statusCalculado = `Pendente há ${diasCalculado} dia(s)`;
-      } else if (dataLimite) {
-        statusCalculado = 'Pendente';
-        diasCalculado = 0;
-      } else {
-        statusCalculado = 'Pendente (sem data limite)';
-        diasCalculado = 0;
-      }
+    } else {
+      // Para casos como 'N/A' ou outros valores inesperados
+      statusCalculado = 'Indefinido';
+      isPendente = true; // Assume-se como pendente se não for explicitamente entregue
+      isEntregueNoPrazo = false;
     }
           
+    // Normaliza o campo 'Dias s/ Acesso' para garantir que seja sempre um número
     const diasSemAcessoStr = row['Dias s/ Acesso'];
     let diasSemAcessoNum = 0;
     if (diasSemAcessoStr && !isNaN(Number(diasSemAcessoStr))) {
       diasSemAcessoNum = parseInt(diasSemAcessoStr, 10);
     }
 
-    const dataTerminoPrevistoStr = row['DataTerminoPrevisto'];
-    const dataTerminoPrevisto = dataTerminoPrevistoStr ? parseDate(dataTerminoPrevistoStr) : null;
-
-    const dataInicioSemestreStr = row['DataInicioSemestre'];
-    const dataInicioSemestre = dataInicioSemestreStr ? parseDate(dataInicioSemestreStr) : null;
-    
+    // Retorna a estrutura de dados final, combinando os dados da query
+    // com os campos calculados que o frontend espera.
     return {
       ...row,
       'Dias s/ Acesso': diasSemAcessoNum,
-      DataTerminoPrevisto: dataTerminoPrevisto,
-      DataInicioSemestre: dataInicioSemestre,
+
+      // Campos que o frontend espera, agora com valores padrão ou baseados na query
       statusCalculado,
-      diasCalculado,
+      diasCalculado: 0, // Não temos mais a lógica de dias de atraso
       isPendente,
-      isAtrasado,
+      isAtrasado: false, // Não temos mais a lógica de atraso
       isEntregueNoPrazo
     };
   });
