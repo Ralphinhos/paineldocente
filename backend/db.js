@@ -2,14 +2,6 @@ const sql = require('mssql');
 
 // As credenciais e configurações do banco de dados devem ser lidas a partir de variáveis de ambiente
 // para garantir a segurança e a portabilidade da aplicação.
-// Exemplo de como configurar as variáveis de ambiente em um arquivo .env ou no sistema:
-// DB_USER=seu_usuario
-// DB_PASSWORD=sua_senha
-// DB_HOST=seu_servidor
-// DB_DATABASE=moodle_db
-// DB_ENCRYPT=true (ou false, dependendo da configuração do seu SQL Server)
-// DB_TRUST_SERVER_CERTIFICATE=true (use true para desenvolvimento local ou certificados autoassinados)
-
 const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
@@ -17,7 +9,13 @@ const dbConfig = {
     database: process.env.DB_DATABASE,
     options: {
         encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'
+        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
+        // --- ADIÇÃO IMPORTANTE ---
+        // Força o uso de uma versão mais antiga e compatível do TLS.
+        // Isto é necessário para conectar a servidores SQL Server mais antigos.
+        cryptoCredentialsDetails: {
+            minVersion: 'TLSv1'
+        }
     }
 };
 
