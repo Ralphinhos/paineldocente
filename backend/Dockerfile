@@ -25,6 +25,9 @@ COPY openssl.cnf /etc/ssl/openssl.cnf
 # Definir a variável de ambiente para que o sistema use nosso arquivo de configuração
 ENV OPENSSL_CONF=/etc/ssl/openssl.cnf
 
+# Adiciona a flag para carregar o provedor OpenSSL legado, necessário para o SECLEVEL=0 funcionar
+ENV NODE_OPTIONS=--openssl-legacy-provider
+
 WORKDIR /usr/src/app
 
 # Copiar as dependências instaladas do estágio de build
