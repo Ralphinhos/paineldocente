@@ -7,5 +7,7 @@ ssl_conf = ssl_sect
 system_default = system_default_sect
 
 [system_default_sect]
+# ATENÇÃO: A configuração abaixo reduz a segurança para permitir a conexão com servidores SQL legados.
+# SECLEVEL=0 é usado para permitir algoritmos de assinatura antigos. Não use em produção sem avaliar os riscos.
 MinProtocol = TLSv1
-CipherString = DEFAULT@SECLEVEL=1
+CipherString = DEFAULT@SECLEVEL=0
