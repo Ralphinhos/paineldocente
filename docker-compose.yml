@@ -10,11 +10,12 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - backend
+      - backend-api
 
   # Serviço do Backend (Node.js API)
-  backend:
-    container_name: disciplinedash-backend
+  backend-api:
+    container_name: disciplinedash-backend-api
     build:
       context: ./backend  # <-- Garanta que esta linha está assim
       dockerfile: Dockerfile      # <-- E esta também
+    command: node --openssl-legacy-provider server.js
