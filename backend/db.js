@@ -13,10 +13,17 @@ const dbConfig = {
         // --- ADIÇÃO IMPORTANTE ---
         // Força o uso de uma versão mais antiga e compatível do TLS.
         // Isto é necessário para conectar a servidores SQL Server mais antigos.
-        cryptoCredentialsDetails: {
+        cryptoCredentialsDetails: { 
             minVersion: 'TLSv1'
-        }
-    }
+        },
+        
+    debug: {
+        packet: true,
+        data: true,
+        payload: true,
+        token: false,
+        log: true
+    }},
 };
 
 // Pool de conexões para ser reutilizado pela aplicação

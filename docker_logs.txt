@@ -1,0 +1,41 @@
+time="2025-10-16T16:38:40-03:00" level=warning msg="C:\\Users\\raphael.guimaraes\\Documents\\paineldocente\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+ Network paineldocente_default  Creating
+ Network paineldocente_default  Created
+ Container disciplinedash-backend-api  Creating
+ Container disciplinedash-backend-api  Created
+ Container disciplinedash-frontend  Creating
+ Container disciplinedash-frontend  Created
+Attaching to disciplinedash-backend-api, disciplinedash-frontend
+disciplinedash-backend-api  | [dotenv@17.2.3] injecting env (7) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+disciplinedash-frontend     | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+disciplinedash-frontend     | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+disciplinedash-frontend     | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+disciplinedash-frontend     | 10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+disciplinedash-frontend     | 10-listen-on-ipv6-by-default.sh: info: /etc/nginx/conf.d/default.conf differs from the packaged version
+disciplinedash-frontend     | /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+disciplinedash-frontend     | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+disciplinedash-frontend     | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+disciplinedash-frontend     | /docker-entrypoint.sh: Configuration complete; ready for start up
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: using the "epoll" event method
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: nginx/1.27.5
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: built by gcc 14.2.0 (Alpine 14.2.0) 
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: OS: Linux 6.6.87.2-microsoft-standard-WSL2
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker processes
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 29
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 30
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 31
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 32
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 33
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 34
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 35
+disciplinedash-frontend     | 2025/10/16 19:38:41 [notice] 1#1: start worker process 36
+disciplinedash-backend-api  | Servidor rodando na porta 3001
+disciplinedash-frontend     | 172.18.0.1 - - [16/Oct/2025:19:43:09 +0000] "GET /api/coordinators HTTP/1.1" 304 0 "http://localhost:8080/login" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" "-"
+disciplinedash-frontend     | 172.18.0.1 - - [16/Oct/2025:19:43:41 +0000] "GET /mockServiceWorker.js HTTP/1.1" 304 0 "http://localhost:8080/mockServiceWorker.js" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" "-"
+Gracefully Stopping... press Ctrl+C again to force
+ Container disciplinedash-frontend  Stopping
+ Container disciplinedash-frontend  Stopped
+ Container disciplinedash-backend-api  Stopping
+[Kdisciplinedash-frontend exited with code 0
+^C
