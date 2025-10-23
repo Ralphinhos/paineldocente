@@ -1,40 +1,51 @@
-# Estágio de build
+# ==========================================
+# ESTÁGIO 1: Build
+# ==========================================
 FROM node:18-alpine AS builder
 
-# Definir o diretório de trabalho
 WORKDIR /usr/src/app
 
-# Copiar os arquivos de manifesto de pacotes
+# Copiar arquivos de dependências
 COPY package*.json ./
 
-# Instalar as dependências
+# Instalar dependências
 RUN npm install
 
-# Copiar o restante dos arquivos da aplicação
+# Copiar código da aplicação
 COPY . .
 
-# Estágio de produção
+# ==========================================
+# ESTÁGIO 2: Produção com Stunnel
+# ==========================================
 FROM node:18-alpine
 
-# Instalar o OpenSSL
-RUN apk add --no-cache openssl
+# Instalar OpenSSL e Stunnel
+RUN apk add --no-cache openssl stunnel
 
-# Copiar o arquivo de configuração customizado do OpenSSL
+# Copiar configuração OpenSSL customizada
 COPY openssl.cnf /etc/ssl/openssl.cnf
-
-# Definir a variável de ambiente para que o sistema use nosso arquivo de configuração
 ENV OPENSSL_CONF=/etc/ssl/openssl.cnf
+
+# Criar diretório do stunnel
+RUN mkdir -p /etc/stunnel
+
+# Copiar configuração do stunnel
+COPY stunnel.conf /etc/stunnel/stunnel.conf
 
 WORKDIR /usr/src/app
 
-# Copiar as dependências instaladas do estágio de build
+# Copiar dependências do estágio anterior
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 
-# Copiar o código da aplicação do estágio de build
+# Copiar código da aplicação
 COPY --from=builder /usr/src/app .
 
-# Expor a porta que a aplicação vai rodar
+# Copiar script de inicialização
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# Expor porta da aplicação
 EXPOSE 3001
 
-# Comando para iniciar a aplicação
-CMD ["node", "server.js"]
+# Usar script de inicialização
+CMD ["/start.sh"]
