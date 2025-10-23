@@ -5,25 +5,22 @@ const sql = require('mssql');
 const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    server: process.env.DB_HOST,
+    // MUDANÇA IMPORTANTE: Conecta ao PROXY local (stunnel)
+    server: '127.0.0.1',  // ← Stunnel local
+    port: 1434,            // ← Porta do stunnel
     database: process.env.DB_DATABASE,
     options: {
-        encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true',
-        // --- ADIÇÃO IMPORTANTE ---
-        // Força o uso de uma versão mais antiga e compatível do TLS.
-        // Isto é necessário para conectar a servidores SQL Server mais antigos.
-        cryptoCredentialsDetails: { 
-            minVersion: 'TLSv1'
-        },
-        
-    debug: {
-        packet: true,
-        data: true,
-        payload: true,
-        token: false,
-        log: true
-    }},
+        encrypt: true,  // Mantém encrypt para conexão local
+        trustServerCertificate: true,
+        requestTimeout: 30000,
+        connectionTimeout: 30000,
+        // REMOVEMOS cryptoCredentialsDetails - stunnel cuida disso
+    },
+    pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 30000
+    }
 };
 
 // Pool de conexões para ser reutilizado pela aplicação
