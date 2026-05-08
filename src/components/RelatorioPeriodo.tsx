@@ -7,6 +7,8 @@ import useIdleTimer from '../hooks/useIdleTimer';
 import { KpiCard } from './ui/KpiCard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { DetalhamentoPendentesModal } from './modals/DetalhamentoPendentesModal'; // Importar o modal
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 // Definição de cores para os gráficos
 const COR_GRAFICO_POSITIVO = "#22c55e"; // green-500
@@ -44,6 +46,8 @@ export const RelatorioPeriodo: React.FC = () => {
         }
     }, [navigate]);
 
+    const { historyList, selectedHistory, setSelectedHistory } = useDataContext();
+
     const [anoSelecionado, setAnoSelecionado] = useState<string>(new Date().getFullYear().toString());
     const [semestreFiltro, setSemestreFiltro] = useState<string>('0');
     const [modalidadeSelecionada, setModalidadeSelecionada] = useState<string>('Todas');
@@ -55,6 +59,8 @@ export const RelatorioPeriodo: React.FC = () => {
     const [topCursosPontosAtencao, setTopCursosPontosAtencao] = useState<CursoPerformance[]>([]);
     const [isPendentesModalOpen, setIsPendentesModalOpen] = useState(false);
     const [dadosPendentesParaModal, setDadosPendentesParaModal] = useState<ProcessedData[]>([]);
+
+    const reportRef = React.useRef<HTMLDivElement>(null);
 
     const availableData = allData; 
 
@@ -71,6 +77,32 @@ export const RelatorioPeriodo: React.FC = () => {
             // Se não houver dados no relatório gerado, abre o modal com lista vazia (ele mostrará a mensagem)
             setDadosPendentesParaModal([]);
             setIsPendentesModalOpen(true);
+        }
+    };
+
+    const handleExportarPDF = async () => {
+        if (!reportRef.current) return;
+
+        try {
+            const canvas = await html2canvas(reportRef.current, {
+                scale: 2, // Aumenta a qualidade
+                useCORS: true, // Permite carregar imagens de outros domínios se houver
+                backgroundColor: '#0f172a' // Fundo escuro para combinar com o tema escuro padrão
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+            const dataHoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+            const nomeHistorico = historyList.find((h: any) => h.id === selectedHistory)?.label || 'Atual';
+            pdf.save(`relatorio-visao-geral-${nomeHistorico}-${dataHoje}.pdf`);
+        } catch (error) {
+            console.error("Erro ao exportar PDF:", error);
+            alert("Não foi possível exportar o relatório para PDF.");
         }
     };
 
@@ -345,21 +377,43 @@ export const RelatorioPeriodo: React.FC = () => {
         <div className="p-6 lg:p-8 space-y-6 bg-gray-100 dark:bg-[#0f172a] text-slate-800 dark:text-gray-200 min-h-screen">
             <header className="space-y-2 mb-6">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Relatório do Semestre</h2>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="px-4 py-2 text-sm font-medium text-cyan-700 dark:text-cyan-500 bg-cyan-100 dark:bg-cyan-700/30 rounded-md hover:bg-cyan-200 dark:hover:bg-cyan-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    >
-                        &larr; Voltar ao Painel Principal
-                    </button>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h2>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleExportarPDF}
+                            className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                            Exportar PDF
+                        </button>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="px-4 py-2 text-sm font-medium text-cyan-700 dark:text-cyan-500 bg-cyan-100 dark:bg-cyan-700/30 rounded-md hover:bg-cyan-200 dark:hover:bg-cyan-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                            &larr; Voltar ao Painel Principal
+                        </button>
+                    </div>
                 </div>
                 <p className="text-sm text-slate-600 dark:text-gray-400">
-                    Selecione o ano, semestre e modalidade para gerar o relatório consolidado.
+                    Selecione o ano, semestre, modalidade e a base de dados (Atual ou Histórico) para gerar o relatório consolidado.
                 </p>
             </header>
 
             {/* Filtros */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end p-4 bg-white dark:bg-slate-800 rounded-lg shadow">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end p-4 bg-white dark:bg-slate-800 rounded-lg shadow">
+                <div>
+                    <label htmlFor="filtro-historico" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Dados Base:</label>
+                    <select
+                        id="filtro-historico"
+                        value={selectedHistory}
+                        onChange={(e) => setSelectedHistory(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-cyan-50 border-cyan-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:focus:ring-cyan-600 dark:focus:border-cyan-600"
+                    >
+                        <option value="current">Atuais (Planilha Google)</option>
+                        {historyList && historyList.map((h: any) => (
+                            <option key={h.id} value={h.id}>{h.label}</option>
+                        ))}
+                    </select>
+                </div>
                 <div>
                     <label htmlFor="ano-relatorio" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Ano:</label>
                     <input type="number" id="ano-relatorio" placeholder="Ex: 2024" value={anoSelecionado} onChange={(e) => setAnoSelecionado(e.target.value)}
@@ -388,9 +442,10 @@ export const RelatorioPeriodo: React.FC = () => {
                 </button>
             </div>
 
+            <div ref={reportRef} className="bg-gray-100 dark:bg-[#0f172a] pb-6 rounded-lg pt-6 px-4 -mx-4 mt-2">
             {/* KPIs Gerais do Período */}
             {kpisPeriodo && (
-            <div className="mt-6 p-4 bg-slate-100 dark:bg-slate-900 rounded-lg shadow">
+            <div className="p-4 bg-slate-100 dark:bg-slate-900 rounded-lg shadow">
                 <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">Resumo Geral do Semestre</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     <KpiCard titulo="Total de Atividades" valor={kpisPeriodo.totalAtividadesConsideradas} />
@@ -441,6 +496,7 @@ export const RelatorioPeriodo: React.FC = () => {
             )}
 
             {/* Ranking de Disciplinas Problemáticas Removido */}
+            </div>
 
             <DetalhamentoPendentesModal 
                 isOpen={isPendentesModalOpen}

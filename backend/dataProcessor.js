@@ -1,52 +1,51 @@
-// A função `parseDate` foi removida, pois a lógica de datas complexas
-// foi transferida para a consulta SQL ou não é mais aplicável com os dados do Moodle.
-
-// Função principal que processa os dados brutos vindos do Moodle
+// Função principal que processa os dados brutos
 const processData = (data) => {
-
-  // Mapeia os dados recebidos do banco para o formato esperado pelo frontend
   return data.map((row) => {
     
-    // A lógica de status agora é baseada diretamente na coluna 'Entregue' da query
-    const statusDaQuery = row['Entregue']; // Ex: 'Entregue', 'Não Entregue', 'N/A'
+    // Na nova regra, se a coluna "Entregue" da planilha (que agora conterá uma data)
+    // tiver valor preenchido, é "Entregue". Se estiver vazio, é "Pendente" ("Não Entregue").
+    const entregueRaw = row['Entregue'] || row['ENTREGUE'];
+    const isEntregue = entregueRaw && entregueRaw.trim() !== '';
     
-    let statusCalculado = 'Status Desconhecido';
-    let isPendente = false;
-    let isEntregueNoPrazo = false;
+    let statusCalculado = isEntregue ? 'Entregue' : 'Pendente';
+    let isPendente = !isEntregue;
+    let isEntregueNoPrazo = isEntregue; // Simplificação: se entregou, assume no prazo por enquanto
 
-    if (statusDaQuery === 'Entregue') {
-      statusCalculado = 'Entregue';
-      isEntregueNoPrazo = true;
-      isPendente = false;
-    } else if (statusDaQuery === 'Não Entregue') {
-      statusCalculado = 'Pendente';
-      isPendente = true;
-      isEntregueNoPrazo = false;
-    } else {
-      // Para casos como 'N/A' ou outros valores inesperados
-      statusCalculado = 'Indefinido';
-      isPendente = true; // Assume-se como pendente se não for explicitamente entregue
-      isEntregueNoPrazo = false;
-    }
-          
     // Normaliza o campo 'Dias s/ Acesso' para garantir que seja sempre um número
-    const diasSemAcessoStr = row['Dias s/ Acesso'];
-    let diasSemAcessoNum = 0;
-    if (diasSemAcessoStr && !isNaN(Number(diasSemAcessoStr))) {
-      diasSemAcessoNum = parseInt(diasSemAcessoStr, 10);
+    // Na planilha 0 significa acesso hoje, vazio significa nunca acessou.
+    // Vamos tratar vazio como um número grande ou null. O frontend lida melhor com números.
+    const diasSemAcessoStr = row['Dias s/ Acesso'] || row['Dias S/ Acesso'] || row['Dias S/Acesso'] || row['Dias s/Acesso'];
+    let diasSemAcessoNum = null; // null ou outro valor para indicar "nunca acessou"
+
+    if (diasSemAcessoStr !== undefined && diasSemAcessoStr !== null && diasSemAcessoStr.toString().trim() !== '') {
+        const parsed = parseInt(diasSemAcessoStr, 10);
+        if (!isNaN(parsed)) {
+            diasSemAcessoNum = parsed;
+        }
+    } else {
+        // Se vazio, significa nunca acessou. Vamos colocar um valor alto para destacar no dashboard, ou null
+        // No painel do index: dadosDiasAcesso[row.Docente].maxDias = dias;
+        diasSemAcessoNum = 999; // Simboliza nunca acessou / muito tempo
     }
 
-    // Retorna a estrutura de dados final, combinando os dados da query
-    // com os campos calculados que o frontend espera.
+    // Garante que o campo 'Módulo' exista mesmo que venha como 'Modulo' da planilha
+    const moduloValue = row['Módulo'] || row['Modulo'];
+
+    // Mapeamento extra para nomes de coluna que podem vir um pouco diferentes da planilha
+    const codDisciplina = row['Cód. Disciplina'] || row['Cod. Disciplina'] || row['Cód.Disciplina'] || row['Cód_Disciplina'] || '';
+    const codCurso = row['Cód. Curso'] || row['Cod. Curso'] || row['Cód.Curso'] || row['Cód_Curso'] || '';
+
     return {
       ...row,
+      'Módulo': moduloValue,
+      'Cód. Disciplina': codDisciplina,
+      'Cód. Curso': codCurso,
       'Dias s/ Acesso': diasSemAcessoNum,
       
-      // Campos que o frontend espera, agora com valores padrão ou baseados na query
       statusCalculado,
-      diasCalculado: 0, // Não temos mais a lógica de dias de atraso
+      diasCalculado: 0,
       isPendente,
-      isAtrasado: false, // Não temos mais a lógica de atraso
+      isAtrasado: false,
       isEntregueNoPrazo
     };
   });
