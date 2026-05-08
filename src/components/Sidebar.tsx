@@ -106,7 +106,34 @@ export const Sidebar: FC<SidebarProps> = ({ kpis, onNotification, isNotifying = 
       {/* Seção de Ações de Comunicação - VISÍVEL APENAS PARA ADMIN */}
       {userRole === 'admin' && onNotification && (
         <div className={actionsCardClasses}>
-          <h3 className="text-sm font-semibold text-white mb-2 text-center">Ações de Comunicação</h3>
+          <h3 className="text-sm font-semibold text-white mb-2 text-center">Ações Admin</h3>
+          <div className="space-y-2 mb-4">
+            <button
+              onClick={async () => {
+                if (window.confirm('Tem certeza que deseja salvar o histórico atual dos dados do Google Sheets?')) {
+                  try {
+                    const res = await fetch('/api/history', { method: 'POST' });
+                    if (res.ok) {
+                      alert('Histórico salvo com sucesso!');
+                      // Você pode querer forçar um reload ou chamar fetchHistoryList() do context aqui se necessário,
+                      // mas como isso geralmente atualiza após recarregar a tela, um alert simples é suficiente para agora.
+                      window.location.reload();
+                    } else {
+                      alert('Falha ao salvar histórico.');
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    alert('Erro ao salvar histórico.');
+                  }
+                }
+              }}
+              className="w-full text-sm py-2 px-4 bg-[#10b981] text-white font-semibold rounded-md hover:bg-[#059669] transition-colors disabled:opacity-50"
+              disabled={isNotifying}
+            >
+              Salvar Momento Atual
+            </button>
+          </div>
+          <h3 className="text-sm font-semibold text-white mb-2 text-center">Comunicação</h3>
           <div className="space-y-2">
             <button 
               onClick={() => onNotification && onNotification('coordenadores')} 

@@ -5,7 +5,11 @@ export interface IDataContextProps {
   allData: ProcessedData[];
   isLoading: boolean;
   error: string | null;
-  fetchData: () => Promise<void>;
+  fetchData: (historyId?: string) => Promise<void>;
+  historyList: any[];
+  fetchHistoryList: () => Promise<void>;
+  selectedHistory: string;
+  setSelectedHistory: (id: string) => void;
 }
 
 export const DataContext = createContext<IDataContextProps | undefined>(undefined);
@@ -26,13 +30,28 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [allData, setAllData] = useState<ProcessedData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [historyList, setHistoryList] = useState<any[]>([]);
+  const [selectedHistory, setSelectedHistory] = useState<string>('current');
 
-  const fetchData = useCallback(async () => {
-    console.log("[DataContext] Buscando todos os dados da API...");
+  const fetchHistoryList = useCallback(async () => {
+    try {
+      const res = await fetch('/api/history');
+      if (res.ok) {
+        const data = await res.json();
+        setHistoryList(data);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar lista de históricos:", err);
+    }
+  }, []);
+
+  const fetchData = useCallback(async (historyId: string = 'current') => {
+    console.log(`[DataContext] Buscando todos os dados da API (historyId: ${historyId})...`);
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/dados`);
+      const url = historyId === 'current' ? '/api/dados' : `/api/dados?history_id=${historyId}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Erro na rede: ${response.statusText}`);
       }
@@ -54,14 +73,22 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchHistoryList();
+  }, [fetchHistoryList]);
+
+  useEffect(() => {
+    fetchData(selectedHistory);
+  }, [fetchData, selectedHistory]);
 
   const contextValue: IDataContextProps = {
     allData,
     isLoading,
     error,
     fetchData,
+    historyList,
+    fetchHistoryList,
+    selectedHistory,
+    setSelectedHistory
   };
 
   return (
