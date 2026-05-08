@@ -82,21 +82,21 @@ export const RelatorioPeriodo: React.FC = () => {
 
     const handleExportarPDF = async () => {
         if (!reportRef.current) return;
-
+        
         try {
             const canvas = await html2canvas(reportRef.current, {
                 scale: 2, // Aumenta a qualidade
                 useCORS: true, // Permite carregar imagens de outros domínios se houver
                 backgroundColor: '#0f172a' // Fundo escuro para combinar com o tema escuro padrão
             });
-
+            
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
+            
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-
+            
             const dataHoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
             const nomeHistorico = historyList.find((h: any) => h.id === selectedHistory)?.label || 'Atual';
             pdf.save(`relatorio-visao-geral-${nomeHistorico}-${dataHoje}.pdf`);
@@ -402,9 +402,9 @@ export const RelatorioPeriodo: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end p-4 bg-white dark:bg-slate-800 rounded-lg shadow">
                 <div>
                     <label htmlFor="filtro-historico" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Dados Base:</label>
-                    <select
-                        id="filtro-historico"
-                        value={selectedHistory}
+                    <select 
+                        id="filtro-historico" 
+                        value={selectedHistory} 
                         onChange={(e) => setSelectedHistory(e.target.value)}
                         className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-cyan-50 border-cyan-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:focus:ring-cyan-600 dark:focus:border-cyan-600"
                     >

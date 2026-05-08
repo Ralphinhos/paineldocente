@@ -1,168 +1,510 @@
-import { Link, useNavigate } from 'react-router-dom'; // Adicionado Link
-import React, { FC, useEffect, useState } from 'react';
-import { KPIData } from '../types';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDataContext } from '../contexts/DataContext';
+import { ProcessedData, DocentePerformance, IKpisPeriodo, CursoPerformance } from '../types';
+import { LoadingScreen } from './LoadingScreen';
+import useIdleTimer from '../hooks/useIdleTimer';
+import { KpiCard } from './ui/KpiCard';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
+import { DetalhamentoPendentesModal } from './modals/DetalhamentoPendentesModal'; // Importar o modal
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
-interface SidebarProps {
-  kpis: KPIData;
-  userRole: string | null;
-  onNotification?: (action: string) => void; // Opcional, pois só admin usará
-  isNotifying?: boolean; // Nova propriedade para controlar o estado de notificação
-}
+// Definição de cores para os gráficos
+const COR_GRAFICO_POSITIVO = "#22c55e"; // green-500
+const COR_GRAFICO_NEGATIVO = "#ef4444"; // red-500
 
-import { useAuth } from '../contexts/AuthContext'; // Importar o hook de autenticação
-
-export const Sidebar: FC<SidebarProps> = ({ kpis, onNotification, isNotifying = false }) => {
-  const { user } = useAuth(); // Consumir o usuário do contexto
-  const userRole = user?.role;
-  const loggedInCoordinatorName = user?.name;
-
-  const shortenName = (name: string) => {
-    if (typeof name !== 'string' || !name) return '';
+const shortenName = (name: string): string => {
+    if (typeof name !== 'string' || !name.trim()) return 'N/D';
     const parts = name.trim().split(/\s+/);
-    return parts.length > 2 ? `${parts[0]} ${parts[parts.length - 1]}` : name;
-  };
-
-  // A classe .card da tag <style> em Index.tsx tem: background-color: rgba(30, 41, 59, 0.7); border: 1px solid rgba(55, 65, 81, 0.5); backdrop-filter: blur(12px); border-radius: 1rem;
-  // Vamos adicionar text-center e um rounded-xl para os cards de KPI.
-  const kpiCardClasses = "bg-[rgba(30,41,59,0.7)] border border-[rgba(55,65,81,0.5)] backdrop-blur-md p-4 text-center rounded-xl";
-  // O card de nome do coordenador pode manter o estilo original ou ser ajustado similarmente.
-  const coordinatorCardClasses = "bg-[rgba(30,41,59,0.5)] border border-[rgba(55,65,81,0.5)] backdrop-blur-md p-3 text-center mb-2 rounded-xl";
-  // O card de Ações de Comunicação
-  const actionsCardClasses = "bg-[rgba(30,41,59,0.7)] border border-[rgba(55,65,81,0.5)] backdrop-blur-md p-3 flex-grow flex flex-col rounded-xl"; // p-4 para p-3
-
-
-  return (
-    <aside className="w-72 bg-[#020617] border-r border-gray-800 p-4 flex flex-col space-y-4 overflow-y-auto"> {/* p-6 para p-4, space-y-6 para space-y-4 */}
-      <div className="flex items-center justify-center mb-2"> {/* mb-4 para mb-2 */}
-        <img
-          src="/logo_branca.png"
-          alt="logo_unifenas"
-          className="h-16 w-auto" // h-20 para h-16
-        />
-      </div>
-
-      {loggedInCoordinatorName && (
-        <div className={coordinatorCardClasses}>
-          <p className="text-xs text-cyan-400">{userRole === 'admin' ? 'Usuário:' : 'Coordenador(a):'}</p>
-          <p className="text-sm font-semibold text-white">{shortenName(loggedInCoordinatorName)}</p>
-        </div>
-      )}
-
-      {/* Link para o Relatório do Período REMOVIDO */}
-
-      {/* KPIs da Modalidade Selecionada */}
-      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
-        <p className="text-xs text-gray-400">Total Pendentes (Modalidade)</p>
-        <p className="text-2xl font-bold text-[#ef4444]">
-          {kpis.totalPendentesModalidade > 0 ? kpis.totalPendentesModalidade : (kpis.docenteMaiorMediaAtraso === undefined && kpis.totalPendentesModalidade === 0 ? "Selec. Mod." : kpis.totalPendentesModalidade)}
-        </p>
-      </div>
-      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
-        <p className="text-xs text-gray-400">Total Atrasadas (Modalidade)</p>
-        <p className="text-2xl font-bold text-[#f59e0b]">
-          {kpis.totalAtrasadasModalidade > 0 ? kpis.totalAtrasadasModalidade : (kpis.docenteMaiorMediaAtraso === undefined && kpis.totalAtrasadasModalidade === 0 ? "Selec. Mod." : kpis.totalAtrasadasModalidade)}
-        </p>
-      </div>
-
-      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
-        <p className="text-xs text-gray-400">Docente com Maior Atraso</p>
-        {kpis.docenteMaiorMediaAtraso ? (
-          <>
-            <p className="text-base font-semibold text-orange-400">{shortenName(kpis.docenteMaiorMediaAtraso.nome)}</p>
-            <p className="text-xl font-bold text-orange-400">Média: {kpis.docenteMaiorMediaAtraso.mediaDias}d</p>
-          </>
-        ) : (
-          <p className="text-xl font-bold text-orange-400">{kpis.docenteMaiorMediaAtraso === undefined ? "Selec. Mod." : "-"}</p>
-        )}
-      </div>
-
-      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
-        <p className="text-xs text-gray-400">Docente com Mais Pendências</p>
-        {kpis.docenteMaisPendencias ? (
-          <>
-            <p className="text-base font-semibold text-indigo-400">{shortenName(kpis.docenteMaisPendencias.nome)}</p>
-            <p className="text-xl font-bold text-indigo-400">{kpis.docenteMaisPendencias.quantidade} pendência(s)</p>
-          </>
-        ) : (
-          <p className="text-xl font-bold text-indigo-400">{kpis.docenteMaisPendencias === undefined ? "Selec. Mod." : "-"}</p>
-        )}
-      </div>
-      
-      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
-        <p className="text-xs text-gray-400">Docente com Menos Acesso Recente</p>
-        {kpis.docenteMenosAcesso ? (
-          <>
-            <p className="text-base font-semibold text-teal-400">{shortenName(kpis.docenteMenosAcesso.nome)}</p>
-            {/* <p className="text-sm text-gray-300">Média: {kpis.docenteMenosAcesso.mediaDiasSemAcesso}d s/acesso</p> REMOVIDO */}
-            <p className="text-xs text-gray-400" title={`${kpis.docenteMenosAcesso.disciplinaDestaque} (${kpis.docenteMenosAcesso.diasDisciplinaDestaque}d)`}>
-                Destaque: {kpis.docenteMenosAcesso.disciplinaDestaque} ({kpis.docenteMenosAcesso.diasDisciplinaDestaque}d)
-            </p>
-          </>
-        ) : (
-          <p className="text-xl font-bold text-teal-400">{kpis.docenteMenosAcesso === undefined ? "Selec. Mod." : "-"}</p>
-        )}
-      </div>
-
-      {/* Seção de Ações de Comunicação - VISÍVEL APENAS PARA ADMIN */}
-      {userRole === 'admin' && onNotification && (
-        <div className={actionsCardClasses}>
-          <h3 className="text-sm font-semibold text-white mb-2 text-center">Ações Admin</h3>
-          <div className="space-y-2 mb-4">
-            <button
-              onClick={async () => {
-                if (window.confirm('Tem certeza que deseja salvar o histórico atual dos dados do Google Sheets?')) {
-                  try {
-                    const res = await fetch('/api/history', { method: 'POST' });
-                    if (res.ok) {
-                      alert('Histórico salvo com sucesso!');
-                      // Você pode querer forçar um reload ou chamar fetchHistoryList() do context aqui se necessário,
-                      // mas como isso geralmente atualiza após recarregar a tela, um alert simples é suficiente para agora.
-                      window.location.reload();
-                    } else {
-                      alert('Falha ao salvar histórico.');
-                    }
-                  } catch (err) {
-                    console.error(err);
-                    alert('Erro ao salvar histórico.');
-                  }
-                }
-              }}
-              className="w-full text-sm py-2 px-4 bg-[#10b981] text-white font-semibold rounded-md hover:bg-[#059669] transition-colors disabled:opacity-50"
-              disabled={isNotifying}
-            >
-              Salvar Momento Atual
-            </button>
-          </div>
-          <h3 className="text-sm font-semibold text-white mb-2 text-center">Comunicação</h3>
-          <div className="space-y-2">
-            <button 
-              onClick={() => onNotification && onNotification('coordenadores')} 
-              className="w-full text-sm py-2 px-4 bg-[#2b466d] text-white font-semibold rounded-md hover:bg-[#3c5f94] transition-colors disabled:opacity-50"
-              disabled={isNotifying}
-            >
-              Notificar Coordenadores
-            </button>
-            <button 
-              onClick={() => onNotification && onNotification('docentes')} 
-              className="w-full text-sm py-2 px-4 bg-transparent border border-[#2b466d] text-[#adbbd1] hover:bg-[rgba(43,70,109,0.2)] font-semibold rounded-md transition-colors disabled:opacity-50"
-              disabled={isNotifying}
-            >
-              Notificar Docentes
-            </button>
-            <button 
-              onClick={() => onNotification && onNotification('cobrancaUas')} 
-              className="w-full text-sm py-2 px-4 bg-transparent border border-[#00adc7] text-[#00adc7] hover:bg-[rgba(0,173,199,0.1)] font-semibold rounded-md transition-colors disabled:opacity-50"
-              disabled={isNotifying}
-            >
-              ✨ Cobrar UAs Pendentes
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Card "Meus Cursos" foi removido conforme solicitado */}
-
-      {/* Botão Sair removido daqui */}
-    </aside>
-  );
+    if (parts.length > 1) {
+        return `${parts[0]} ${parts[parts.length - 1]}`;
+    }
+    return name;
 };
+
+export const RelatorioPeriodo: React.FC = () => {
+    const navigate = useNavigate();
+    const { allData, isLoading, error: dataError } = useDataContext();
+
+    const IDLE_TIMEOUT_RELATORIO = 10 * 60 * 1000; // 10 minutos
+    const handleRelatorioIdleLogout = useCallback(() => {
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('loggedInCoordinator');
+        localStorage.removeItem('coordinatorCourses');
+        localStorage.removeItem('loggedInCoordinatorUsername');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('sessionExpireTime'); // Limpar o timestamp de expiração do idle timer
+        navigate('/login');
+    }, [navigate]);
+    useIdleTimer(IDLE_TIMEOUT_RELATORIO, handleRelatorioIdleLogout);
+
+    useEffect(() => {
+        const storedUserRole = localStorage.getItem('userRole');
+        if (storedUserRole !== 'admin') {
+            navigate('/'); 
+        }
+    }, [navigate]);
+
+    const { historyList, selectedHistory, setSelectedHistory } = useDataContext();
+
+    const [anoSelecionado, setAnoSelecionado] = useState<string>(new Date().getFullYear().toString());
+    const [semestreFiltro, setSemestreFiltro] = useState<string>('0');
+    const [modalidadeSelecionada, setModalidadeSelecionada] = useState<string>('Todas');
+    const [relatorioGerado, setRelatorioGerado] = useState<ProcessedData[] | null>(null);
+    const [topDocentesMelhorPerformance, setTopDocentesMelhorPerformance] = useState<DocentePerformance[]>([]);
+    const [topDocentesPontosAtencao, setTopDocentesPontosAtencao] = useState<DocentePerformance[]>([]);
+    const [kpisPeriodo, setKpisPeriodo] = useState<IKpisPeriodo | null>(null);
+    const [topCursosMelhorPerformance, setTopCursosMelhorPerformance] = useState<CursoPerformance[]>([]);
+    const [topCursosPontosAtencao, setTopCursosPontosAtencao] = useState<CursoPerformance[]>([]);
+    const [isPendentesModalOpen, setIsPendentesModalOpen] = useState(false);
+    const [dadosPendentesParaModal, setDadosPendentesParaModal] = useState<ProcessedData[]>([]);
+
+    const reportRef = React.useRef<HTMLDivElement>(null);
+
+    const availableData = allData; 
+
+    const modalidadesUnicas = useMemo(() => {
+        return [...new Set(availableData.map(item => item.Modalidade).filter(Boolean).sort())] as string[];
+    }, [availableData]);
+
+    const handleAbrirModalPendentes = () => {
+        if (relatorioGerado && relatorioGerado.length > 0) {
+            const pendentes = relatorioGerado.filter(item => item.isPendente === true);
+            setDadosPendentesParaModal(pendentes);
+            setIsPendentesModalOpen(true);
+        } else {
+            // Se não houver dados no relatório gerado, abre o modal com lista vazia (ele mostrará a mensagem)
+            setDadosPendentesParaModal([]);
+            setIsPendentesModalOpen(true);
+        }
+    };
+
+    const handleExportarPDF = async () => {
+        if (!reportRef.current) return;
+        
+        try {
+            const canvas = await html2canvas(reportRef.current, {
+                scale: 2, // Aumenta a qualidade
+                useCORS: true, // Permite carregar imagens de outros domínios se houver
+                backgroundColor: '#0f172a' // Fundo escuro para combinar com o tema escuro padrão
+            });
+            
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            
+            const dataHoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+            const nomeHistorico = historyList.find((h: any) => h.id === selectedHistory)?.label || 'Atual';
+            pdf.save(`relatorio-visao-geral-${nomeHistorico}-${dataHoje}.pdf`);
+        } catch (error) {
+            console.error("Erro ao exportar PDF:", error);
+            alert("Não foi possível exportar o relatório para PDF.");
+        }
+    };
+
+    const handleGerarRelatorio = () => {
+        if (!anoSelecionado) {
+            alert("Por favor, informe o Ano.");
+            return;
+        }
+        const dadosFiltrados = availableData.filter(item => {
+            const modalidadeMatch = modalidadeSelecionada === 'Todas' || item.Modalidade === modalidadeSelecionada;
+            let semestreMatch = false;
+            if (item.Semestre) {
+                if (semestreFiltro === '0') {
+                    semestreMatch = item.Semestre.startsWith(`${anoSelecionado}_`);
+                } else {
+                    semestreMatch = item.Semestre === `${anoSelecionado}_${semestreFiltro}`;
+                }
+            }
+            return modalidadeMatch && semestreMatch;
+        });
+        setRelatorioGerado(dadosFiltrados);
+
+        if (dadosFiltrados.length > 0) {
+            const perfDocentes = calcularPerformanceDocentes(dadosFiltrados);
+            setTopDocentesMelhorPerformance([...perfDocentes].sort((a,b) => b.porcentagemEntreguesNoPrazo - a.porcentagemEntreguesNoPrazo || b.totalAtividades - a.totalAtividades).slice(0,5).map(d=>({...d, nomeAbreviado: shortenName(d.nomeDocente)})));
+            setTopDocentesPontosAtencao([...perfDocentes].sort((a,b) => b.porcentagemAtraso - a.porcentagemAtraso || b.totalAtividades - a.totalAtividades).slice(0,5).map(d=>({...d, nomeAbreviado: shortenName(d.nomeDocente)})));
+            
+            setKpisPeriodo(calcularKpisGerais(dadosFiltrados));
+            
+            const perfCursos = calcularPerformanceCursos(dadosFiltrados);
+            setTopCursosMelhorPerformance([...perfCursos].sort((a,b) => b.porcentagemEntreguesNoPrazoCurso - a.porcentagemEntreguesNoPrazoCurso || b.totalAtividadesCurso - a.totalAtividadesCurso).slice(0,5));
+            setTopCursosPontosAtencao([...perfCursos].sort((a,b) => b.porcentagemAtrasoCurso - a.porcentagemAtrasoCurso || b.totalAtividadesCurso - a.totalAtividadesCurso).slice(0,5));
+        } else {
+            setTopDocentesMelhorPerformance([]); setTopDocentesPontosAtencao([]); setKpisPeriodo(null);
+            setTopCursosMelhorPerformance([]); setTopCursosPontosAtencao([]);
+        }
+    };
+
+    const calcularPerformanceDocentes = (dados: ProcessedData[]): DocentePerformance[] => {
+        if (!dados || dados.length === 0) return [];
+        const map: Map<string, { totalAtividades: number; totalAtrasadas: number; totalEntreguesNoPrazo: number; }> = new Map();
+        dados.forEach(item => {
+            if (!item.Docente) return;
+            const s = map.get(item.Docente) || { totalAtividades: 0, totalAtrasadas: 0, totalEntreguesNoPrazo: 0 };
+            s.totalAtividades++; if (item.isAtrasado) s.totalAtrasadas++; if (item.isEntregueNoPrazo) s.totalEntreguesNoPrazo++;
+            map.set(item.Docente, s);
+        });
+        return Array.from(map.entries()).map(([nome, stats]) => ({
+            nomeDocente: nome, ...stats,
+            porcentagemAtraso: stats.totalAtividades > 0 ? (stats.totalAtrasadas / stats.totalAtividades) * 100 : 0,
+            porcentagemEntreguesNoPrazo: stats.totalAtividades > 0 ? (stats.totalEntreguesNoPrazo / stats.totalAtividades) * 100 : 0,
+        }));
+    };
+
+    const calcularKpisGerais = (dados: ProcessedData[]): IKpisPeriodo | null => {
+        if (!dados || dados.length === 0) return null;
+        let tENP = 0, tECA = 0, tP = 0, sDA = 0, cAATMPM = 0;
+        dados.forEach(i => { 
+            if (i.isEntregueNoPrazo) tENP++; if (i.isAtrasado && !i.isPendente) tECA++; if (i.isPendente) tP++;
+            if (i.isAtrasado && !i.isPendente && i.diasCalculado && i.diasCalculado > 0) { sDA += i.diasCalculado; cAATMPM++; }
+        });
+        const tAC = dados.length;
+        return {
+            totalAtividadesConsideradas: tAC, totalEntreguesNoPrazo: tENP, totalEntreguesComAtraso: tECA, totalPendentes: tP,
+            porcentagemEntreguesNoPrazo: tAC > 0 ? (tENP / tAC) * 100 : 0,
+            porcentagemComAtraso: tAC > 0 ? (tECA / tAC) * 100 : 0,
+            porcentagemPendentes: tAC > 0 ? (tP / tAC) * 100 : 0,
+            mediaDiasAtraso: cAATMPM > 0 ? sDA / cAATMPM : 0,
+        };
+    };
+
+    const calcularPerformanceCursos = (dados: ProcessedData[]): CursoPerformance[] => {
+        if (!dados || dados.length === 0) return [];
+        const map: Map<string, { totalAtividadesCurso: number; totalAtrasadasCurso: number; totalEntreguesNoPrazoCurso: number;}> = new Map();
+        dados.forEach(item => {
+            if (!item.Curso) return;
+            const s = map.get(item.Curso) || { totalAtividadesCurso: 0, totalAtrasadasCurso: 0, totalEntreguesNoPrazoCurso: 0 };
+            s.totalAtividadesCurso++; if (item.isAtrasado) s.totalAtrasadasCurso++; if (item.isEntregueNoPrazo) s.totalEntreguesNoPrazoCurso++;
+            map.set(item.Curso, s);
+        });
+        return Array.from(map.entries()).map(([nome, stats]) => ({
+            nomeCurso: nome, ...stats,
+            porcentagemAtrasoCurso: stats.totalAtividadesCurso > 0 ? (stats.totalAtrasadasCurso / stats.totalAtividadesCurso) * 100 : 0,
+            porcentagemEntreguesNoPrazoCurso: stats.totalAtividadesCurso > 0 ? (stats.totalEntreguesNoPrazoCurso / stats.totalAtividadesCurso) * 100 : 0,
+        }));
+    };
+
+    if (isLoading) return <LoadingScreen message="Carregando dados para o relatório..." />;
+    if (dataError) return <div className="p-4 text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-md">Erro ao carregar dados: {dataError}</div>;
+
+    let chartContentDocentesMelhor = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topDocentesMelhorPerformance.length > 0) {
+        chartContentDocentesMelhor = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topDocentesMelhorPerformance} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeAbreviado" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 100]} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickFormatter={(value) => `${value.toFixed(0)}%`} 
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            if (name === 'porcentagemEntreguesNoPrazo') {
+                                return [
+                                    `${value.toFixed(1)}% No Prazo`,
+                                    `Entregues: ${props.payload.totalEntreguesNoPrazo} de ${props.payload.totalAtividades}`
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string, payload: any[]) => <span style={{ fontWeight: '600', color: '#334155' }}>{payload && payload.length ? payload[0].payload.nomeDocente : label}</span>} 
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="porcentagemEntreguesNoPrazo" fill={COR_GRAFICO_POSITIVO} >
+                        <LabelList 
+                            dataKey="porcentagemEntreguesNoPrazo" 
+                            position="center" 
+                            style={{ fill: '#FFFFFF', fontSize: 10 }} 
+                            formatter={(value: number) => `${value.toFixed(1)}%`}
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+    let chartContentDocentesAtencao = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topDocentesPontosAtencao.length > 0) {
+        chartContentDocentesAtencao = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topDocentesPontosAtencao} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeAbreviado" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 'auto']} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        allowDecimals={false}
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            // 'value' will be props.payload.porcentagemAtraso because of the Bar's dataKey for sorting logic,
+                            // but we want to display totalAtrasadas in the tooltip's primary line.
+                            // The 'name' variable will be 'porcentagemAtraso'.
+                            // We need to be careful here if we change Bar dataKey.
+                            // For now, assuming sorting is by 'porcentagemAtraso' but bar displays 'totalAtrasadas'.
+                            // Let's make the Bar dataKey 'totalAtrasadas' and adjust tooltip logic.
+                            if (name === 'totalAtrasadas') { // This 'name' comes from the Bar's dataKey
+                                return [
+                                    `${props.payload.totalAtrasadas} de ${props.payload.totalAtividades} atrasadas (${props.payload.porcentagemAtraso.toFixed(1)}%)`,
+                                    `Docente: ${props.payload.nomeDocente}` // Show full name here
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string, payload: any[]) => {
+                            // The XAxis label (nomeAbreviado) is the first arg. We can use payload for more details if needed.
+                            // For consistency, we can ensure the main label in tooltip is the full name if available from payload
+                             if (payload && payload.length && payload[0].payload.nomeDocente) {
+                                return <span style={{ fontWeight: '600', color: '#334155' }}>{payload[0].payload.nomeDocente}</span>;
+                            }
+                            return <span style={{ fontWeight: '600', color: '#334155' }}>{label}</span>;
+                        }}
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="totalAtrasadas" fill={COR_GRAFICO_NEGATIVO}>
+                        <LabelList 
+                            dataKey="totalAtrasadas" // Show the quantity on the bar
+                            position="center" 
+                            style={{ fill: '#fef2f2', fontSize: 10 }} 
+                            // No formatter needed if we want to show the raw number
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+    let chartContentCursosMelhor = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topCursosMelhorPerformance.length > 0) {
+        chartContentCursosMelhor = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topCursosMelhorPerformance} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeCurso" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 100]} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickFormatter={(value) => `${value.toFixed(0)}%`}
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            if (name === 'porcentagemEntreguesNoPrazoCurso') {
+                                return [
+                                    `${value.toFixed(1)}% No Prazo`,
+                                    `Entregues: ${props.payload.totalEntreguesNoPrazoCurso} de ${props.payload.totalAtividadesCurso}`
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string) => <span style={{ fontWeight: '600', color: '#334155' }}>{label}</span>} 
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="porcentagemEntreguesNoPrazoCurso" fill={COR_GRAFICO_POSITIVO} >
+                        <LabelList 
+                            dataKey="porcentagemEntreguesNoPrazoCurso" 
+                            position="center" 
+                            style={{ fill: '#FFFFFF', fontSize: 10 }} 
+                            formatter={(value: number) => `${value.toFixed(1)}%`}
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+    let chartContentCursosAtencao = <p className="text-sm text-slate-500 dark:text-gray-400">Não há dados suficientes...</p>;
+    if (topCursosPontosAtencao.length > 0) {
+        chartContentCursosAtencao = (
+            <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={topCursosPontosAtencao} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                    <XAxis type="category" dataKey="nomeCurso" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                    <YAxis 
+                        type="number" 
+                        domain={[0, 'auto']} 
+                        width={0} 
+                        tick={false} 
+                        axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                        allowDecimals={false}
+                    />
+                    <Tooltip 
+                        formatter={(value: number, name: string, props: any) => {
+                            if (name === 'totalAtrasadasCurso') { // This 'name' comes from the Bar's dataKey
+                                return [
+                                    `${props.payload.totalAtrasadasCurso} de ${props.payload.totalAtividadesCurso} atrasadas (${props.payload.porcentagemAtrasoCurso.toFixed(1)}%)`,
+                                    // `Curso: ${props.payload.nomeCurso}` // nomeCurso is already the label
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                        labelFormatter={(label: string) => <span style={{ fontWeight: '600', color: '#334155' }}>{label}</span>} 
+                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="totalAtrasadasCurso" fill={COR_GRAFICO_NEGATIVO}>
+                        <LabelList 
+                            dataKey="totalAtrasadasCurso" 
+                            position="center" 
+                            style={{ fill: '#fef2f2', fontSize: 10 }}
+                        />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+    return (
+        <div className="p-6 lg:p-8 space-y-6 bg-gray-100 dark:bg-[#0f172a] text-slate-800 dark:text-gray-200 min-h-screen">
+            <header className="space-y-2 mb-6">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h2>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleExportarPDF}
+                            className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                            Exportar PDF
+                        </button>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="px-4 py-2 text-sm font-medium text-cyan-700 dark:text-cyan-500 bg-cyan-100 dark:bg-cyan-700/30 rounded-md hover:bg-cyan-200 dark:hover:bg-cyan-700/50 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                            &larr; Voltar ao Painel Principal
+                        </button>
+                    </div>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-gray-400">
+                    Selecione o ano, semestre, modalidade e a base de dados (Atual ou Histórico) para gerar o relatório consolidado.
+                </p>
+            </header>
+
+            {/* Filtros */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end p-4 bg-white dark:bg-slate-800 rounded-lg shadow">
+                <div>
+                    <label htmlFor="filtro-historico" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Dados Base:</label>
+                    <select 
+                        id="filtro-historico" 
+                        value={selectedHistory} 
+                        onChange={(e) => setSelectedHistory(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-cyan-50 border-cyan-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:focus:ring-cyan-600 dark:focus:border-cyan-600"
+                    >
+                        <option value="current">Atuais (Planilha Google)</option>
+                        {historyList && historyList.map((h: any) => (
+                            <option key={h.id} value={h.id}>{h.label}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="ano-relatorio" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Ano:</label>
+                    <input type="number" id="ano-relatorio" placeholder="Ex: 2024" value={anoSelecionado} onChange={(e) => setAnoSelecionado(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-white border-gray-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:placeholder-gray-400 dark:focus:ring-cyan-600 dark:focus:border-cyan-600" />
+                </div>
+                <div>
+                    <label htmlFor="semestre-relatorio" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Semestre:</label>
+                    <select id="semestre-relatorio" value={semestreFiltro} onChange={(e) => setSemestreFiltro(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-white border-gray-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:placeholder-gray-400 dark:focus:ring-cyan-600 dark:focus:border-cyan-600">
+                        <option value="0">Ambos os Semestres</option>
+                        <option value="1">1º Semestre</option>
+                        <option value="2">2º Semestre</option>
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="modalidade-relatorio" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Modalidade:</label>
+                    <select id="modalidade-relatorio" value={modalidadeSelecionada} onChange={(e) => setModalidadeSelecionada(e.target.value)}
+                        className="block w-full px-3 py-1.5 text-sm rounded-md shadow-sm bg-white border-gray-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-300 dark:placeholder-gray-400 dark:focus:ring-cyan-600 dark:focus:border-cyan-600">
+                        <option value="Todas">Todas as Modalidades</option>
+                        {modalidadesUnicas.map(mod => (<option key={mod} value={mod}>{mod}</option>))}
+                    </select>
+                </div>
+                <button onClick={handleGerarRelatorio}
+                    className="w-full md:w-auto px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-md hover:bg-cyan-700 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800">
+                    Gerar Relatório
+                </button>
+            </div>
+
+            <div ref={reportRef} className="bg-gray-100 dark:bg-[#0f172a] pb-6 rounded-lg pt-6 px-4 -mx-4 mt-2">
+            {/* KPIs Gerais do Período */}
+            {kpisPeriodo && (
+            <div className="p-4 bg-slate-100 dark:bg-slate-900 rounded-lg shadow">
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-4">Resumo Geral do Semestre</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <KpiCard titulo="Total de Atividades" valor={kpisPeriodo.totalAtividadesConsideradas} />
+                    <KpiCard titulo="% Entregues no Prazo" valor={kpisPeriodo.porcentagemEntreguesNoPrazo.toFixed(1)} unidade="%" corValor={kpisPeriodo.porcentagemEntreguesNoPrazo >= 70 ? 'text-green-500 dark:text-green-400' : kpisPeriodo.porcentagemEntreguesNoPrazo >= 50 ? 'text-amber-500 dark:text-amber-400' : 'text-red-500 dark:text-red-400'} descricao={`${kpisPeriodo.totalEntreguesNoPrazo} atividades`} />
+                    <KpiCard titulo="% Entregues com Atraso" valor={kpisPeriodo.porcentagemComAtraso.toFixed(1)} unidade="%" corValor={kpisPeriodo.porcentagemComAtraso > 20 ? 'text-red-500 dark:text-red-400' : kpisPeriodo.porcentagemComAtraso > 10 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-white'} descricao={`${kpisPeriodo.totalEntreguesComAtraso} atividades`} />
+                    <div onClick={handleAbrirModalPendentes} className="cursor-pointer hover:opacity-80 transition-opacity">
+                        <KpiCard 
+                            titulo="% Pendentes" 
+                            valor={kpisPeriodo.porcentagemPendentes.toFixed(1)} 
+                            unidade="%" 
+                            corValor={kpisPeriodo.porcentagemPendentes > 15 ? 'text-red-500 dark:text-red-400' : kpisPeriodo.porcentagemPendentes > 5 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-white'} 
+                            descricao={`${kpisPeriodo.totalPendentes} atividades (clique para ver)`} 
+                        />
+                    </div>
+                    <KpiCard titulo="Média Dias de Atraso" valor={Math.round(kpisPeriodo.mediaDiasAtraso)} unidade="dias" descricao="Para atividades entregues com atraso" corValor={kpisPeriodo.mediaDiasAtraso > 7 ? 'text-red-500 dark:text-red-400' : kpisPeriodo.mediaDiasAtraso > 3 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-white'} />
+                </div>
+            </div>
+            )}
+
+            {/* Rankings de Docentes */}
+            {relatorioGerado && relatorioGerado.length > 0 && (
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Docentes (Melhor % Entregas no Prazo)</h4>
+                        {chartContentDocentesMelhor}
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Docentes (Maior Quantidade de Atrasos)</h4>
+                        {chartContentDocentesAtencao}
+                    </div>
+                </div>
+            )}
+
+            {/* Rankings de Cursos */}
+            {relatorioGerado && relatorioGerado.length > 0 && (
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Cursos (Melhor % Entregas no Prazo)</h4>
+                        {chartContentCursosMelhor}
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                        <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3">Top 5 Cursos (Maior Quantidade de Atrasos)</h4>
+                        {chartContentCursosAtencao}
+                    </div>
+                </div>
+            )}
+
+            {/* Ranking de Disciplinas Problemáticas Removido */}
+            </div>
+
+            <DetalhamentoPendentesModal 
+                isOpen={isPendentesModalOpen}
+                onClose={() => setIsPendentesModalOpen(false)}
+                atividadesPendentes={dadosPendentesParaModal}
+            />
+        </div>
+    );
+};
+
+export default RelatorioPeriodo;
