@@ -4,7 +4,7 @@
   "description": "Backend service for the Discipline Insight Dash.",
   "main": "server.js",
   "scripts": {
-    "start": "node --tls-min-v1.0 server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
