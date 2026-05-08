@@ -4,7 +4,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { processData } = require('./dataProcessor');
-const { executeMoodleQuery } = require('./db'); // Importa a função de consulta
+const { getSheetsData } = require('./sheets');
+const { supabase } = require('./supabase');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,62 +19,124 @@ app.get('/', (req, res) => {
   res.send('Backend do Discipline Insight Dash está no ar!');
 });
 
-// Rota da API para buscar e processar os dados do Moodle
+// Rota da API para buscar e processar os dados
 app.get('/api/dados', async (req, res) => {
   try {
-    const { curso, modalidade, semestre, modulo, cursosCoordenador } = req.query;
+    const { curso, modalidade, semestre, modulo, history_id } = req.query;
 
-    // 1. Busca os dados brutos do banco de dados Moodle
-    let dadosDoBanco = await executeMoodleQuery();
+    let dadosBrutos = [];
 
-    // O filtro de `cursosCoordenador` não pode mais ser aplicado aqui,
-    // pois os dados de coordenador não vêm do Moodle.
-    // Esta lógica precisará ser repensada quando a fonte de dados do Lyceum for integrada.
+    if (history_id && history_id !== 'current') {
+      // Busca os dados do histórico
+      const { data, error } = await supabase
+        .from('history_reports')
+        .select('data')
+        .eq('id', history_id)
+        .single();
 
-    // 2. Aplica os filtros da UI aos dados já buscados
-    if (curso && curso !== 'Todos') {
-        dadosDoBanco = dadosDoBanco.filter(item => item.Curso === curso);
+      if (error) {
+        console.error('Erro ao buscar histórico do Supabase:', error);
+        return res.status(500).json({ error: 'Erro ao buscar dados do histórico.' });
+      }
+
+      dadosBrutos = data.data || [];
+    } else {
+      // Busca os dados atuais
+      dadosBrutos = await getSheetsData();
     }
-    // As colunas a seguir são nulas, então os filtros não terão efeito por enquanto,
-    // mas a estrutura está mantida para quando forem preenchidas.
+
+    // Aplica os filtros da UI aos dados já buscados
+    if (curso && curso !== 'Todos') {
+        dadosBrutos = dadosBrutos.filter(item => item.Curso === curso);
+    }
     if (modalidade && modalidade !== 'Todos') {
-        dadosDoBanco = dadosDoBanco.filter(item => item.Modalidade === modalidade);
+        dadosBrutos = dadosBrutos.filter(item => item.Modalidade === modalidade);
     }
     if (semestre && semestre !== 'Todos') {
-        dadosDoBanco = dadosDoBanco.filter(item => item.Semestre === semestre);
+        dadosBrutos = dadosBrutos.filter(item => item.Semestre === semestre);
     }
     if (modulo && modulo !== 'Todos') {
-        dadosDoBanco = dadosDoBanco.filter(item => item['Módulo'] === modulo);
+        dadosBrutos = dadosBrutos.filter(item => item['Módulo'] === modulo || item['Modulo'] === modulo);
     }
 
     // 3. Processa os dados JÁ FILTRADOS
-    const processed = processData(dadosDoBanco);
+    const processed = processData(dadosBrutos);
     res.json(processed);
 
   } catch (error) {
-    console.error('Erro ao buscar ou processar dados do Moodle:', error);
-    res.status(500).json({ error: 'Erro interno do servidor ao conectar ao banco de dados.' });
+    console.error('Erro ao buscar ou processar dados:', error);
+    res.status(500).json({ error: 'Erro interno do servidor ao buscar dados.' });
   }
 });
 
 // Rota para obter as opções de filtro dinamicamente do banco
 app.get('/api/filter-options', async (req, res) => {
     try {
-        const rawData = await executeMoodleQuery();
+        const rawData = await getSheetsData();
         
-        // Gera as opções de filtro a partir dos dados reais do banco
+        // Gera as opções de filtro a partir dos dados reais da planilha
         const semestres = [...new Set(rawData.map(item => item.Semestre).filter(Boolean))].sort();
         const modalidades = [...new Set(rawData.map(item => item.Modalidade).filter(Boolean))].sort();
-        const modulos = [...new Set(rawData.map(item => item['Módulo']).filter(Boolean))].sort();
+        const modulos = [...new Set(rawData.map(item => item['Módulo'] || item['Modulo']).filter(Boolean))].sort();
         const cursos = [...new Set(rawData.map(item => item.Curso).filter(Boolean))].sort();
 
         res.json({ semestres, modalidades, modulos, cursos });
     } catch (error) {
-        console.error('Erro ao buscar opções de filtro do Moodle:', error);
+        console.error('Erro ao buscar opções de filtro:', error);
         res.status(500).json({ error: 'Erro interno do servidor.' });
     }
 });
 
+
+// Rota para listar os históricos salvos
+app.get('/api/history', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('history_reports')
+      .select('id, created_at, label')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao listar históricos do Supabase:', error);
+      return res.status(500).json({ error: 'Erro interno ao listar históricos.' });
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('Erro inesperado ao listar históricos:', error);
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
+});
+
+// Rota para salvar o histórico atual
+app.post('/api/history', async (req, res) => {
+  try {
+    const dadosAtuais = await getSheetsData();
+
+    if (!dadosAtuais || dadosAtuais.length === 0) {
+      return res.status(400).json({ error: 'Não há dados na planilha para salvar.' });
+    }
+
+    const label = `Relatório de ${new Date().toLocaleDateString('pt-BR')}`;
+
+    const { data, error } = await supabase
+      .from('history_reports')
+      .insert([
+        { data: dadosAtuais, label: label }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Erro ao salvar histórico no Supabase:', error);
+      return res.status(500).json({ error: 'Erro interno ao salvar histórico.' });
+    }
+
+    res.json({ message: 'Histórico salvo com sucesso!', history: data[0] });
+  } catch (error) {
+    console.error('Erro inesperado ao salvar histórico:', error);
+    res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
+});
 
 // Rota da API para buscar dados dos coordenadores (RETORNA VAZIO TEMPORARIAMENTE)
 app.get('/api/coordinators', (req, res) => {
