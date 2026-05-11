@@ -11,7 +11,8 @@ import { VisaoGeral } from '../components/VisaoGeral';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProcessedData, FilterState, KPIData } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, FileText } from 'lucide-react';
+// ATUALIZAÇÃO AQUI: Importando ícones Save e Calendar
+import { LogOut, FileText, Save, Calendar } from 'lucide-react';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import useIdleTimer from '../hooks/useIdleTimer';
 import { toast as sonnerToast } from "@/components/ui/sonner";
@@ -19,12 +20,12 @@ import { toast as sonnerToast } from "@/components/ui/sonner";
 export default function Index() {
     const navigate = useNavigate();
     
-    // Importando as variáveis de histórico do contexto
     const { 
         allData, 
         isLoading: isDataLoading, 
         error: dataError,
         historyList,
+        fetchHistoryList, // Precisamos disso para atualizar a lista após salvar
         selectedHistory,
         setSelectedHistory 
     } = useDataContext();
@@ -34,6 +35,9 @@ export default function Index() {
     const [filters, setFilters] = useState<FilterState>({ semestre: 'Todos', modalidade: 'Todos', modulo: 'Todos', curso: 'Todos' });
     const [selectedDocente, setSelectedDocente] = useState<string | null>(null);
     const [isNotifying, setIsNotifying] = useState(false);
+    
+    // Novo estado para o loading do botão de salvar
+    const [isSaving, setIsSaving] = useState(false);
 
     const handleLogout = useCallback(() => {
         logout();
@@ -46,7 +50,6 @@ export default function Index() {
         if (user.role === 'admin') {
             return allData;
         }
-        // Para coordenador
         if (!user.username) return [];
         return allData.filter(row => row.Login === user.username);
     }, [allData, user]);
@@ -89,6 +92,26 @@ export default function Index() {
     
     const handleDocenteSelect = (docente: string) => {
         setSelectedDocente(selectedDocente === docente ? null : docente);
+    };
+
+    // Função para salvar o estado atual no Supabase
+    const handleSaveHistory = async () => {
+        try {
+            setIsSaving(true);
+            const response = await fetch('/api/history', { method: 'POST' });
+            
+            if (response.ok) {
+                sonnerToast.success("Estado atual salvo com sucesso!");
+                await fetchHistoryList(); // Recarrega a lista de datas no select
+            } else {
+                const errData = await response.json();
+                sonnerToast.error(errData.error || "Erro ao salvar histórico.");
+            }
+        } catch (error) {
+            sonnerToast.error("Erro de conexão ao tentar salvar o histórico.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const kpis = useMemo((): KPIData => {
@@ -248,42 +271,81 @@ export default function Index() {
                 <header className="space-y-4">
                     <div className="flex justify-between items-center gap-4">
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Acompanhamento de Disciplinas</h2>
-                        <div className="flex items-center gap-2 md:gap-4">
-                            {user?.role === 'admin' && (
-                                <button onClick={() => navigate('/relatorio-periodo')} title="Relatório do Semestre" className="p-2 rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                                    <FileText size={20} />
-                                </button>
-                            )}
+                        
+                        {/* ATUALIZAÇÃO: Container flex-wrap para estruturar os grupos de botões */}
+                        <div className="flex flex-wrap items-center gap-3">
                             
-                            {/* O Seletor agora aparece independentemente de historyList.length */}
-                            <select
-                                value={selectedHistory}
-                                onChange={(e) => setSelectedHistory(e.target.value)}
-                                title="Visualizar estado de uma data anterior"
-                                className="p-1.5 md:p-2 text-sm bg-white dark:bg-slate-800 text-slate-600 dark:text-gray-300 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer shadow-sm"
-                            >
-                                <option value="current">Estado Atual</option>
-                                {historyList && historyList.map((hist: any) => {
-                                    let label = hist.label || hist.id; // Usa a label do banco, se existir
-                                    if (hist.created_at && !hist.label) {
-                                        const d = new Date(hist.created_at);
-                                        label = d.toLocaleDateString('pt-BR', { 
-                                            day: '2-digit', month: '2-digit', year: 'numeric', 
-                                            hour: '2-digit', minute: '2-digit' 
-                                        });
-                                    }
-                                    return (
-                                        <option key={hist.id} value={hist.id}>
-                                            {label}
-                                        </option>
-                                    );
-                                })}
-                            </select>
+                            {/* GRUPO 1: Relatórios e Histórico (Apenas Admin) */}
+                            {user?.role === 'admin' && (
+                                <div className="flex items-center bg-white dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-slate-700 shadow-sm">
+                                    
+                                    <button 
+                                        onClick={() => navigate('/relatorio-periodo')} 
+                                        title="Relatório do Semestre" 
+                                        className="p-2 flex items-center justify-center rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    >
+                                        <FileText size={18} />
+                                    </button>
 
-                            <ThemeSwitcher />
-                            <button onClick={handleLogout} title="Sair" className="p-2 rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
-                                <LogOut size={20} />
-                            </button>
+                                    <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
+
+                                    <button 
+                                        onClick={handleSaveHistory} 
+                                        disabled={isSaving}
+                                        title="Salvar Estado Atual (Criar Histórico)" 
+                                        className="p-2 flex items-center justify-center rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                                    >
+                                        <Save size={18} />
+                                    </button>
+                                    
+                                    <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
+
+                                    {/* Select Personalizado com ícone de calendário */}
+                                    <div className="relative flex items-center px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group">
+                                        <Calendar size={18} className="text-slate-600 dark:text-gray-300 mr-2" />
+                                        <select
+                                            value={selectedHistory}
+                                            onChange={(e) => setSelectedHistory(e.target.value)}
+                                            title="Visualizar estado de uma data anterior"
+                                            className="appearance-none bg-transparent text-sm font-medium text-slate-600 dark:text-gray-300 outline-none cursor-pointer pr-4"
+                                        >
+                                            <option value="current">Estado Atual</option>
+                                            {historyList && historyList.map((hist: any) => {
+                                                let label = hist.label || hist.id;
+                                                if (hist.created_at && !hist.label) {
+                                                    const d = new Date(hist.created_at);
+                                                    label = d.toLocaleDateString('pt-BR', { 
+                                                        day: '2-digit', month: '2-digit', year: 'numeric', 
+                                                        hour: '2-digit', minute: '2-digit' 
+                                                    });
+                                                }
+                                                return (
+                                                    <option key={hist.id} value={hist.id}>
+                                                        {label}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        {/* Seta customizada que aponta para baixo */}
+                                        <div className="absolute right-2 pointer-events-none text-slate-400 dark:text-slate-500">
+                                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            )}
+
+                            {/* GRUPO 2: Sistema */}
+                            <div className="flex items-center bg-white dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-slate-700 shadow-sm">
+                                <ThemeSwitcher />
+                                <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
+                                <button onClick={handleLogout} title="Sair" className="p-2 flex items-center justify-center rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                                    <LogOut size={18} />
+                                </button>
+                            </div>
+                            
                         </div>
                     </div>
                     <div>
