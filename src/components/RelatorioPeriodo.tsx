@@ -5,7 +5,7 @@ import { ProcessedData, DocentePerformance, IKpisPeriodo, CursoPerformance } fro
 import { LoadingScreen } from './LoadingScreen';
 import useIdleTimer from '../hooks/useIdleTimer';
 import { KpiCard } from './ui/KpiCard';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Cell } from 'recharts';
 import { DetalhamentoPendentesModal } from './modals/DetalhamentoPendentesModal'; // Importar o modal
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -398,11 +398,11 @@ export const RelatorioPeriodo: React.FC = () => {
     }
 
     return (
-        <div className="p-6 lg:p-8 space-y-6 bg-gray-100 dark:bg-[#0f172a] text-slate-800 dark:text-gray-200 min-h-screen">
+        <div ref={reportRef} className="p-6 lg:p-8 space-y-6 bg-gray-100 dark:bg-[#0f172a] text-slate-800 dark:text-gray-200 min-h-screen">
             <header className="space-y-2 mb-6">
                 <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Visão Geral</h2>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" data-html2canvas-ignore="true">
                         <button
                             onClick={handleExportarPDF}
                             className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -460,13 +460,13 @@ export const RelatorioPeriodo: React.FC = () => {
                         {modalidadesUnicas.map(mod => (<option key={mod} value={mod}>{mod}</option>))}
                     </select>
                 </div>
-                <button onClick={handleGerarRelatorio}
+                <button onClick={handleGerarRelatorio} data-html2canvas-ignore="true"
                     className="w-full md:w-auto px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-md hover:bg-cyan-700 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800">
                     Gerar Relatório
                 </button>
             </div>
 
-            <div ref={reportRef} className="bg-gray-100 dark:bg-[#0f172a] pb-6 rounded-lg pt-6 px-4 -mx-4 mt-2">
+            <div className="bg-gray-100 dark:bg-[#0f172a] pb-6 rounded-lg pt-6 px-4 -mx-4 mt-2">
             {/* KPIs Gerais do Período */}
             {kpisPeriodo && (
             <div className="p-4 bg-slate-100 dark:bg-slate-900 rounded-lg shadow">
@@ -523,51 +523,77 @@ export const RelatorioPeriodo: React.FC = () => {
             {relatorioGerado && relatorioGerado.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 {/* Top 5 Mais Ativos (Menor Média) */}
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow min-h-[300px]">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                    <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3 flex items-center gap-2">
                         <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
                         Top 5 - Maior Frequência de Acesso
-                    </h3>
-                    <div className="space-y-4">
-                        {topFrequencia.map((doc, i) => (
-                            <div key={i} className="flex flex-col gap-1">
-                                <div className="flex justify-between text-sm font-medium">
-                                    <span className="text-slate-600 dark:text-slate-300 truncate max-w-[200px]" title={doc.docente}>{doc.nomeAbreviado}</span>
-                                    <span className="text-emerald-500">{doc.mediaAcesso.toFixed(1)} dias s/ acesso (média)</span>
-                                </div>
-                                <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2">
-                                    <div 
-                                        className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
-                                        style={{ width: `${Math.max(5, 100 - (doc.mediaAcesso * 10))}%` }}
-                                    ></div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    </h4>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <BarChart data={topFrequencia} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                            <XAxis dataKey="nomeAbreviado" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                            <YAxis 
+                                type="number" 
+                                width={0} 
+                                tick={false} 
+                                axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                                tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                            />
+                            <Tooltip 
+                                formatter={(value: number) => [`${value.toFixed(1)} dias`, 'Média s/ acesso']}
+                                labelFormatter={(label: string, payload: any[]) => <span style={{ fontWeight: '600', color: '#334155' }}>{payload && payload.length ? payload[0].payload.docente : label}</span>} 
+                                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                            />
+                            <Bar dataKey="mediaAcesso" radius={[4, 4, 0, 0]}>
+                                {topFrequencia.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COR_GRAFICO_POSITIVO} />
+                                ))}
+                                <LabelList 
+                                    dataKey="mediaAcesso" 
+                                    position="center" 
+                                    style={{ fill: '#FFFFFF', fontSize: 10 }} 
+                                    formatter={(v: number) => `${v.toFixed(1)}`}
+                                />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
 
                 {/* Top 5 Menos Ativos (Maior Média) */}
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow min-h-[300px]">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
+                    <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3 flex items-center gap-2">
                         <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
                         Top 5 - Menor Frequência de Acesso
-                    </h3>
-                    <div className="space-y-4">
-                        {bottomFrequencia.map((doc, i) => (
-                            <div key={i} className="flex flex-col gap-1">
-                                <div className="flex justify-between text-sm font-medium">
-                                    <span className="text-slate-600 dark:text-slate-300 truncate max-w-[200px]" title={doc.docente}>{doc.nomeAbreviado}</span>
-                                    <span className="text-rose-500">{doc.mediaAcesso.toFixed(1)} dias s/ acesso (média)</span>
-                                </div>
-                                <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2">
-                                    <div 
-                                        className="bg-rose-500 h-2 rounded-full transition-all duration-500" 
-                                        style={{ width: `${Math.min(100, doc.mediaAcesso * 5)}%` }}
-                                    ></div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    </h4>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <BarChart data={bottomFrequencia} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                            <XAxis dataKey="nomeAbreviado" tick={{ fontSize: 9, fill: '#FFFFFF' }} interval={0} angle={-30} textAnchor="end" height={60} />
+                            <YAxis 
+                                type="number" 
+                                width={0} 
+                                tick={false} 
+                                axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                                tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
+                            />
+                            <Tooltip 
+                                formatter={(value: number) => [`${value.toFixed(1)} dias`, 'Média s/ acesso']}
+                                labelFormatter={(label: string, payload: any[]) => <span style={{ fontWeight: '600', color: '#334155' }}>{payload && payload.length ? payload[0].payload.docente : label}</span>} 
+                                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                            />
+                            <Bar dataKey="mediaAcesso" radius={[4, 4, 0, 0]}>
+                                {bottomFrequencia.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COR_GRAFICO_NEGATIVO} />
+                                ))}
+                                <LabelList 
+                                    dataKey="mediaAcesso" 
+                                    position="center" 
+                                    style={{ fill: '#fef2f2', fontSize: 10 }} 
+                                    formatter={(v: number) => `${v.toFixed(1)}`}
+                                />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
             )}
