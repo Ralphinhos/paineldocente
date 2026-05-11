@@ -1,129 +1,141 @@
-import React from 'react';
+import { Link, useNavigate } from 'react-router-dom'; // Adicionado Link
+import React, { FC, useEffect, useState } from 'react';
 import { KPIData } from '../types';
-import { AlertTriangle, Clock, UserX, Bell, Loader2 } from 'lucide-react';
 
 interface SidebarProps {
   kpis: KPIData;
   userRole: string | null;
-  onNotification: (action: string) => void;
-  isNotifying: boolean;
+  onNotification?: (action: string) => void; // Opcional, pois só admin usará
+  isNotifying?: boolean; // Nova propriedade para controlar o estado de notificação
 }
 
-const shortenName = (name: string) => {
-  if (!name) return '';
-  const parts = name.trim().split(/\s+/);
-  return parts.length > 2 ? `${parts[0]} ${parts[parts.length - 1]}` : name;
-};
+import { useAuth } from '../contexts/AuthContext'; // Importar o hook de autenticação
 
-export const Sidebar: React.FC<SidebarProps> = ({ kpis, userRole, onNotification, isNotifying }) => {
-  const cardBase = "p-4 rounded-lg border";
-  const cardRed = `${cardBase} bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800`;
-  const cardAmber = `${cardBase} bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800`;
-  const cardSlate = `${cardBase} bg-slate-50 border-slate-200 dark:bg-slate-700/40 dark:border-slate-600`;
+export const Sidebar: FC<SidebarProps> = ({ kpis, onNotification, isNotifying = false }) => {
+  const { user } = useAuth(); // Consumir o usuário do contexto
+  const userRole = user?.role;
+  const loggedInCoordinatorName = user?.name;
+
+  const shortenName = (name: string) => {
+    if (typeof name !== 'string' || !name) return '';
+    const parts = name.trim().split(/\s+/);
+    return parts.length > 2 ? `${parts[0]} ${parts[parts.length - 1]}` : name;
+  };
+
+  // A classe .card da tag <style> em Index.tsx tem: background-color: rgba(30, 41, 59, 0.7); border: 1px solid rgba(55, 65, 81, 0.5); backdrop-filter: blur(12px); border-radius: 1rem;
+  // Vamos adicionar text-center e um rounded-xl para os cards de KPI.
+  const kpiCardClasses = "bg-[rgba(30,41,59,0.7)] border border-[rgba(55,65,81,0.5)] backdrop-blur-md p-4 text-center rounded-xl";
+  // O card de nome do coordenador pode manter o estilo original ou ser ajustado similarmente.
+  const coordinatorCardClasses = "bg-[rgba(30,41,59,0.5)] border border-[rgba(55,65,81,0.5)] backdrop-blur-md p-3 text-center mb-2 rounded-xl";
+  // O card de Ações de Comunicação
+  const actionsCardClasses = "bg-[rgba(30,41,59,0.7)] border border-[rgba(55,65,81,0.5)] backdrop-blur-md p-3 flex-grow flex flex-col rounded-xl"; // p-4 para p-3
+
 
   return (
-    <aside className="w-72 flex-shrink-0 h-screen overflow-y-auto bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 p-4 flex flex-col gap-4">
-      {/* Logo */}
-      <div className="flex items-center justify-center py-2 mb-2">
-        <img src="/logo_branca.png" alt="Logo" className="h-12 w-auto hidden dark:block" />
-        <img src="/logo.png" alt="Logo" className="h-12 w-auto dark:hidden" />
+    <aside className="w-72 bg-[#020617] border-r border-gray-800 p-4 flex flex-col space-y-4 overflow-y-auto"> {/* p-6 para p-4, space-y-6 para space-y-4 */}
+      <div className="flex items-center justify-center mb-2"> {/* mb-4 para mb-2 */}
+        <img
+          src="/logo_branca.png"
+          alt="logo_unifenas"
+          className="h-16 w-auto" // h-20 para h-16
+        />
       </div>
 
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
-        Indicadores
-      </h3>
-
-      {/* Pendentes */}
-      <div className={cardRed}>
-        <div className="flex items-center gap-2 mb-1">
-          <AlertTriangle className="w-4 h-4 text-red-500" />
-          <span className="text-xs font-medium text-red-700 dark:text-red-400">Pendentes</span>
+      {loggedInCoordinatorName && (
+        <div className={coordinatorCardClasses}>
+          <p className="text-xs text-cyan-400">{userRole === 'admin' ? 'Usuário:' : 'Coordenador(a):'}</p>
+          <p className="text-sm font-semibold text-white">{shortenName(loggedInCoordinatorName)}</p>
         </div>
-        <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-          {kpis.totalPendentesModalidade}
+      )}
+
+      {/* Link para o Relatório do Período REMOVIDO */}
+
+      {/* KPIs da Modalidade Selecionada */}
+      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
+        <p className="text-xs text-gray-400">Total Pendentes (Modalidade)</p>
+        <p className="text-2xl font-bold text-[#ef4444]">
+          {kpis.totalPendentesModalidade > 0 ? kpis.totalPendentesModalidade : (kpis.docenteMaiorMediaAtraso === undefined && kpis.totalPendentesModalidade === 0 ? "Selec. Mod." : kpis.totalPendentesModalidade)}
         </p>
-        <p className="text-xs text-red-500 dark:text-red-500 mt-1">atividades não entregues</p>
       </div>
-
-      {/* Atrasadas */}
-      <div className={cardAmber}>
-        <div className="flex items-center gap-2 mb-1">
-          <Clock className="w-4 h-4 text-amber-500" />
-          <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Com Atraso</span>
-        </div>
-        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-          {kpis.totalAtrasadasModalidade}
+      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
+        <p className="text-xs text-gray-400">Total Atrasadas (Modalidade)</p>
+        <p className="text-2xl font-bold text-[#f59e0b]">
+          {kpis.totalAtrasadasModalidade > 0 ? kpis.totalAtrasadasModalidade : (kpis.docenteMaiorMediaAtraso === undefined && kpis.totalAtrasadasModalidade === 0 ? "Selec. Mod." : kpis.totalAtrasadasModalidade)}
         </p>
-        <p className="text-xs text-amber-500 dark:text-amber-500 mt-1">entregues fora do prazo</p>
       </div>
 
-      {/* Docente sem acesso */}
-      {kpis.docenteMenosAcesso && (
-        <div className={cardSlate}>
-          <div className="flex items-center gap-2 mb-1">
-            <UserX className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Sem Acesso</span>
+      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
+        <p className="text-xs text-gray-400">Docente com Maior Atraso</p>
+        {kpis.docenteMaiorMediaAtraso ? (
+          <>
+            <p className="text-base font-semibold text-orange-400">{shortenName(kpis.docenteMaiorMediaAtraso.nome)}</p>
+            <p className="text-xl font-bold text-orange-400">Média: {kpis.docenteMaiorMediaAtraso.mediaDias}d</p>
+          </>
+        ) : (
+          <p className="text-xl font-bold text-orange-400">{kpis.docenteMaiorMediaAtraso === undefined ? "Selec. Mod." : "-"}</p>
+        )}
+      </div>
+
+      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
+        <p className="text-xs text-gray-400">Docente com Mais Pendências</p>
+        {kpis.docenteMaisPendencias ? (
+          <>
+            <p className="text-base font-semibold text-indigo-400">{shortenName(kpis.docenteMaisPendencias.nome)}</p>
+            <p className="text-xl font-bold text-indigo-400">{kpis.docenteMaisPendencias.quantidade} pendência(s)</p>
+          </>
+        ) : (
+          <p className="text-xl font-bold text-indigo-400">{kpis.docenteMaisPendencias === undefined ? "Selec. Mod." : "-"}</p>
+        )}
+      </div>
+      
+      <div className={kpiCardClasses.replace('p-4', 'p-3')}>
+        <p className="text-xs text-gray-400">Docente com Menos Acesso Recente</p>
+        {kpis.docenteMenosAcesso ? (
+          <>
+            <p className="text-base font-semibold text-teal-400">{shortenName(kpis.docenteMenosAcesso.nome)}</p>
+            {/* <p className="text-sm text-gray-300">Média: {kpis.docenteMenosAcesso.mediaDiasSemAcesso}d s/acesso</p> REMOVIDO */}
+            <p className="text-xs text-gray-400" title={`${kpis.docenteMenosAcesso.disciplinaDestaque} (${kpis.docenteMenosAcesso.diasDisciplinaDestaque}d)`}>
+                Destaque: {kpis.docenteMenosAcesso.disciplinaDestaque} ({kpis.docenteMenosAcesso.diasDisciplinaDestaque}d)
+            </p>
+          </>
+        ) : (
+          <p className="text-xl font-bold text-teal-400">{kpis.docenteMenosAcesso === undefined ? "Selec. Mod." : "-"}</p>
+        )}
+      </div>
+
+      {/* Seção de Ações de Comunicação - VISÍVEL APENAS PARA ADMIN */}
+      {userRole === 'admin' && onNotification && (
+        <div className={actionsCardClasses}>
+          <h3 className="text-sm font-semibold text-white mb-2 text-center">Ações de Comunicação</h3>
+          <div className="space-y-2">
+            <button 
+              onClick={() => onNotification && onNotification('coordenadores')} 
+              className="w-full text-sm py-2 px-4 bg-[#2b466d] text-white font-semibold rounded-md hover:bg-[#3c5f94] transition-colors disabled:opacity-50"
+              disabled={isNotifying}
+            >
+              Notificar Coordenadores
+            </button>
+            <button 
+              onClick={() => onNotification && onNotification('docentes')} 
+              className="w-full text-sm py-2 px-4 bg-transparent border border-[#2b466d] text-[#adbbd1] hover:bg-[rgba(43,70,109,0.2)] font-semibold rounded-md transition-colors disabled:opacity-50"
+              disabled={isNotifying}
+            >
+              Notificar Docentes
+            </button>
+            <button 
+              onClick={() => onNotification && onNotification('cobrancaUas')} 
+              className="w-full text-sm py-2 px-4 bg-transparent border border-[#00adc7] text-[#00adc7] hover:bg-[rgba(0,173,199,0.1)] font-semibold rounded-md transition-colors disabled:opacity-50"
+              disabled={isNotifying}
+            >
+              ✨ Cobrar UAs Pendentes
+            </button>
           </div>
-          <p className="text-sm font-semibold text-slate-700 dark:text-white truncate" title={kpis.docenteMenosAcesso.nome}>
-            {shortenName(kpis.docenteMenosAcesso.nome)}
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {kpis.docenteMenosAcesso.diasDisciplinaDestaque} dias sem acesso
-          </p>
         </div>
       )}
 
-      {/* Docente mais pendências */}
-      {kpis.docenteMaisPendencias && (
-        <div className={cardRed}>
-          <div className="flex items-center gap-2 mb-1">
-            <AlertTriangle className="w-4 h-4 text-red-400" />
-            <span className="text-xs font-medium text-red-700 dark:text-red-400">+ Pendências</span>
-          </div>
-          <p className="text-sm font-semibold text-slate-700 dark:text-white truncate" title={kpis.docenteMaisPendencias.nome}>
-            {shortenName(kpis.docenteMaisPendencias.nome)}
-          </p>
-          <p className="text-xs text-red-500 dark:text-red-400 mt-1">
-            {kpis.docenteMaisPendencias.quantidade} pendência{kpis.docenteMaisPendencias.quantidade !== 1 ? 's' : ''}
-          </p>
-        </div>
-      )}
+      {/* Card "Meus Cursos" foi removido conforme solicitado */}
 
-      {/* Docente maior média de atraso */}
-      {kpis.docenteMaiorMediaAtraso && (
-        <div className={cardAmber}>
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Maior Atraso</span>
-          </div>
-          <p className="text-sm font-semibold text-slate-700 dark:text-white truncate" title={kpis.docenteMaiorMediaAtraso.nome}>
-            {shortenName(kpis.docenteMaiorMediaAtraso.nome)}
-          </p>
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-            média {kpis.docenteMaiorMediaAtraso.mediaDias} dias de atraso
-          </p>
-        </div>
-      )}
-
-      {/* Notificações — apenas admin */}
-      {userRole === 'admin' && (
-        <div className="mt-auto pt-4 border-t border-gray-200 dark:border-slate-700 space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
-            Ações
-          </h3>
-          <button
-            onClick={() => onNotification('Notificar Pendentes')}
-            disabled={isNotifying}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 text-cyan-700 dark:bg-cyan-900/20 dark:hover:bg-cyan-900/40 dark:border-cyan-800 dark:text-cyan-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isNotifying
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <Bell className="w-4 h-4" />
-            }
-            Notificar Docentes
-          </button>
-        </div>
-      )}
+      {/* Botão Sair removido daqui */}
     </aside>
   );
 };
