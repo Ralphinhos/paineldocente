@@ -1,6 +1,7 @@
 
 import React, { FC } from 'react';
 import { FilterState } from '../types';
+import { useDataContext } from '../contexts/DataContext';
 
 interface FilterControlsProps {
     filters: FilterState;
@@ -14,6 +15,8 @@ interface FilterControlsProps {
 }
 
 export const FilterControls: FC<FilterControlsProps> = ({ filters, filterOptions, onFilterChange }) => {
+    const { historyList, selectedHistory, setSelectedHistory } = useDataContext();
+
     const selectClasses = "block w-full px-3 py-1.5 text-sm rounded-md shadow-sm " +
                           "bg-white border-gray-300 text-slate-700 " +
                           "focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 " +
@@ -23,6 +26,20 @@ export const FilterControls: FC<FilterControlsProps> = ({ filters, filterOptions
 
     return (
     <div className="flex items-center gap-3 md:gap-4 flex-wrap">
+      <div className="flex items-center gap-2">
+        <label htmlFor="filtro-historico" className={labelClasses}>Dados:</label>
+        <select 
+            id="filtro-historico" 
+            className={selectClasses + " bg-cyan-50 dark:bg-slate-800 border-cyan-300 dark:border-slate-600"} 
+            value={selectedHistory} 
+            onChange={(e) => setSelectedHistory(e.target.value)}
+        >
+          <option value="current">Atuais (Planilha Google)</option>
+          {historyList && historyList.map((h: any) => (
+            <option key={h.id} value={h.id}>{h.label}</option>
+          ))}
+        </select>
+      </div>
       <div className="flex items-center gap-2">
         <label htmlFor="filtro-semestre" className={labelClasses}>Semestre:</label>
         <select 

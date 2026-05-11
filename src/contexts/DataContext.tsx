@@ -1,13 +1,14 @@
-import React, { createContext, ReactNode, useCallback, useState, useEffect } from 'react';
+import React, { createContext, ReactNode, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ProcessedData } from '../types';
 
 export interface IDataContextProps {
   allData: ProcessedData[];
   isLoading: boolean;
   error: string | null;
-  fetchData: (historyId?: string) => Promise<void>;
+  fetchData: (historyId?: string) => Promise<any>;
   historyList: any[];
-  fetchHistoryList: () => Promise<void>;
+  fetchHistoryList: () => Promise<any>;
   selectedHistory: string;
   setSelectedHistory: (id: string) => void;
 }
@@ -16,84 +17,48 @@ export const DataContext = createContext<IDataContextProps | undefined>(undefine
 
 export const useDataContext = () => {
   const context = React.useContext(DataContext);
-  if (context === undefined) {
-    throw new Error('useDataContext deve ser usado dentro de um DataProvider');
-  }
+  if (!context) throw new Error('useDataContext deve ser usado dentro de um DataProvider');
   return context;
 };
 
-interface DataProviderProps {
-  children: ReactNode;
-}
-
-export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
-  const [allData, setAllData] = useState<ProcessedData[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [historyList, setHistoryList] = useState<any[]>([]);
+export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [selectedHistory, setSelectedHistory] = useState<string>('current');
 
-  const fetchHistoryList = useCallback(async () => {
-    try {
+  const { data: historyList = [], refetch: fetchHistoryList } = useQuery({
+    queryKey: ['historyList'],
+    queryFn: async () => {
       const res = await fetch('/api/history');
-      if (res.ok) {
-        const data = await res.json();
-        setHistoryList(data);
-      }
-    } catch (err) {
-      console.error("Erro ao buscar lista de históricos:", err);
+      if (!res.ok) throw new Error("Erro buscar históricos");
+      return res.json();
     }
-  }, []);
+  });
 
-  const fetchData = useCallback(async (historyId: string = 'current') => {
-    console.log(`[DataContext] Buscando todos os dados da API (historyId: ${historyId})...`);
-    setIsLoading(true);
-    setError(null);
-    try {
-      const url = historyId === 'current' ? '/api/dados' : `/api/dados?history_id=${historyId}`;
+  const { data: allData = [], isLoading, error: queryError, refetch: fetchData } = useQuery({
+    queryKey: ['dados', selectedHistory],
+    queryFn: async () => {
+      const url = selectedHistory === 'current' ? '/api/dados' : `/api/dados?history_id=${selectedHistory}`;
       const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Erro na rede: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Erro na rede: ${response.statusText}`);
       const rawData: any[] = await response.json();
-      const dataWithDates = rawData.map(item => ({
+      return rawData.map((item: any) => ({
         ...item,
         DataTerminoPrevisto: item.DataTerminoPrevisto ? new Date(item.DataTerminoPrevisto) : null,
         DataInicioSemestre: item.DataInicioSemestre ? new Date(item.DataInicioSemestre) : null,
       }));
-      setAllData(dataWithDates);
-      console.log("[DataContext] Todos os dados carregados:", dataWithDates.length, "linhas");
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("[DataContext] Erro ao buscar todos os dados:", errorMessage);
-      setError(`Não foi possível carregar os dados. Detalhes: ${errorMessage}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchHistoryList();
-  }, [fetchHistoryList]);
-
-  useEffect(() => {
-    fetchData(selectedHistory);
-  }, [fetchData, selectedHistory]);
+    },
+    staleTime: 60 * 1000, 
+  });
 
   const contextValue: IDataContextProps = {
     allData,
     isLoading,
-    error,
-    fetchData,
+    error: queryError ? queryError.message : null,
+    fetchData: fetchData as any,
     historyList,
-    fetchHistoryList,
+    fetchHistoryList: fetchHistoryList as any,
     selectedHistory,
     setSelectedHistory
   };
 
-  return (
-    <DataContext.Provider value={contextValue}>
-      {children}
-    </DataContext.Provider>
-  );
+  return <DataContext.Provider value={contextValue}>{children}</DataContext.Provider>;
 };

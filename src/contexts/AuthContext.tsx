@@ -1,6 +1,5 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coordinator } from '../types';
 
 interface AuthContextType {
     isAuthenticated: boolean;
@@ -24,18 +23,13 @@ export const useAuth = () => {
     return context;
 };
 
-interface AuthProviderProps {
-    children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<AuthContextType['user']>(null);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Na inicialização, verifica o localStorage para ver se já existe uma sessão
         try {
             const storedRole = localStorage.getItem('userRole');
             const storedName = localStorage.getItem('loggedInCoordinator');
@@ -52,9 +46,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setIsAuthenticated(true);
             }
         } catch (error) {
-            console.error("Erro ao carregar dados de autenticação do localStorage", error);
-            // Garante que o estado seja limpo em caso de erro
-            localStorage.clear();
+            console.error("Erro ao carregar dados de autenticação", error);
+            // APENAS remove dados de auth em caso de corrupção, preserva temas e configs.
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('loggedInCoordinator');
+            localStorage.removeItem('coordinatorCourses');
+            localStorage.removeItem('loggedInCoordinatorUsername');
             setUser(null);
             setIsAuthenticated(false);
         } finally {
@@ -76,26 +73,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, [navigate]);
 
     const logout = useCallback(() => {
-        localStorage.clear();
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('loggedInCoordinator');
+        localStorage.removeItem('coordinatorCourses');
+        localStorage.removeItem('loggedInCoordinatorUsername');
+        localStorage.removeItem('sessionExpireTime');
         setUser(null);
         setIsAuthenticated(false);
         navigate('/login');
     }, [navigate]);
 
-    const value = {
-        isAuthenticated,
-        user,
-        login,
-        logout,
-    };
-
-    // Não renderiza os filhos até que a verificação inicial do localStorage seja concluída
-    if (isLoading) {
-        return null; // ou um <LoadingScreen /> global se preferir
-    }
+    if (isLoading) return null;
 
     return (
-        <AuthContext.Provider value={value}>
+        <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

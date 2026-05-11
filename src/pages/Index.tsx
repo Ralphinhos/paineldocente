@@ -11,8 +11,7 @@ import { VisaoGeral } from '../components/VisaoGeral';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProcessedData, FilterState, KPIData } from '../types';
 import { useNavigate } from 'react-router-dom';
-// ATUALIZAÇÃO AQUI: Importando ícones Save e Calendar
-import { LogOut, FileText, Save, Calendar } from 'lucide-react';
+import { LogOut, FileText, Save, Calendar, Info } from 'lucide-react';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import useIdleTimer from '../hooks/useIdleTimer';
 import { toast as sonnerToast } from "@/components/ui/sonner";
@@ -25,7 +24,7 @@ export default function Index() {
         isLoading: isDataLoading, 
         error: dataError,
         historyList,
-        fetchHistoryList, // Precisamos disso para atualizar a lista após salvar
+        fetchHistoryList, 
         selectedHistory,
         setSelectedHistory 
     } = useDataContext();
@@ -35,8 +34,6 @@ export default function Index() {
     const [filters, setFilters] = useState<FilterState>({ semestre: 'Todos', modalidade: 'Todos', modulo: 'Todos', curso: 'Todos' });
     const [selectedDocente, setSelectedDocente] = useState<string | null>(null);
     const [isNotifying, setIsNotifying] = useState(false);
-    
-    // Novo estado para o loading do botão de salvar
     const [isSaving, setIsSaving] = useState(false);
 
     const handleLogout = useCallback(() => {
@@ -45,26 +42,30 @@ export default function Index() {
 
     useIdleTimer(10 * 60 * 1000, handleLogout);
 
+    // LOGICA ATUALIZADA: Filtro baseado nos cursos do coordenador
     const baseDataForView = useMemo(() => {
         if (!user) return [];
-        if (user.role === 'admin') {
-            return allData;
-        }
-        if (!user.username) return [];
-        return allData.filter(row => row.Login === user.username);
+        if (user.role === 'admin') return allData;
+        if (!user.courses || user.courses.length === 0) return []; // Se não tem cursos configurados, não vê nada
+        
+        return allData.filter(row => {
+            if (!row.Curso) return false;
+            // Verifica se o curso da planilha está incluso no array de cursos do usuário (ignorando case)
+            return user.courses.some(
+                cursoCoordenador => cursoCoordenador.trim().toLowerCase() === row.Curso.trim().toLowerCase()
+            );
+        });
     }, [allData, user]);
 
     const filteredData = useMemo(() => {
-        if (filters.modalidade === 'Todos') {
-            return [];
-        }
-        const appliedFiltersResult = baseDataForView.filter(row =>
+        if (filters.modalidade === 'Todos') return [];
+        
+        return baseDataForView.filter(row =>
             (filters.semestre === 'Todos' || row.Semestre === filters.semestre) &&
             (row.Modalidade === filters.modalidade) &&
             (filters.modulo === 'Todos' || row['Módulo'] === filters.modulo) &&
             (filters.curso === 'Todos' || row.Curso === filters.curso)
         );
-        return appliedFiltersResult;
     }, [filters, baseDataForView]);
 
     const filterOptions = useMemo(() => {
@@ -94,7 +95,6 @@ export default function Index() {
         setSelectedDocente(selectedDocente === docente ? null : docente);
     };
 
-    // Função para salvar o estado atual no Supabase
     const handleSaveHistory = async () => {
         try {
             setIsSaving(true);
@@ -102,7 +102,7 @@ export default function Index() {
             
             if (response.ok) {
                 sonnerToast.success("Estado atual salvo com sucesso!");
-                await fetchHistoryList(); // Recarrega a lista de datas no select
+                await fetchHistoryList(); 
             } else {
                 const errData = await response.json();
                 sonnerToast.error(errData.error || "Erro ao salvar histórico.");
@@ -205,13 +205,8 @@ export default function Index() {
         });
     };
     
-    if (isDataLoading) {
-        return <LoadingScreen message="Carregando dados..." />;
-    }
-
-    if (dataError) {
-        return <div className="text-red-500 text-center p-4">Erro ao carregar dados: {dataError}</div>;
-    }
+    if (isDataLoading) return <LoadingScreen message="Carregando dados..." />;
+    if (dataError) return <div className="text-red-500 text-center p-4">Erro ao carregar dados: {dataError}</div>;
 
     return (
         <div className="flex h-screen bg-[#0f172a] font-sans overflow-hidden">
@@ -236,110 +231,65 @@ export default function Index() {
                   animation-fill-mode: forwards;
                   animation-duration: calc(var(--toast-duration, 4s) - 0.2s); 
                 }
-                .toast-progress-error::after {
-                  background-color: rgba(220, 53, 69, 0.8); 
-                }
-                .toast-progress-success::after {
-                  background-color: rgba(25, 135, 84, 0.8); 
-                }
-                
-                :root { 
-                    --scrollbar-thumb: #475569; 
-                    --scrollbar-track: transparent; 
-                }
-                html.dark {
-                    --scrollbar-thumb: #374151;
-                }
-                /* For Webkit Browsers */
+                .toast-progress-error::after { background-color: rgba(220, 53, 69, 0.8); }
+                .toast-progress-success::after { background-color: rgba(25, 135, 84, 0.8); }
+                :root { --scrollbar-thumb: #475569; --scrollbar-track: transparent; }
+                html.dark { --scrollbar-thumb: #374151; }
                 ::-webkit-scrollbar { width: 8px; height: 8px; }
                 ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
                 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 10px; }
                 ::-webkit-scrollbar-thumb:hover { background: #64748b; }
                 html.dark ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-
-                /* For Firefox */
-                html {
-                    scrollbar-width: thin;
-                    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-                }
-
+                html { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
                 .table-container { height: calc(30vh); min-height: 200px; }
                 .status-badge { font-size: 0.75rem; line-height: 1rem; font-weight: 500; padding: 0.25rem 0.625rem; border-radius: 9999px; white-space: nowrap; }
             `}</style>
+
             <Sidebar kpis={kpis} userRole={user?.role ?? null} onNotification={handleNotification} isNotifying={isNotifying} />
+            
             <main className="flex-1 p-6 lg:p-8 space-y-6 overflow-y-auto bg-gray-100 dark:bg-[#0f172a] text-slate-800 dark:text-gray-200">
                 <header className="space-y-4">
                     <div className="flex justify-between items-center gap-4">
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Acompanhamento de Disciplinas</h2>
                         
-                        {/* ATUALIZAÇÃO: Container flex-wrap para estruturar os grupos de botões */}
                         <div className="flex flex-wrap items-center gap-3">
-                            
-                            {/* GRUPO 1: Relatórios e Histórico (Apenas Admin) */}
                             {user?.role === 'admin' && (
                                 <div className="flex items-center bg-white dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-slate-700 shadow-sm">
-                                    
-                                    <button 
-                                        onClick={() => navigate('/relatorio-periodo')} 
-                                        title="Relatório do Semestre" 
-                                        className="p-2 flex items-center justify-center rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                                    >
+                                    <button onClick={() => navigate('/relatorio-periodo')} title="Relatório do Semestre" className="p-2 flex items-center justify-center rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
                                         <FileText size={18} />
                                     </button>
-
                                     <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
-
-                                    <button 
-                                        onClick={handleSaveHistory} 
-                                        disabled={isSaving}
-                                        title="Salvar Estado Atual (Criar Histórico)" 
-                                        className="p-2 flex items-center justify-center rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
-                                    >
+                                    <button onClick={handleSaveHistory} disabled={isSaving} title="Salvar Estado Atual (Criar Histórico)" className="p-2 flex items-center justify-center rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
                                         <Save size={18} />
                                     </button>
-                                    
                                     <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
-
-                                    {/* Select Personalizado com ícone de calendário */}
                                     <div className="relative flex items-center px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group">
                                         <Calendar size={18} className="text-slate-600 dark:text-gray-300 mr-2 shrink-0" />
                                         <select
-    value={selectedHistory}
-    onChange={(e) => setSelectedHistory(e.target.value)}
-    title="Visualizar estado de uma data anterior"
-    className="appearance-none bg-transparent text-sm font-medium text-slate-600 dark:text-gray-300 outline-none cursor-pointer pr-6 w-auto min-w-[180px]"
->
-    <option value="current" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">
-        Estado Atual
-    </option>
-    {historyList && historyList.map((hist: any) => {
-        let label = hist.label || hist.id;
-        if (hist.created_at && !hist.label) {
-            const d = new Date(hist.created_at);
-            label = d.toLocaleDateString('pt-BR', { 
-                day: '2-digit', month: '2-digit', year: 'numeric', 
-                hour: '2-digit', minute: '2-digit' 
-            });
-        }
-        return (
-            <option key={hist.id} value={hist.id} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">
-                {label}
-            </option>
-        );
-    })}
-</select>
-                                        {/* Seta customizada que aponta para baixo */}
+                                            value={selectedHistory}
+                                            onChange={(e) => setSelectedHistory(e.target.value)}
+                                            title="Visualizar estado de uma data anterior"
+                                            className="appearance-none bg-transparent text-sm font-medium text-slate-600 dark:text-gray-300 outline-none cursor-pointer pr-6 w-auto min-w-[180px]"
+                                        >
+                                            <option value="current" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">Estado Atual</option>
+                                            {historyList && historyList.map((hist: any) => {
+                                                let label = hist.label || hist.id;
+                                                if (hist.created_at && !hist.label) {
+                                                    const d = new Date(hist.created_at);
+                                                    label = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                                }
+                                                return <option key={hist.id} value={hist.id} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">{label}</option>;
+                                            })}
+                                        </select>
                                         <div className="absolute right-2 pointer-events-none text-slate-400 dark:text-slate-500">
                                             <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                 <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                                             </svg>
                                         </div>
                                     </div>
-
                                 </div>
                             )}
 
-                            {/* GRUPO 2: Sistema */}
                             <div className="flex items-center bg-white dark:bg-slate-800 rounded-lg p-1 border border-gray-200 dark:border-slate-700 shadow-sm">
                                 <ThemeSwitcher />
                                 <div className="w-px h-5 bg-gray-200 dark:bg-slate-700 mx-1" />
@@ -347,57 +297,55 @@ export default function Index() {
                                     <LogOut size={18} />
                                 </button>
                             </div>
-                            
                         </div>
                     </div>
                     <div>
                         <FilterControls filters={filters} filterOptions={filterOptions} onFilterChange={handleFilterChange} />
                     </div>
                 </header>
-                <Tabs defaultValue="detalhado" className="w-full">
-                    <TabsList className="bg-transparent p-0 gap-4">
-                        <TabsTrigger
-                            value="detalhado"
-                            className="px-4 py-2 rounded-md text-sm font-medium transition-all 
-                                       text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 
-                                       hover:bg-slate-100 dark:hover:bg-slate-800
-                                       data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 
-                                       data-[state=active]:text-white dark:data-[state=active]:text-white 
-                                       data-[state=active]:border-cyan-500 dark:data-[state=active]:border-cyan-600"
-                        >
-                            Visão Detalhada
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="geral"
-                            className="px-4 py-2 rounded-md text-sm font-medium transition-all 
-                                       text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 
-                                       hover:bg-slate-100 dark:hover:bg-slate-800
-                                       data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 
-                                       data-[state=active]:text-white dark:data-[state=active]:text-white 
-                                       data-[state=active]:border-cyan-500 dark:data-[state=active]:border-cyan-600"
-                        >
-                            Visão Geral
-                        </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="detalhado">
-                        <div className="grid grid-cols-1 gap-6 mt-4">
-                           <AccessTable data={filteredData} />
-                            <ActivitiesTable 
-                                data={filteredData} 
-                                onDocenteSelect={handleDocenteSelect}
-                                selectedDocente={selectedDocente}
-                            />
-                            <PerformanceAnalysis 
-                                data={filteredData} 
-                                onAnalysis={() => {}} 
-                                selectedDocente={selectedDocente}
-                            />
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="geral">
-                        <VisaoGeral data={filteredData} />
-                    </TabsContent>
-                </Tabs>
+
+                {filters.modalidade === 'Todos' ? (
+                    <div className="flex flex-col items-center justify-center mt-20 p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-white/50 dark:bg-slate-800/50">
+                        <Info className="w-12 h-12 text-cyan-500 mb-4 opacity-80" />
+                        <h3 className="text-xl font-bold text-slate-700 dark:text-white mb-2">Selecione uma Modalidade</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-center max-w-md">Para visualizar as informações do dashboard e painéis, por favor escolha uma modalidade no filtro superior.</p>
+                    </div>
+                ) : (
+                    <Tabs defaultValue="detalhado" className="w-full">
+                        <TabsList className="bg-transparent p-0 gap-4 mb-4">
+                            <TabsTrigger
+                                value="detalhado"
+                                className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 data-[state=active]:text-white dark:data-[state=active]:text-white data-[state=active]:border-cyan-500 dark:data-[state=active]:border-cyan-600"
+                            >
+                                Visão Detalhada
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="geral"
+                                className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 data-[state=active]:text-white dark:data-[state=active]:text-white data-[state=active]:border-cyan-500 dark:data-[state=active]:border-cyan-600"
+                            >
+                                Visão Geral
+                            </TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="detalhado">
+                            <div className="grid grid-cols-1 gap-6 mt-4">
+                               <AccessTable data={filteredData} />
+                                <ActivitiesTable 
+                                    data={filteredData} 
+                                    onDocenteSelect={handleDocenteSelect}
+                                    selectedDocente={selectedDocente}
+                                />
+                                <PerformanceAnalysis 
+                                    data={filteredData} 
+                                    onAnalysis={() => {}} 
+                                    selectedDocente={selectedDocente}
+                                />
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="geral">
+                            <VisaoGeral data={filteredData} />
+                        </TabsContent>
+                    </Tabs>
+                )}
             </main>
         </div>
     );

@@ -14,7 +14,7 @@ export const AIModal: FC<AIModalProps> = ({ isOpen, onClose, title, content }) =
   if (!isOpen) return null;
 
   const handleCopy = async () => {
-    if (!content || content === "Gerando análise..." || content.startsWith("❌ Erro")) return; // Adicionado startsWith para erro
+    if (!content || content === "Gerando análise..." || content.startsWith("❌ Erro")) return;
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
@@ -50,8 +50,8 @@ export const AIModal: FC<AIModalProps> = ({ isOpen, onClose, title, content }) =
               {content}
             </div>
           ) : (
-            <pre className="whitespace-pre-wrap leading-relaxed font-sans">Teste de conteúdo estático</pre> 
-          ) } {/* Adicionado espaço antes do '}' */}
+            <pre className="whitespace-pre-wrap leading-relaxed font-sans">{content}</pre> 
+          )} 
         </div>
 
         {/* Footer */}
