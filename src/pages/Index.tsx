@@ -304,30 +304,30 @@ export default function Index() {
                                     <div className="relative flex items-center px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors cursor-pointer group">
                                         <Calendar size={18} className="text-slate-600 dark:text-gray-300 mr-2 shrink-0" />
                                         <select
-                                            value={selectedHistory}
-                                            onChange={(e) => setSelectedHistory(e.target.value)}
-                                            title="Visualizar estado de uma data anterior"
-                                            className="appearance-none bg-transparent text-sm font-medium text-slate-600 dark:text-gray-300 outline-none cursor-pointer pr-6 w-full max-w-[170px] truncate"
-                                        >
-                                            <option value="current" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">
-                                                Estado Atual
-                                            </option>
-                                            {historyList && historyList.map((hist: any) => {
-                                                let label = hist.label || hist.id;
-                                                if (hist.created_at && !hist.label) {
-                                                    const d = new Date(hist.created_at);
-                                                    label = d.toLocaleDateString('pt-BR', { 
-                                                        day: '2-digit', month: '2-digit', year: 'numeric', 
-                                                        hour: '2-digit', minute: '2-digit' 
-                                                    });
-                                                }
-                                                return (
-                                                    <option key={hist.id} value={hist.id} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">
-                                                        {label}
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
+    value={selectedHistory}
+    onChange={(e) => setSelectedHistory(e.target.value)}
+    title="Visualizar estado de uma data anterior"
+    className="appearance-none bg-transparent text-sm font-medium text-slate-600 dark:text-gray-300 outline-none cursor-pointer pr-6 w-auto min-w-[180px]"
+>
+    <option value="current" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">
+        Estado Atual
+    </option>
+    {historyList && historyList.map((hist: any) => {
+        let label = hist.label || hist.id;
+        if (hist.created_at && !hist.label) {
+            const d = new Date(hist.created_at);
+            label = d.toLocaleDateString('pt-BR', { 
+                day: '2-digit', month: '2-digit', year: 'numeric', 
+                hour: '2-digit', minute: '2-digit' 
+            });
+        }
+        return (
+            <option key={hist.id} value={hist.id} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-gray-200">
+                {label}
+            </option>
+        );
+    })}
+</select>
                                         {/* Seta customizada que aponta para baixo */}
                                         <div className="absolute right-2 pointer-events-none text-slate-400 dark:text-slate-500">
                                             <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">

@@ -57,6 +57,11 @@ export const RelatorioPeriodo: React.FC = () => {
     const [kpisPeriodo, setKpisPeriodo] = useState<IKpisPeriodo | null>(null);
     const [topCursosMelhorPerformance, setTopCursosMelhorPerformance] = useState<CursoPerformance[]>([]);
     const [topCursosPontosAtencao, setTopCursosPontosAtencao] = useState<CursoPerformance[]>([]);
+    
+    // Novos estados para os gráficos de frequência de acesso
+    const [topFrequencia, setTopFrequencia] = useState<{docente: string, nomeAbreviado: string, mediaAcesso: number}[]>([]);
+    const [bottomFrequencia, setBottomFrequencia] = useState<{docente: string, nomeAbreviado: string, mediaAcesso: number}[]>([]);
+
     const [isPendentesModalOpen, setIsPendentesModalOpen] = useState(false);
     const [dadosPendentesParaModal, setDadosPendentesParaModal] = useState<ProcessedData[]>([]);
 
@@ -135,9 +140,18 @@ export const RelatorioPeriodo: React.FC = () => {
             const perfCursos = calcularPerformanceCursos(dadosFiltrados);
             setTopCursosMelhorPerformance([...perfCursos].sort((a,b) => b.porcentagemEntreguesNoPrazoCurso - a.porcentagemEntreguesNoPrazoCurso || b.totalAtividadesCurso - a.totalAtividadesCurso).slice(0,5));
             setTopCursosPontosAtencao([...perfCursos].sort((a,b) => b.porcentagemAtrasoCurso - a.porcentagemAtrasoCurso || b.totalAtividadesCurso - a.totalAtividadesCurso).slice(0,5));
+            
+            // Cálculo de Frequência de Acesso
+            const acessoDocentes = calcularMediaAcessoDocentes(dadosFiltrados);
+            // Menor média = Mais frequente
+            setTopFrequencia([...acessoDocentes].sort((a, b) => a.mediaAcesso - b.mediaAcesso).slice(0, 5));
+            // Maior média = Menos frequente
+            setBottomFrequencia([...acessoDocentes].sort((a, b) => b.mediaAcesso - a.mediaAcesso).slice(0, 5));
+
         } else {
             setTopDocentesMelhorPerformance([]); setTopDocentesPontosAtencao([]); setKpisPeriodo(null);
             setTopCursosMelhorPerformance([]); setTopCursosPontosAtencao([]);
+            setTopFrequencia([]); setBottomFrequencia([]);
         }
     };
 
@@ -154,6 +168,26 @@ export const RelatorioPeriodo: React.FC = () => {
             nomeDocente: nome, ...stats,
             porcentagemAtraso: stats.totalAtividades > 0 ? (stats.totalAtrasadas / stats.totalAtividades) * 100 : 0,
             porcentagemEntreguesNoPrazo: stats.totalAtividades > 0 ? (stats.totalEntreguesNoPrazo / stats.totalAtividades) * 100 : 0,
+        }));
+    };
+
+    // Nova função para calcular a média de dias sem acesso por docente
+    const calcularMediaAcessoDocentes = (dados: ProcessedData[]) => {
+        const map: Map<string, { totalDias: number; count: number }> = new Map();
+        dados.forEach(item => {
+            if (!item.Docente) return;
+            const dias = item['Dias s/ Acesso'];
+            if (typeof dias === 'number') {
+                const s = map.get(item.Docente) || { totalDias: 0, count: 0 };
+                s.totalDias += dias;
+                s.count += 1;
+                map.set(item.Docente, s);
+            }
+        });
+        return Array.from(map.entries()).map(([nome, stats]) => ({
+            docente: nome,
+            nomeAbreviado: shortenName(nome),
+            mediaAcesso: stats.count > 0 ? stats.totalDias / stats.count : 0
         }));
     };
 
@@ -253,23 +287,15 @@ export const RelatorioPeriodo: React.FC = () => {
                     />
                     <Tooltip 
                         formatter={(value: number, name: string, props: any) => {
-                            // 'value' will be props.payload.porcentagemAtraso because of the Bar's dataKey for sorting logic,
-                            // but we want to display totalAtrasadas in the tooltip's primary line.
-                            // The 'name' variable will be 'porcentagemAtraso'.
-                            // We need to be careful here if we change Bar dataKey.
-                            // For now, assuming sorting is by 'porcentagemAtraso' but bar displays 'totalAtrasadas'.
-                            // Let's make the Bar dataKey 'totalAtrasadas' and adjust tooltip logic.
-                            if (name === 'totalAtrasadas') { // This 'name' comes from the Bar's dataKey
+                            if (name === 'totalAtrasadas') { 
                                 return [
                                     `${props.payload.totalAtrasadas} de ${props.payload.totalAtividades} atrasadas (${props.payload.porcentagemAtraso.toFixed(1)}%)`,
-                                    `Docente: ${props.payload.nomeDocente}` // Show full name here
+                                    `Docente: ${props.payload.nomeDocente}`
                                 ];
                             }
                             return [value, name];
                         }}
                         labelFormatter={(label: string, payload: any[]) => {
-                            // The XAxis label (nomeAbreviado) is the first arg. We can use payload for more details if needed.
-                            // For consistency, we can ensure the main label in tooltip is the full name if available from payload
                              if (payload && payload.length && payload[0].payload.nomeDocente) {
                                 return <span style={{ fontWeight: '600', color: '#334155' }}>{payload[0].payload.nomeDocente}</span>;
                             }
@@ -279,10 +305,9 @@ export const RelatorioPeriodo: React.FC = () => {
                     />
                     <Bar dataKey="totalAtrasadas" fill={COR_GRAFICO_NEGATIVO}>
                         <LabelList 
-                            dataKey="totalAtrasadas" // Show the quantity on the bar
+                            dataKey="totalAtrasadas" 
                             position="center" 
                             style={{ fill: '#fef2f2', fontSize: 10 }} 
-                            // No formatter needed if we want to show the raw number
                         />
                     </Bar>
                 </BarChart>
@@ -350,10 +375,9 @@ export const RelatorioPeriodo: React.FC = () => {
                     />
                     <Tooltip 
                         formatter={(value: number, name: string, props: any) => {
-                            if (name === 'totalAtrasadasCurso') { // This 'name' comes from the Bar's dataKey
+                            if (name === 'totalAtrasadasCurso') { 
                                 return [
                                     `${props.payload.totalAtrasadasCurso} de ${props.payload.totalAtividadesCurso} atrasadas (${props.payload.porcentagemAtrasoCurso.toFixed(1)}%)`,
-                                    // `Curso: ${props.payload.nomeCurso}` // nomeCurso is already the label
                                 ];
                             }
                             return [value, name];
@@ -494,8 +518,60 @@ export const RelatorioPeriodo: React.FC = () => {
                     </div>
                 </div>
             )}
+            
+            {/* Seção de Análise de Frequência de Acesso */}
+            {relatorioGerado && relatorioGerado.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                {/* Top 5 Mais Ativos (Menor Média) */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow min-h-[300px]">
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        Top 5 - Maior Frequência de Acesso
+                    </h3>
+                    <div className="space-y-4">
+                        {topFrequencia.map((doc, i) => (
+                            <div key={i} className="flex flex-col gap-1">
+                                <div className="flex justify-between text-sm font-medium">
+                                    <span className="text-slate-600 dark:text-slate-300 truncate max-w-[200px]" title={doc.docente}>{doc.nomeAbreviado}</span>
+                                    <span className="text-emerald-500">{doc.mediaAcesso.toFixed(1)} dias s/ acesso (média)</span>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2">
+                                    <div 
+                                        className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
+                                        style={{ width: `${Math.max(5, 100 - (doc.mediaAcesso * 10))}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
-            {/* Ranking de Disciplinas Problemáticas Removido */}
+                {/* Top 5 Menos Ativos (Maior Média) */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow min-h-[300px]">
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
+                        Top 5 - Menor Frequência de Acesso
+                    </h3>
+                    <div className="space-y-4">
+                        {bottomFrequencia.map((doc, i) => (
+                            <div key={i} className="flex flex-col gap-1">
+                                <div className="flex justify-between text-sm font-medium">
+                                    <span className="text-slate-600 dark:text-slate-300 truncate max-w-[200px]" title={doc.docente}>{doc.nomeAbreviado}</span>
+                                    <span className="text-rose-500">{doc.mediaAcesso.toFixed(1)} dias s/ acesso (média)</span>
+                                </div>
+                                <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2">
+                                    <div 
+                                        className="bg-rose-500 h-2 rounded-full transition-all duration-500" 
+                                        style={{ width: `${Math.min(100, doc.mediaAcesso * 5)}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            )}
+
             </div>
 
             <DetalhamentoPendentesModal 
