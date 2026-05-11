@@ -19,7 +19,7 @@ import { toast as sonnerToast } from "@/components/ui/sonner";
 export default function Index() {
     const navigate = useNavigate();
     
-    // ATUALIZAÇÃO AQUI: Importando historyList, selectedHistory e setSelectedHistory
+    // Importando as variáveis de histórico do contexto
     const { 
         allData, 
         isLoading: isDataLoading, 
@@ -248,42 +248,37 @@ export default function Index() {
                 <header className="space-y-4">
                     <div className="flex justify-between items-center gap-4">
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Acompanhamento de Disciplinas</h2>
-                        
-                        {/* ATUALIZAÇÃO AQUI: Bloco do cabeçalho com o seletor */}
                         <div className="flex items-center gap-2 md:gap-4">
                             {user?.role === 'admin' && (
                                 <button onClick={() => navigate('/relatorio-periodo')} title="Relatório do Semestre" className="p-2 rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
                                     <FileText size={20} />
                                 </button>
                             )}
-
-                            {/* NOVO CÓDIGO: Seletor de datas do Histórico */}
-                            {historyList && historyList.length > 0 && (
-                                <select
-                                    value={selectedHistory}
-                                    onChange={(e) => setSelectedHistory(e.target.value)}
-                                    title="Visualizar estado de uma data anterior"
-                                    className="p-1.5 md:p-2 text-sm bg-white dark:bg-slate-800 text-slate-600 dark:text-gray-300 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer shadow-sm"
-                                >
-                                    <option value="current">Estado Atual</option>
-                                    {historyList.map((hist: any) => {
-                                        // Tenta pegar e formatar a data pelo created_at; caso não exista, tenta o id.
-                                        let label = hist.id;
-                                        if (hist.created_at) {
-                                            const d = new Date(hist.created_at);
-                                            label = d.toLocaleDateString('pt-BR', { 
-                                                day: '2-digit', month: '2-digit', year: 'numeric', 
-                                                hour: '2-digit', minute: '2-digit' 
-                                            });
-                                        }
-                                        return (
-                                            <option key={hist.id} value={hist.id}>
-                                                {label}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
-                            )}
+                            
+                            {/* O Seletor agora aparece independentemente de historyList.length */}
+                            <select
+                                value={selectedHistory}
+                                onChange={(e) => setSelectedHistory(e.target.value)}
+                                title="Visualizar estado de uma data anterior"
+                                className="p-1.5 md:p-2 text-sm bg-white dark:bg-slate-800 text-slate-600 dark:text-gray-300 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer shadow-sm"
+                            >
+                                <option value="current">Estado Atual</option>
+                                {historyList && historyList.map((hist: any) => {
+                                    let label = hist.label || hist.id; // Usa a label do banco, se existir
+                                    if (hist.created_at && !hist.label) {
+                                        const d = new Date(hist.created_at);
+                                        label = d.toLocaleDateString('pt-BR', { 
+                                            day: '2-digit', month: '2-digit', year: 'numeric', 
+                                            hour: '2-digit', minute: '2-digit' 
+                                        });
+                                    }
+                                    return (
+                                        <option key={hist.id} value={hist.id}>
+                                            {label}
+                                        </option>
+                                    );
+                                })}
+                            </select>
 
                             <ThemeSwitcher />
                             <button onClick={handleLogout} title="Sair" className="p-2 rounded-md text-slate-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors">
