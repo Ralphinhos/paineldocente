@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataContext } from '../contexts/DataContext';
 import { ProcessedData, DocentePerformance, IKpisPeriodo, CursoPerformance } from '../types';
@@ -6,7 +6,7 @@ import { LoadingScreen } from './LoadingScreen';
 import useIdleTimer from '../hooks/useIdleTimer';
 import { KpiCard } from './ui/KpiCard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Cell } from 'recharts';
-import { DetalhamentoPendentesModal } from './modals/DetalhamentoPendentesModal'; // Importar o modal
+import { DetalhamentoPendentesModal } from './modals/DetalhamentoPendentesModal'; 
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -34,7 +34,7 @@ export const RelatorioPeriodo: React.FC = () => {
         localStorage.removeItem('coordinatorCourses');
         localStorage.removeItem('loggedInCoordinatorUsername');
         localStorage.removeItem('userRole');
-        localStorage.removeItem('sessionExpireTime'); // Limpar o timestamp de expiração do idle timer
+        localStorage.removeItem('sessionExpireTime'); 
         navigate('/login');
     }, [navigate]);
     useIdleTimer(IDLE_TIMEOUT_RELATORIO, handleRelatorioIdleLogout);
@@ -65,7 +65,7 @@ export const RelatorioPeriodo: React.FC = () => {
     const [isPendentesModalOpen, setIsPendentesModalOpen] = useState(false);
     const [dadosPendentesParaModal, setDadosPendentesParaModal] = useState<ProcessedData[]>([]);
 
-    const reportRef = React.useRef<HTMLDivElement>(null);
+    const reportRef = useRef<HTMLDivElement>(null);
 
     const availableData = allData; 
 
@@ -79,7 +79,6 @@ export const RelatorioPeriodo: React.FC = () => {
             setDadosPendentesParaModal(pendentes);
             setIsPendentesModalOpen(true);
         } else {
-            // Se não houver dados no relatório gerado, abre o modal com lista vazia (ele mostrará a mensagem)
             setDadosPendentesParaModal([]);
             setIsPendentesModalOpen(true);
         }
@@ -90,17 +89,33 @@ export const RelatorioPeriodo: React.FC = () => {
         
         try {
             const canvas = await html2canvas(reportRef.current, {
-                scale: 2, // Aumenta a qualidade
-                useCORS: true, // Permite carregar imagens de outros domínios se houver
-                backgroundColor: '#0f172a' // Fundo escuro para combinar com o tema escuro padrão
+                scale: 2, 
+                useCORS: true, 
+                backgroundColor: document.documentElement.classList.contains('dark') ? '#0f172a' : '#f3f4f6',
+                windowWidth: reportRef.current.scrollWidth,
+                windowHeight: reportRef.current.scrollHeight
             });
             
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const imgHeight = (canvas.height * pdfWidth) / canvas.width;
             
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            // Adiciona a primeira página
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+            heightLeft -= pdfHeight;
+
+            // Adiciona páginas extras se a imagem for maior que a folha A4
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight; 
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+                heightLeft -= pdfHeight;
+            }
             
             const dataHoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
             const nomeHistorico = historyList.find((h: any) => h.id === selectedHistory)?.label || 'Atual';
@@ -171,7 +186,7 @@ export const RelatorioPeriodo: React.FC = () => {
         }));
     };
 
-    // Nova função para calcular a média de dias sem acesso por docente
+    // Nova função para calcular a média de dias sem acesso por docente (ARREDONDADA)
     const calcularMediaAcessoDocentes = (dados: ProcessedData[]) => {
         const map: Map<string, { totalDias: number; count: number }> = new Map();
         dados.forEach(item => {
@@ -187,7 +202,8 @@ export const RelatorioPeriodo: React.FC = () => {
         return Array.from(map.entries()).map(([nome, stats]) => ({
             docente: nome,
             nomeAbreviado: shortenName(nome),
-            mediaAcesso: stats.count > 0 ? stats.totalDias / stats.count : 0
+            // Garante que é um número inteiro
+            mediaAcesso: stats.count > 0 ? Math.round(stats.totalDias / stats.count) : 0
         }));
     };
 
@@ -204,7 +220,7 @@ export const RelatorioPeriodo: React.FC = () => {
             porcentagemEntreguesNoPrazo: tAC > 0 ? (tENP / tAC) * 100 : 0,
             porcentagemComAtraso: tAC > 0 ? (tECA / tAC) * 100 : 0,
             porcentagemPendentes: tAC > 0 ? (tP / tAC) * 100 : 0,
-            mediaDiasAtraso: cAATMPM > 0 ? sDA / cAATMPM : 0,
+            mediaDiasAtraso: cAATMPM > 0 ? Math.round(sDA / cAATMPM) : 0, // Arredondado
         };
     };
 
@@ -241,7 +257,6 @@ export const RelatorioPeriodo: React.FC = () => {
                         tick={false} 
                         axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
                         tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
-                        tickFormatter={(value) => `${value.toFixed(0)}%`} 
                     />
                     <Tooltip 
                         formatter={(value: number, name: string, props: any) => {
@@ -329,7 +344,6 @@ export const RelatorioPeriodo: React.FC = () => {
                         tick={false} 
                         axisLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
                         tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
-                        tickFormatter={(value) => `${value.toFixed(0)}%`}
                     />
                     <Tooltip 
                         formatter={(value: number, name: string, props: any) => {
@@ -522,11 +536,12 @@ export const RelatorioPeriodo: React.FC = () => {
             {/* Seção de Análise de Frequência de Acesso */}
             {relatorioGerado && relatorioGerado.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                {/* Top 5 Mais Ativos (Menor Média) */}
+                
+                {/* Top 5 Mais Frequentes */}
                 <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
                     <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3 flex items-center gap-2">
                         <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                        Top 5 - Maior Frequência de Acesso
+                        Top 5 Docentes - Mais Frequentes (Menos dias ausentes)
                     </h4>
                     <ResponsiveContainer width="100%" height={350}>
                         <BarChart data={topFrequencia} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
@@ -540,30 +555,31 @@ export const RelatorioPeriodo: React.FC = () => {
                                 tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
                             />
                             <Tooltip 
-                                formatter={(value: number) => [`${value.toFixed(1)} dias`, 'Média s/ acesso']}
+                                formatter={(value: number) => [`${value} dias`, 'Média de ausência']}
                                 labelFormatter={(label: string, payload: any[]) => <span style={{ fontWeight: '600', color: '#334155' }}>{payload && payload.length ? payload[0].payload.docente : label}</span>} 
                                 contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
                             />
-                            <Bar dataKey="mediaAcesso" radius={[4, 4, 0, 0]}>
+                            {/* minPointSize garante que até o zero tenha um filete visível */}
+                            <Bar dataKey="mediaAcesso" radius={[4, 4, 0, 0]} minPointSize={5}>
                                 {topFrequencia.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COR_GRAFICO_POSITIVO} />
                                 ))}
                                 <LabelList 
                                     dataKey="mediaAcesso" 
-                                    position="center" 
+                                    position="top" 
                                     style={{ fill: '#FFFFFF', fontSize: 10 }} 
-                                    formatter={(v: number) => `${v.toFixed(1)}`}
+                                    formatter={(v: number) => `${v} dias`}
                                 />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
 
-                {/* Top 5 Menos Ativos (Maior Média) */}
+                {/* Top 5 Menos Frequentes */}
                 <div className="p-4 bg-white dark:bg-slate-800 rounded-lg shadow min-h-[300px]">
                     <h4 className="text-lg font-semibold text-slate-700 dark:text-white mb-3 flex items-center gap-2">
                         <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
-                        Top 5 - Menor Frequência de Acesso
+                        Top 5 Docentes - Menos Frequentes (Mais dias ausentes)
                     </h4>
                     <ResponsiveContainer width="100%" height={350}>
                         <BarChart data={bottomFrequencia} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
@@ -577,24 +593,25 @@ export const RelatorioPeriodo: React.FC = () => {
                                 tickLine={{ stroke: '#FFFFFF', strokeOpacity: 0.5 }}
                             />
                             <Tooltip 
-                                formatter={(value: number) => [`${value.toFixed(1)} dias`, 'Média s/ acesso']}
+                                formatter={(value: number) => [`${value} dias`, 'Média de ausência']}
                                 labelFormatter={(label: string, payload: any[]) => <span style={{ fontWeight: '600', color: '#334155' }}>{payload && payload.length ? payload[0].payload.docente : label}</span>} 
                                 contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
                             />
-                            <Bar dataKey="mediaAcesso" radius={[4, 4, 0, 0]}>
+                            <Bar dataKey="mediaAcesso" radius={[4, 4, 0, 0]} minPointSize={5}>
                                 {bottomFrequencia.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COR_GRAFICO_NEGATIVO} />
                                 ))}
                                 <LabelList 
                                     dataKey="mediaAcesso" 
-                                    position="center" 
+                                    position="top" 
                                     style={{ fill: '#fef2f2', fontSize: 10 }} 
-                                    formatter={(v: number) => `${v.toFixed(1)}`}
+                                    formatter={(v: number) => `${v} dias`}
                                 />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
+
             </div>
             )}
 
