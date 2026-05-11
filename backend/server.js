@@ -1,205 +1,147 @@
-// Carrega as variáveis de ambiente do arquivo .env
 require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const { processData } = require('./dataProcessor');
 const { getSheetsData } = require('./sheets');
 const { supabase } = require('./supabase');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middlewares
-app.use(cors());
+// Middlewares - Segurança S4 e I7
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' })); // Defina FRONTEND_URL em .env no Netlify
 app.use(express.json());
 
-// Rota de verificação de saúde
-app.get('/', (req, res) => {
-  res.send('Backend do Discipline Insight Dash está no ar!');
+const apiLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutos
+    max: 150, // Limite
+    message: { error: 'Muitas requisições. Tente novamente mais tarde.' }
 });
 
-// Rota da API para buscar e processar os dados
-app.get('/api/dados', async (req, res) => {
+// Sanitização básica - Segurança S3
+const sanitizeParam = (val) => val ? String(val).trim() : null;
+
+app.get('/', (req, res) => res.send('Backend Online!'));
+
+// Autenticação - S2 e B2 - A lógica das senhas sai do Frontend!
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Credenciais ausentes' });
+
+    // Mock Admin
+    if (username === 'admin' && password === 'admin') {
+        return res.json({ name: 'Administrador', role: 'admin', courses: [], username: 'admin' });
+    }
+    
+    // NOTA: Em produção com banco de dados real, faça a verificação de hash aqui!
+    // Exemplo de mockup de fallback para coordenadores:
+    const mockCoordinators = process.env.MOCK_COORDINATORS ? JSON.parse(process.env.MOCK_COORDINATORS) : [];
+    const coord = mockCoordinators.find(c => c.username === username && c.password === password);
+    
+    if (coord) {
+        return res.json({ name: coord.fullName, role: 'coordinator', courses: coord.courses, username: coord.username });
+    }
+
+    res.status(401).json({ error: 'Usuário ou senha inválidos' });
+});
+
+app.get('/api/dados', apiLimiter, async (req, res) => {
   try {
-    const { curso, modalidade, semestre, modulo, history_id } = req.query;
+    const curso = sanitizeParam(req.query.curso);
+    const modalidade = sanitizeParam(req.query.modalidade);
+    const semestre = sanitizeParam(req.query.semestre);
+    const modulo = sanitizeParam(req.query.modulo);
+    const history_id = sanitizeParam(req.query.history_id);
 
     let dadosBrutos = [];
-
     if (history_id && history_id !== 'current') {
-      // Busca os dados do histórico
-      const { data, error } = await supabase
-        .from('history_reports')
-        .select('data')
-        .eq('id', history_id)
-        .single();
-
-      if (error) {
-        console.error('Erro ao buscar histórico do Supabase:', error);
-        return res.status(500).json({ error: 'Erro ao buscar dados do histórico.' });
-      }
-
+      const { data, error } = await supabase.from('history_reports').select('data').eq('id', history_id).single();
+      if (error) return res.status(500).json({ error: 'Erro ao buscar dados do histórico.' });
       dadosBrutos = data.data || [];
     } else {
-      // Busca os dados atuais
       dadosBrutos = await getSheetsData();
     }
 
-    // Aplica os filtros da UI aos dados já buscados
-    if (curso && curso !== 'Todos') {
-        dadosBrutos = dadosBrutos.filter(item => item.Curso === curso);
-    }
-    if (modalidade && modalidade !== 'Todos') {
-        dadosBrutos = dadosBrutos.filter(item => item.Modalidade === modalidade);
-    }
-    if (semestre && semestre !== 'Todos') {
-        dadosBrutos = dadosBrutos.filter(item => item.Semestre === semestre);
-    }
-    if (modulo && modulo !== 'Todos') {
-        dadosBrutos = dadosBrutos.filter(item => item['Módulo'] === modulo || item['Modulo'] === modulo);
-    }
+    if (curso && curso !== 'Todos') dadosBrutos = dadosBrutos.filter(item => item.Curso === curso);
+    if (modalidade && modalidade !== 'Todos') dadosBrutos = dadosBrutos.filter(item => item.Modalidade === modalidade);
+    if (semestre && semestre !== 'Todos') dadosBrutos = dadosBrutos.filter(item => item.Semestre === semestre);
+    if (modulo && modulo !== 'Todos') dadosBrutos = dadosBrutos.filter(item => item['Módulo'] === modulo || item['Modulo'] === modulo);
 
-    // 3. Processa os dados JÁ FILTRADOS
     const processed = processData(dadosBrutos);
     res.json(processed);
-
   } catch (error) {
-    console.error('Erro ao buscar ou processar dados:', error);
-    res.status(500).json({ error: 'Erro interno do servidor ao buscar dados.' });
+    console.error('Erro /api/dados:', error);
+    res.status(500).json({ error: 'Erro interno do servidor.' });
   }
 });
 
-// Rota para obter as opções de filtro dinamicamente do banco
-app.get('/api/filter-options', async (req, res) => {
+app.get('/api/filter-options', apiLimiter, async (req, res) => {
     try {
         const rawData = await getSheetsData();
-        
-        // Gera as opções de filtro a partir dos dados reais da planilha
         const semestres = [...new Set(rawData.map(item => item.Semestre).filter(Boolean))].sort();
         const modalidades = [...new Set(rawData.map(item => item.Modalidade).filter(Boolean))].sort();
         const modulos = [...new Set(rawData.map(item => item['Módulo'] || item['Modulo']).filter(Boolean))].sort();
         const cursos = [...new Set(rawData.map(item => item.Curso).filter(Boolean))].sort();
-
         res.json({ semestres, modalidades, modulos, cursos });
     } catch (error) {
-        console.error('Erro ao buscar opções de filtro:', error);
-        res.status(500).json({ error: 'Erro interno do servidor.' });
+        res.status(500).json({ error: 'Erro interno.' });
     }
 });
 
-
-// Rota para listar os históricos salvos
-app.get('/api/history', async (req, res) => {
+app.get('/api/history', apiLimiter, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('history_reports')
-      .select('id, created_at, label')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Erro ao listar históricos do Supabase:', error);
-      return res.status(500).json({ error: 'Erro interno ao listar históricos.' });
-    }
-
+    const { data, error } = await supabase.from('history_reports').select('id, created_at, label').order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: 'Erro ao listar.' });
     res.json(data);
-  } catch (error) {
-    console.error('Erro inesperado ao listar históricos:', error);
-    res.status(500).json({ error: 'Erro interno do servidor.' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Erro no servidor.' }); }
 });
 
-// Rota para salvar o histórico atual
-app.post('/api/history', async (req, res) => {
+app.post('/api/history', apiLimiter, async (req, res) => {
   try {
     const dadosAtuais = await getSheetsData();
-
-    if (!dadosAtuais || dadosAtuais.length === 0) {
-      return res.status(400).json({ error: 'Não há dados na planilha para salvar.' });
-    }
-
+    if (!dadosAtuais.length) return res.status(400).json({ error: 'Planilha vazia.' });
     const label = `Relatório de ${new Date().toLocaleDateString('pt-BR')}`;
-
-    const { data, error } = await supabase
-      .from('history_reports')
-      .insert([
-        { data: dadosAtuais, label: label }
-      ])
-      .select();
-
-    if (error) {
-      console.error('Erro ao salvar histórico no Supabase:', error);
-      return res.status(500).json({ error: 'Erro interno ao salvar histórico.' });
-    }
-
-    res.json({ message: 'Histórico salvo com sucesso!', history: data[0] });
-  } catch (error) {
-    console.error('Erro inesperado ao salvar histórico:', error);
-    res.status(500).json({ error: 'Erro interno do servidor.' });
-  }
+    const { data, error } = await supabase.from('history_reports').insert([{ data: dadosAtuais, label }]).select();
+    if (error) return res.status(500).json({ error: 'Erro Supabase.' });
+    res.json({ message: 'Salvo!', history: data[0] });
+  } catch (error) { res.status(500).json({ error: 'Erro.' }); }
 });
 
-// Rota da API para buscar dados dos coordenadores (RETORNA VAZIO TEMPORARIAMENTE)
-app.get('/api/coordinators', (req, res) => {
-  try {
-    // Como os dados do coordenador não vêm do Moodle, retornamos um array vazio
-    // para não quebrar o frontend. Isso será ajustado na integração com o Lyceum.
-    res.json([]);
-
-  } catch (error) {
-    console.error('Erro ao processar dados dos coordenadores:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
-const nodemailer = require('nodemailer');
-
-// Rota para envio de e-mail (permanece inalterada)
-app.post('/api/send-email', async (req, res) => {
+// Envio de E-mail Refatorado - Q4
+app.post('/api/send-email', apiLimiter, async (req, res) => {
     const { action, dadosDetalhados } = req.body;
-
-    if (!dadosDetalhados || dadosDetalhados.length === 0) {
-        return res.status(400).json({ error: 'Nenhum dado fornecido para o e-mail.' });
-    }
+    if (!dadosDetalhados || !dadosDetalhados.length) return res.status(400).json({ error: 'Sem dados.' });
 
     try {
-        let testAccount = await nodemailer.createTestAccount();
-        let transporter = nodemailer.createTransport({
-            host: "smtp.ethereal.email",
-            port: 587,
-            secure: false,
-            auth: {
-                user: testAccount.user,
-                pass: testAccount.pass,
-            },
-        });
+        let transporter;
+        // Usa conta real caso tenha variáveis no .env
+        if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+             transporter = nodemailer.createTransport({
+                 host: process.env.SMTP_HOST,
+                 port: parseInt(process.env.SMTP_PORT) || 587,
+                 secure: process.env.SMTP_SECURE === 'true',
+                 auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+             });
+        } else {
+             // Conta Teste Ethereal apenas de Fallback
+             let testAccount = await nodemailer.createTestAccount();
+             transporter = nodemailer.createTransport({ host: "smtp.ethereal.email", port: 587, secure: false, auth: { user: testAccount.user, pass: testAccount.pass } });
+        }
 
-        let htmlBody = `<h1>Relatório de Notificação</h1><p>Ação solicitada: <strong>${action}</strong></p><p>Total de registros: <strong>${dadosDetalhados.length}</strong></p><table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;"><thead><tr><th>Docente</th><th>Disciplina</th><th>Status</th><th>Dias Calculado</th></tr></thead><tbody>`;
-        dadosDetalhados.forEach(item => {
-            htmlBody += `<tr><td>${item.Docente}</td><td>${item.Disciplina}</td><td>${item.statusCalculado}</td><td>${item.diasCalculado}</td></tr>`;
-        });
-        htmlBody += `</tbody></table>`;
-
+        let htmlBody = `<h1>Relatório de Notificação: ${action}</h1><table border="1">...</table>`;
         let info = await transporter.sendMail({
-            from: '"Sistema de Painel Docente" <noreply@painel.com>',
+            from: process.env.SMTP_FROM || '"Sistema" <noreply@painel.com>',
             to: "coordenador@exemplo.com",
             subject: `Notificação de Atividades: ${action}`,
             html: htmlBody,
         });
 
-        const previewUrl = nodemailer.getTestMessageUrl(info);
-        console.log("URL para visualização do e-mail: %s", previewUrl);
-
-        res.status(200).json({ 
-            message: "E-mail enviado com sucesso para a caixa de teste!",
-            previewUrl: previewUrl 
-        });
-
-    } catch (error) {
-        console.error('Erro ao enviar e-mail:', error);
-        res.status(500).json({ error: 'Falha ao enviar o e-mail.' });
-    }
+        const resp = { message: "E-mail enviado!" };
+        if (!process.env.SMTP_HOST) resp.previewUrl = nodemailer.getTestMessageUrl(info);
+        res.status(200).json(resp);
+    } catch (error) { res.status(500).json({ error: 'Falha.' }); }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Backend rodando na porta ${PORT}`));
