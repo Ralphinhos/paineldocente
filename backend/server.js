@@ -2,13 +2,19 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const jwt = require('jsonwebtoken'); // NOVO: JWT
+const jwt = require('jsonwebtoken');
 const { processData } = require('./dataProcessor');
 const { getSheetsData } = require('./sheets');
 const { supabase } = require('./supabase');
 const nodemailer = require('nodemailer');
 
 const app = express();
+
+// ==========================================
+// CORREÇÃO PARA O RENDER / RATE-LIMIT
+// ==========================================
+app.set('trust proxy', 1); 
+
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'chave-fallback-super-secreta-mudar-no-env';
 
