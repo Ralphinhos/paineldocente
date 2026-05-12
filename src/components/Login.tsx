@@ -1,3 +1,4 @@
+// src/components/Login.tsx
 import React, { useState } from 'react';
 import { User, Lock, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -60,9 +61,11 @@ export const Login: React.FC = () => {
               <User className="h-5 w-5 text-gray-400" />
             </div>
             <input
+              id="username"
+              aria-label="Nome de usuário"
               type="text"
               placeholder="Login"
-              autoComplete="username" // ✅ CORREÇÃO: Resolve o aviso do Chrome
+              autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full p-3 pl-10 bg-[#1e293b] rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
@@ -76,6 +79,8 @@ export const Login: React.FC = () => {
               <Lock className="h-5 w-5 text-gray-400" />
             </div>
             <input
+              id="password"
+              aria-label="Senha"
               type="password"
               placeholder="Senha"
               autoComplete="current-password"

@@ -15,7 +15,13 @@ const queryClient = new QueryClient();
 
 const PrivateRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? element : <Navigate to="/login" />;
+  
+  // ✅ CORREÇÃO: Verifica também o localStorage sincronamente. 
+  // Isso impede que o React Router expulse o usuário de volta pro login 
+  // no intervalo antes do estado global (Context) terminar de atualizar.
+  const hasToken = !!localStorage.getItem('authToken');
+  
+  return (isAuthenticated || hasToken) ? element : <Navigate to="/login" replace />;
 };
 
 const App = () => {
@@ -24,7 +30,6 @@ const App = () => {
       <ThemeProvider>
         <TooltipProvider>
           <Sonner />
-          {/* Colocando AuthProvider antes de DataProvider */}
           <BrowserRouter>
             <AuthProvider>
               <DataProvider>
