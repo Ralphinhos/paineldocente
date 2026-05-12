@@ -4,7 +4,7 @@ const IDLE_CHECK_KEY = 'sessionExpireTime'; // Chave para o localStorage
 
 const useIdleTimer = (timeout: number, onIdle: () => void) => {
   const [isIdle, setIsIdle] = useState(false);
-  const timer = useRef<NodeJS.Timeout | null>(null);
+  const timer = useRef<number | null>(null);
   const isMounted = useRef(true); // Ref para rastrear se o componente está montado
 
   // Função para verificar e forçar o logout se o tempo de expiração no localStorage passou

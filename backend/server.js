@@ -7,6 +7,7 @@ const { processData } = require('./dataProcessor');
 const { getSheetsData } = require('./sheets');
 const { supabase } = require('./supabase');
 const nodemailer = require('nodemailer');
+const { notificarCoordenadores, notificarDocentes, cobrarUasPendentes } = require('./emailService');
 
 const app = express();
 
@@ -131,6 +132,32 @@ app.post('/api/history', apiLimiter, verifyToken, async (req, res) => {
     if (error) return res.status(500).json({ error: 'Erro Supabase.' });
     res.json({ message: 'Salvo!', history: data[0] });
   } catch (error) { res.status(500).json({ error: 'Erro.' }); }
+});
+
+app.post('/api/notificacoes', verifyToken, async (req, res) => {
+  try {
+    const { action, dados } = req.body;
+    let mensagem = '';
+
+    switch (action) {
+      case 'coordenadores':
+        mensagem = await notificarCoordenadores(dados);
+        break;
+      case 'docentes':
+        mensagem = await notificarDocentes(dados);
+        break;
+      case 'cobrancaUas':
+        mensagem = await cobrarUasPendentes(dados);
+        break;
+      default:
+        return res.status(400).json({ error: `Ação "${action}" não reconhecida.` });
+    }
+
+    res.json({ success: true, message: mensagem });
+  } catch (error) {
+    console.error('Erro na rota de notificações:', error);
+    res.status(500).json({ error: 'Falha ao processar e-mails.' });
+  }
 });
 
 app.listen(PORT, () => console.log(`Backend seguro rodando na porta ${PORT}`));
