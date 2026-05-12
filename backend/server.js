@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken'); // NOVO: JWT
 const { processData } = require('./dataProcessor');
 const { getSheetsData } = require('./sheets');
 const { supabase } = require('./supabase');
@@ -9,45 +10,75 @@ const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'chave-fallback-super-secreta-mudar-no-env';
 
-// Middlewares - Segurança S4 e I7
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' })); // Defina FRONTEND_URL em .env no Netlify
+app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
 app.use(express.json());
 
 const apiLimiter = rateLimit({
-    windowMs: 10 * 60 * 1000, // 10 minutos
-    max: 150, // Limite
+    windowMs: 10 * 60 * 1000,
+    max: 150,
     message: { error: 'Muitas requisições. Tente novamente mais tarde.' }
 });
 
-// Sanitização básica - Segurança S3
 const sanitizeParam = (val) => val ? String(val).trim() : null;
 
-app.get('/', (req, res) => res.send('Backend Online!'));
+// ==========================================
+// MIDDLEWARE DE SEGURANÇA (PORTEIRO)
+// ==========================================
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(403).json({ error: 'Acesso negado. Token ausente.' });
 
-// Autenticação - S2 e B2 - A lógica das senhas sai do Frontend!
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded; // Guarda os dados do usuário para a requisição
+        next(); // Pode passar!
+    } catch (error) {
+        return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+    }
+};
+
+app.get('/', (req, res) => res.send('Backend Online e Seguro!'));
+
+// ==========================================
+// LOGIN (GERANDO O TOKEN)
+// ==========================================
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Credenciais ausentes' });
 
-    // Mock Admin
+    let userPayload = null;
+
     if (username === 'admin' && password === 'admin') {
-        return res.json({ name: 'Administrador', role: 'admin', courses: [], username: 'admin' });
+        userPayload = { name: 'Administrador', role: 'admin', courses: [], username: 'admin' };
+    } else {
+        const mockCoordinators = process.env.MOCK_COORDINATORS ? JSON.parse(process.env.MOCK_COORDINATORS) : [];
+        const coord = mockCoordinators.find(c => c.username === username && c.password === password);
+        if (coord) {
+            userPayload = { name: coord.fullName, role: 'coordinator', courses: coord.courses, username: coord.username };
+        }
     }
-    
-    // NOTA: Em produção com banco de dados real, faça a verificação de hash aqui!
-    // Exemplo de mockup de fallback para coordenadores:
-    const mockCoordinators = process.env.MOCK_COORDINATORS ? JSON.parse(process.env.MOCK_COORDINATORS) : [];
-    const coord = mockCoordinators.find(c => c.username === username && c.password === password);
-    
-    if (coord) {
-        return res.json({ name: coord.fullName, role: 'coordinator', courses: coord.courses, username: coord.username });
+
+    if (userPayload) {
+        // Criptografa os dados em um Token que dura 12 horas
+        const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '12h' });
+        return res.json({ ...userPayload, token }); // Devolve os dados + a chave
     }
 
     res.status(401).json({ error: 'Usuário ou senha inválidos' });
 });
 
-app.get('/api/dados', apiLimiter, async (req, res) => {
+// Rota para o frontend validar silenciosamente se o token ainda vale
+app.get('/api/validate-session', verifyToken, (req, res) => {
+    res.json({ valid: true, user: req.user });
+});
+
+// ==========================================
+// ROTAS PROTEGIDAS (Agora precisam do verifyToken)
+// ==========================================
+app.get('/api/dados', apiLimiter, verifyToken, async (req, res) => {
   try {
     const curso = sanitizeParam(req.query.curso);
     const modalidade = sanitizeParam(req.query.modalidade);
@@ -73,24 +104,11 @@ app.get('/api/dados', apiLimiter, async (req, res) => {
     res.json(processed);
   } catch (error) {
     console.error('Erro /api/dados:', error);
-    res.status(500).json({ error: 'Erro interno do servidor.' });
+    res.status(500).json({ error: 'Erro interno.' });
   }
 });
 
-app.get('/api/filter-options', apiLimiter, async (req, res) => {
-    try {
-        const rawData = await getSheetsData();
-        const semestres = [...new Set(rawData.map(item => item.Semestre).filter(Boolean))].sort();
-        const modalidades = [...new Set(rawData.map(item => item.Modalidade).filter(Boolean))].sort();
-        const modulos = [...new Set(rawData.map(item => item['Módulo'] || item['Modulo']).filter(Boolean))].sort();
-        const cursos = [...new Set(rawData.map(item => item.Curso).filter(Boolean))].sort();
-        res.json({ semestres, modalidades, modulos, cursos });
-    } catch (error) {
-        res.status(500).json({ error: 'Erro interno.' });
-    }
-});
-
-app.get('/api/history', apiLimiter, async (req, res) => {
+app.get('/api/history', apiLimiter, verifyToken, async (req, res) => {
   try {
     const { data, error } = await supabase.from('history_reports').select('id, created_at, label').order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: 'Erro ao listar.' });
@@ -98,7 +116,7 @@ app.get('/api/history', apiLimiter, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro no servidor.' }); }
 });
 
-app.post('/api/history', apiLimiter, async (req, res) => {
+app.post('/api/history', apiLimiter, verifyToken, async (req, res) => {
   try {
     const dadosAtuais = await getSheetsData();
     if (!dadosAtuais.length) return res.status(400).json({ error: 'Planilha vazia.' });
@@ -109,39 +127,4 @@ app.post('/api/history', apiLimiter, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Erro.' }); }
 });
 
-// Envio de E-mail Refatorado - Q4
-app.post('/api/send-email', apiLimiter, async (req, res) => {
-    const { action, dadosDetalhados } = req.body;
-    if (!dadosDetalhados || !dadosDetalhados.length) return res.status(400).json({ error: 'Sem dados.' });
-
-    try {
-        let transporter;
-        // Usa conta real caso tenha variáveis no .env
-        if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-             transporter = nodemailer.createTransport({
-                 host: process.env.SMTP_HOST,
-                 port: parseInt(process.env.SMTP_PORT) || 587,
-                 secure: process.env.SMTP_SECURE === 'true',
-                 auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-             });
-        } else {
-             // Conta Teste Ethereal apenas de Fallback
-             let testAccount = await nodemailer.createTestAccount();
-             transporter = nodemailer.createTransport({ host: "smtp.ethereal.email", port: 587, secure: false, auth: { user: testAccount.user, pass: testAccount.pass } });
-        }
-
-        let htmlBody = `<h1>Relatório de Notificação: ${action}</h1><table border="1">...</table>`;
-        let info = await transporter.sendMail({
-            from: process.env.SMTP_FROM || '"Sistema" <noreply@painel.com>',
-            to: "coordenador@exemplo.com",
-            subject: `Notificação de Atividades: ${action}`,
-            html: htmlBody,
-        });
-
-        const resp = { message: "E-mail enviado!" };
-        if (!process.env.SMTP_HOST) resp.previewUrl = nodemailer.getTestMessageUrl(info);
-        res.status(200).json(resp);
-    } catch (error) { res.status(500).json({ error: 'Falha.' }); }
-});
-
-app.listen(PORT, () => console.log(`Backend rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`Backend seguro rodando na porta ${PORT}`));

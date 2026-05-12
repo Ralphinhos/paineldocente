@@ -1,60 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { Coordinator } from '../types'; 
-import { User, Lock } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext'; // Importar o hook useAuth
+import React, { useState } from 'react';
+import { User, Lock, Loader2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [coordinators, setCoordinators] = useState<Coordinator[]>([]);
-  const { login } = useAuth(); // Usar o contexto de autenticação
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
-  useEffect(() => {
-    const storedCoordinators = localStorage.getItem('coordinatorsData');
-    if (storedCoordinators) {
-      try {
-        setCoordinators(JSON.parse(storedCoordinators));
-      } catch (e) {
-        setError("Erro ao carregar configuração.");
-      }
-    }
-  }, []);
+  // ✅ Dados de usuários/senhas não existem mais no cliente.
 
-  const handleLogin = () => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); // Previne o recarregamento da página
     setError('');
-    const trimmedUsername = username.trim();
+    setLoading(true);
 
-    // 1. Checar Admin
-    if (trimmedUsername === 'admin' && password === 'admin') {
-      login({
-        name: 'Administrador',
-        role: 'admin',
-        courses: [], // Admin não tem cursos específicos
-        username: 'admin',
+    try {
+      // ✅ Credenciais enviadas ao backend — NUNCA comparadas localmente.
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+        }),
       });
-      return;
+
+      if (!response.ok) {
+        // Backend rejeitou — exibe mensagem
+        const body = await response.json().catch(() => ({}));
+        setError(body?.error || body?.message || 'Usuário ou senha inválidos.');
+        return;
+      }
+
+      // ✅ Backend retorna os dados do usuário autenticado + token
+      const data = await response.json();
+      const { token, ...user } = data;
+
+      // ✅ O contexto (login) já faz o trabalho de salvar no localStorage e no state
+      login(user, token);
+
+    } catch {
+      setError('Erro de conexão ao servidor. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-
-    // 2. Checar Coordenador
-    const lowercasedUsername = trimmedUsername.toLowerCase();
-    const coordinator = coordinators.find(c => c.username.toLowerCase() === lowercasedUsername);
-
-    if (coordinator && coordinator.password === password) {
-      login({
-        name: coordinator.fullName,
-        role: 'coordinator',
-        courses: coordinator.courses,
-        username: coordinator.username,
-      });
-    } else {
-      setError('Usuário ou senha inválidos.');
-    }
-  };
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); 
-    handleLogin();
   };
 
   return (
@@ -63,9 +54,14 @@ export const Login: React.FC = () => {
         <div className="flex justify-center mb-8">
           <img src="/logo_branca.png" alt="Logo" className="h-20 w-auto" />
         </div>
-        
-        {error && <p className="text-red-500 text-center mb-4 text-sm">{error}</p>}
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        {error && (
+          <p role="alert" className="text-red-500 text-center mb-4 text-sm font-medium">
+            {error}
+          </p>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <User className="h-5 w-5 text-gray-400" />
@@ -75,10 +71,12 @@ export const Login: React.FC = () => {
               placeholder="Login"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-3 pl-10 bg-[#1e293b] rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full p-3 pl-10 bg-[#1e293b] rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
               autoFocus
+              disabled={loading}
             />
           </div>
+
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Lock className="h-5 w-5 text-gray-400" />
@@ -88,14 +86,17 @@ export const Login: React.FC = () => {
               placeholder="Senha"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 pl-10 bg-[#1e293b] rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full p-3 pl-10 bg-[#1e293b] rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all"
+              disabled={loading}
             />
           </div>
+
           <button
             type="submit"
-            className="w-full p-3 bg-cyan-600 hover:bg-cyan-700 rounded-md text-white font-semibold transition-colors disabled:bg-gray-500"
+            disabled={loading}
+            className="w-full p-3 bg-cyan-600 hover:bg-cyan-700 rounded-md text-white font-semibold transition-colors disabled:bg-gray-500 flex justify-center items-center"
           >
-            Entrar
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Entrar'}
           </button>
         </form>
       </div>
