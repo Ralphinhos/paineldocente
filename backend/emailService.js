@@ -1,4 +1,5 @@
-// Mapeamento de colunas adaptado do seu código original
+const nodemailer = require('nodemailer');
+
 const COLUNAS = {
   DOCENTE: 'Docente',
   EMAIL_DOCENTE: 'email_docente',
