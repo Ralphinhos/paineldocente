@@ -62,6 +62,7 @@ export const Login: React.FC = () => {
             <input
               type="text"
               placeholder="Login"
+              autoComplete="username" // ✅ CORREÇÃO: Resolve o aviso do Chrome
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full p-3 pl-10 bg-[#1e293b] rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all"

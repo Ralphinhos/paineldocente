@@ -35,7 +35,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
       if (!res.ok) throw new Error("Erro buscar históricos");
       return res.json();
-    }
+    },
+    // ✅ CORREÇÃO: Só executa a requisição se existir um token no localStorage
+    enabled: !!localStorage.getItem('authToken') 
   });
 
   const { data: allData = [], isLoading, error: queryError, refetch: fetchData } = useQuery({
@@ -59,6 +61,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }));
     },
     staleTime: 60 * 1000, 
+    // ✅ CORREÇÃO: Bloqueia a busca de dados na tela de login
+    enabled: !!localStorage.getItem('authToken')
   });
 
   const contextValue: IDataContextProps = {
