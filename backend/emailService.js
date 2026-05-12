@@ -14,13 +14,13 @@ const COLUNAS = {
 
 // Configure o seu transporter aqui (usando a estratégia OAuth2 ou Resend definida anteriormente)
 const transporter = nodemailer.createTransport({
-  // Exemplo com Resend:
-  host: 'smtp.resend.com',
-  port: 465,
-  secure: true,
+  service: 'gmail',
   auth: {
-    user: 'resend',
-    pass: process.env.RESEND_API_KEY, 
+    type: 'OAuth2',
+    user: 'ned@unifenas.br', // IMPORTANTE: Tem que ser EXATAMENTE o email que você autorizou lá no Playground
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
   },
 });
 
