@@ -1,5 +1,3 @@
-const nodemailer = require('nodemailer');
-
 // Mapeamento de colunas adaptado do seu código original
 const COLUNAS = {
   DOCENTE: 'Docente',
@@ -26,7 +24,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const REMETENTE_OFICIAL = 'Equipe NED <seu-email-ou-sistema@unifenas.br>';
+const REMETENTE_OFICIAL = 'Equipe NED <ned@unifenas.br>';
 
 // ==========================================
 // FUNÇÕES DE ENVIO DE E-MAIL

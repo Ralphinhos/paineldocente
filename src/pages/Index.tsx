@@ -199,11 +199,58 @@ export default function Index() {
     }, [filteredData]);
     
     const handleNotification = async (action: string) => {
-        sonnerToast.info("Funcionalidade em Desenvolvimento", {
-            description: `A notificação para '${action}' está sendo preparada e estará disponível em breve.`,
-            duration: 5000,
+    // 1. Evita disparar se a tabela estiver vazia
+    if (filteredData.length === 0) {
+        sonnerToast.warning("Nenhum dado na tela", {
+            description: "Filtre ou selecione dados antes de enviar notificações."
         });
-    };
+        return;
+    }
+
+    try {
+        // 2. Muda o estado para isNotifying = true (provavelmente faz o ícone no Sidebar girar/carregar)
+        setIsNotifying(true);
+        sonnerToast.info("Enviando e-mails...", { description: "Por favor, aguarde." });
+
+        // 3. Pega a chave do porteiro
+        const token = localStorage.getItem('authToken');
+        
+        // 4. Bate na rota NOVA que criamos no backend
+        // Se no ambiente de dev a URL for diferente, use algo como import.meta.env.VITE_API_URL + '/api/notificacoes'
+        const response = await fetch('/api/notificacoes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ 
+                action: action, 
+                dados: filteredData // Os dados filtrados que estão visíveis na tela!
+            }) 
+        });
+
+        const result = await response.json();
+
+        // 5. Exibe a resposta do Backend (Sucesso ou Erro)
+        if (response.ok && result.success) {
+            sonnerToast.success("Sucesso!", {
+                description: result.message // Ex: "E-mails para 5 docente(s) enviados com sucesso."
+            });
+        } else {
+            sonnerToast.error("Erro no envio", {
+                description: result.error || "Ocorreu um problema ao processar os e-mails."
+            });
+        }
+    } catch (error) {
+        console.error('Erro na requisição de notificação:', error);
+        sonnerToast.error("Falha de Conexão", {
+            description: "Não foi possível conectar ao servidor. O backend está rodando?"
+        });
+    } finally {
+        // 6. Desliga o loading
+        setIsNotifying(false);
+    }
+};
     
     if (isDataLoading) return <LoadingScreen message="Carregando dados..." />;
     if (dataError) return <div className="text-red-500 text-center p-4">Erro ao carregar dados: {dataError}</div>;
