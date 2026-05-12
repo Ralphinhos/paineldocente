@@ -138,26 +138,34 @@ app.post('/api/history', apiLimiter, verifyToken, async (req, res) => {
 app.post('/api/notificacoes', verifyToken, async (req, res) => {
   try {
     const { action, dados } = req.body;
-    let mensagem = '';
 
-    switch (action) {
-      case 'coordenadores':
-        mensagem = await notificarCoordenadores(dados);
-        break;
-      case 'docentes':
-        mensagem = await notificarDocentes(dados);
-        break;
-      case 'cobrancaUas':
-        mensagem = await cobrarUasPendentes(dados);
-        break;
-      default:
-        return res.status(400).json({ error: `Ação "${action}" não reconhecida.` });
+    // 1. O servidor já responde imediatamente ao Frontend para evitar o Erro 504 (Timeout)
+    res.json({ 
+      success: true, 
+      message: 'A solicitação foi recebida! Os e-mails estão sendo disparados em segundo plano e chegarão em breve.' 
+    });
+
+    // 2. Executa a lógica de disparo nos bastidores (sem travar a tela do usuário)
+    // Note que removemos o "await" de propósito para que o sistema não fique esperando
+    if (action === 'coordenadores') {
+      notificarCoordenadores(dados)
+        .then(msg => console.log('[Background] Coordenadores:', msg))
+        .catch(err => console.error('[Background] Erro Coordenadores:', err));
+        
+    } else if (action === 'docentes') {
+      notificarDocentes(dados)
+        .then(msg => console.log('[Background] Docentes:', msg))
+        .catch(err => console.error('[Background] Erro Docentes:', err));
+        
+    } else if (action === 'cobrancaUas') {
+      cobrarUasPendentes(dados)
+        .then(msg => console.log('[Background] Cobrança UAs:', msg))
+        .catch(err => console.error('[Background] Erro Cobrança UAs:', err));
     }
 
-    res.json({ success: true, message: mensagem });
   } catch (error) {
-    console.error('Erro na rota de notificações:', error);
-    res.status(500).json({ error: 'Falha ao processar e-mails.' });
+    console.error('Erro fatal na rota de notificações:', error);
+    // Aqui só cai se der erro ao receber os dados, o que é quase impossível acontecer agora.
   }
 });
 
