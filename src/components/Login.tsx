@@ -9,15 +9,12 @@ export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  // ✅ Dados de usuários/senhas não existem mais no cliente.
-
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); // Previne o recarregamento da página
+    event.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // ✅ Credenciais enviadas ao backend — NUNCA comparadas localmente.
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -28,17 +25,13 @@ export const Login: React.FC = () => {
       });
 
       if (!response.ok) {
-        // Backend rejeitou — exibe mensagem
         const body = await response.json().catch(() => ({}));
         setError(body?.error || body?.message || 'Usuário ou senha inválidos.');
         return;
       }
 
-      // ✅ Backend retorna os dados do usuário autenticado + token
       const data = await response.json();
       const { token, ...user } = data;
-
-      // ✅ O contexto (login) já faz o trabalho de salvar no localStorage e no state
       login(user, token);
 
     } catch {
@@ -84,6 +77,7 @@ export const Login: React.FC = () => {
             <input
               type="password"
               placeholder="Senha"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full p-3 pl-10 bg-[#1e293b] rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all"

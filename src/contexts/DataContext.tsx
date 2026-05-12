@@ -27,10 +27,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { data: historyList = [], refetch: fetchHistoryList } = useQuery({
     queryKey: ['historyList'],
     queryFn: async () => {
-      const token = localStorage.getItem('authToken'); // Pega o token salvo
+      const token = localStorage.getItem('authToken');
       const res = await fetch('/api/history', {
         headers: {
-          'Authorization': `Bearer ${token}` // Envia o crachá para o backend
+          'Authorization': `Bearer ${token}`
         }
       });
       if (!res.ok) throw new Error("Erro buscar históricos");
@@ -41,12 +41,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { data: allData = [], isLoading, error: queryError, refetch: fetchData } = useQuery({
     queryKey: ['dados', selectedHistory],
     queryFn: async () => {
-      const token = localStorage.getItem('authToken'); // Pega o token salvo
+      const token = localStorage.getItem('authToken');
       const url = selectedHistory === 'current' ? '/api/dados' : `/api/dados?history_id=${selectedHistory}`;
       
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}` // Envia o crachá para o backend
+          'Authorization': `Bearer ${token}`
         }
       });
 
