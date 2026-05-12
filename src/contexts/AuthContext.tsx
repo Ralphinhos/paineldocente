@@ -32,14 +32,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     useEffect(() => {
         const validateSession = async () => {
             const storedToken = localStorage.getItem('authToken');
-            
+
             if (!storedToken) {
                 setIsLoading(false);
                 return;
             }
 
             try {
-                // Pergunta pro servidor se o token não é falso ou expirado
                 const response = await fetch('/api/validate-session', {
                     headers: { 'Authorization': `Bearer ${storedToken}` }
                 });
@@ -60,6 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } catch (error) {
                 console.error("Token forjado ou expirado. Deslogando.");
                 localStorage.removeItem('authToken');
+                localStorage.removeItem('sessionExpireTime');
                 setUser(null);
                 setToken(null);
                 setIsAuthenticated(false);
@@ -72,7 +72,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, []);
 
     const login = useCallback((userData: Omit<AuthContextType['user'], 'isAuthenticated'>, jwtToken: string) => {
-        localStorage.setItem('authToken', jwtToken); // Guarda só o token real
+        localStorage.setItem('authToken', jwtToken);
+        // Remove sessão antiga para evitar logout imediato pelo useIdleTimer
+        localStorage.removeItem('sessionExpireTime');
         setToken(jwtToken);
         setUser(userData);
         setIsAuthenticated(true);
@@ -81,6 +83,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const logout = useCallback(() => {
         localStorage.removeItem('authToken');
+        localStorage.removeItem('sessionExpireTime');
         setToken(null);
         setUser(null);
         setIsAuthenticated(false);
