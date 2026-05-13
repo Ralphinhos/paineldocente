@@ -28,27 +28,77 @@ oauth2Client.setCredentials({
 });
 
 async function createTransporter() {
-  const accessTokenResponse = await oauth2Client.getAccessToken();
-  const accessToken = accessTokenResponse?.token;
+  console.log("[EMAIL] =====================");
+  console.log("[EMAIL] Criando transporter");
+  console.log("[EMAIL] =====================");
 
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+  try {
+    console.log("[EMAIL] Obtendo access token...");
 
-    auth: {
-      type: "OAuth2",
-      user: process.env.GMAIL_USER,
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
-      accessToken,
-    },
+    const accessTokenResponse =
+      await oauth2Client.getAccessToken();
 
-    connectionTimeout: 60000,
-    greetingTimeout: 30000,
-    socketTimeout: 60000,
-  });
+    const accessToken =
+      accessTokenResponse?.token;
+
+    console.log(
+      "[EMAIL] Access token OK:",
+      !!accessToken,
+    );
+
+    const transporter =
+      nodemailer.createTransport({
+        // Força IPv4
+        host: "74.125.133.108",
+
+        port: 465,
+
+        secure: true,
+
+        tls: {
+          rejectUnauthorized: false,
+        },
+
+        auth: {
+          type: "OAuth2",
+          user: process.env.GMAIL_USER,
+          clientId:
+            process.env.GOOGLE_CLIENT_ID,
+          clientSecret:
+            process.env.GOOGLE_CLIENT_SECRET,
+          refreshToken:
+            process.env.GOOGLE_REFRESH_TOKEN,
+          accessToken,
+        },
+
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
+        socketTimeout: 30000,
+
+        logger: true,
+        debug: true,
+      });
+
+    console.log(
+      "[EMAIL] Verificando conexão SMTP...",
+    );
+
+    await transporter.verify();
+
+    console.log(
+      "[EMAIL] SMTP conectado com sucesso!",
+    );
+
+    return transporter;
+  } catch (error) {
+    console.error(
+      "[EMAIL] ERRO AO CRIAR TRANSPORTER",
+    );
+
+    console.error(error);
+
+    throw error;
+  }
 }
 
 const REMETENTE_OFICIAL = "Equipe NED <ned@unifenas.br>";
