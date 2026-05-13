@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const { processData } = require('./dataProcessor');
 const { getSheetsData } = require('./sheets');
 const { supabase } = require('./supabase');
-const nodemailer = require('nodemailer');
 const { notificarCoordenadores, notificarDocentes, cobrarUasPendentes } = require('./emailService');
 
 const app = express();
@@ -146,7 +145,6 @@ app.post('/api/notificacoes', verifyToken, async (req, res) => {
     });
 
     // 2. Executa a lógica de disparo nos bastidores (sem travar a tela do usuário)
-    // Note que removemos o "await" de propósito para que o sistema não fique esperando
     if (action === 'coordenadores') {
       notificarCoordenadores(dados)
         .then(msg => console.log('[Background] Coordenadores:', msg))
@@ -165,7 +163,6 @@ app.post('/api/notificacoes', verifyToken, async (req, res) => {
 
   } catch (error) {
     console.error('Erro fatal na rota de notificações:', error);
-    // Aqui só cai se der erro ao receber os dados, o que é quase impossível acontecer agora.
   }
 });
 

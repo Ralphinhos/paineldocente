@@ -214,10 +214,69 @@ async function notificarDocentes(dados) {
 }
 
 // ==========================================
+// COBRANÇA DE UAS PENDENTES
+// ==========================================
+
+async function cobrarUasPendentes(dados) {
+  const pendenciasPorDocente = dados.reduce((acc, item) => {
+    const nomeDocente = item[COLUNAS.DOCENTE];
+    const emailDocente = item[COLUNAS.EMAIL_DOCENTE];
+
+    if (!nomeDocente || !emailDocente) return acc;
+
+    if (!acc[nomeDocente]) {
+      acc[nomeDocente] = {
+        email: emailDocente,
+        atividades: [],
+      };
+    }
+
+    acc[nomeDocente].atividades.push(item);
+
+    return acc;
+  }, {});
+
+  let enviosComSucesso = 0;
+
+  for (const nomeDocente in pendenciasPorDocente) {
+    const info = pendenciasPorDocente[nomeDocente];
+
+    let corpoEmail = "";
+
+    corpoEmail += `Prezado(a) Professor(a) ${nomeDocente},\n\n`;
+
+    corpoEmail += `Verificamos em nosso sistema que existem pendências relacionadas a UAs (Unidades de Aprendizagem) ou outras atividades em suas disciplinas:\n\n`;
+
+    info.atividades.forEach((item) => {
+      corpoEmail += `› Disciplina: ${item[COLUNAS.DISCIPLINA]}\n`;
+      corpoEmail += `  - Atividade/UA: ${item[COLUNAS.ATIVIDADE]}\n`;
+      corpoEmail += `  - Situação: ${item[COLUNAS.STATUS_CALCULADO]}\n\n`;
+    });
+
+    corpoEmail += `Pedimos a gentileza de regularizar essas situações o mais breve possível. Caso já tenha regularizado, por favor desconsidere este aviso.\n\n`;
+
+    corpoEmail += `Atenciosamente,\nEquipe NED`;
+
+    const sucesso = await enviarEmail(
+      info.email,
+      "Aviso Importante: UAs e Atividades Pendentes",
+      corpoEmail
+    );
+
+    if (sucesso) {
+      enviosComSucesso++;
+    }
+  }
+
+  return `E-mails de cobrança para ${enviosComSucesso} docente(s) enviados com sucesso.`;
+}
+
+// ==========================================
 // EXPORTS
 // ==========================================
 
 module.exports = {
   notificarCoordenadores,
   notificarDocentes,
+  cobrarUasPendentes,
 };
