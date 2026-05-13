@@ -1,3 +1,4 @@
+import { InteligenciaAnalitica } from '../components/InteligenciaAnalitica';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDataContext } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,6 +16,8 @@ import { LogOut, FileText, Save, Calendar, Info } from 'lucide-react';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import useIdleTimer from '../hooks/useIdleTimer';
 import { toast as sonnerToast } from "@/components/ui/sonner";
+
+const InteligenciaAnaliticaWithData = InteligenciaAnalitica as React.ComponentType<{ data: ProcessedData[] }>;
 
 export default function Index() {
     const navigate = useNavigate();
@@ -359,7 +362,7 @@ export default function Index() {
                     </div>
                 ) : (
                     <Tabs defaultValue="detalhado" className="w-full">
-                        <TabsList className="bg-transparent p-0 gap-4 mb-4">
+                        <TabsList className="bg-transparent p-0 gap-4 mb-4 flex-wrap">
                             <TabsTrigger
                                 value="detalhado"
                                 className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 data-[state=active]:text-white dark:data-[state=active]:text-white data-[state=active]:border-cyan-500 dark:data-[state=active]:border-cyan-600"
@@ -371,6 +374,12 @@ export default function Index() {
                                 className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 data-[state=active]:text-white dark:data-[state=active]:text-white data-[state=active]:border-cyan-500 dark:data-[state=active]:border-cyan-600"
                             >
                                 Visão Geral
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="analitica"
+                                className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 data-[state=active]:bg-cyan-500 dark:data-[state=active]:bg-cyan-600 data-[state=active]:text-white dark:data-[state=active]:text-white data-[state=active]:border-cyan-500 dark:data-[state=active]:border-cyan-600"
+                            >
+                                Inteligência Analítica
                             </TabsTrigger>
                         </TabsList>
                         <TabsContent value="detalhado">
@@ -390,6 +399,10 @@ export default function Index() {
                         </TabsContent>
                         <TabsContent value="geral">
                             <VisaoGeral data={filteredData} />
+                        </TabsContent>
+                        <TabsContent value="analitica">
+                            {/* Novo componente passando os dados filtrados */}
+                            <InteligenciaAnaliticaWithData data={filteredData} />
                         </TabsContent>
                     </Tabs>
                 )}
