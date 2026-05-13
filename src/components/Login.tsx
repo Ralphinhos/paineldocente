@@ -26,6 +26,13 @@ export const Login: React.FC = () => {
       });
 
       if (!response.ok) {
+        // Verifica se é um erro de servidor dormindo (Render acordando)
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          setError('O servidor está acordando após um período inativo. Por favor, aguarde uns 40 segundos e tente novamente.');
+          return;
+        }
+
+        // Se for um erro 401 ou 400 normal de senha errada
         const body = await response.json().catch(() => ({}));
         setError(body?.error || body?.message || 'Usuário ou senha inválidos.');
         return;
@@ -35,8 +42,8 @@ export const Login: React.FC = () => {
       const { token, ...user } = data;
       login(user, token);
 
-    } catch {
-      setError('Erro de conexão ao servidor. Tente novamente.');
+    } catch (error) {
+      setError('O servidor demorou a responder (está acordando). Aguarde um minuto e tente novamente.');
     } finally {
       setLoading(false);
     }
