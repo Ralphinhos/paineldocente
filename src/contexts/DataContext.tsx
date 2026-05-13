@@ -1,6 +1,7 @@
 import React, { createContext, ReactNode, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ProcessedData } from '../types';
+import { useAuth } from './AuthContext'; // Importar useAuth para forçar reatividade
 
 export interface IDataContextProps {
   allData: ProcessedData[];
@@ -23,11 +24,16 @@ export const useDataContext = () => {
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [selectedHistory, setSelectedHistory] = useState<string>('current');
+  
+  // Usamos o state do Auth para garantir que os dados só carreguem 
+  // e reajam no momento exato em que o login terminar com sucesso
+  const { isAuthenticated, token: authToken } = useAuth(); 
+  const isEnabled = isAuthenticated || !!localStorage.getItem('authToken');
 
   const { data: historyList = [], refetch: fetchHistoryList } = useQuery({
     queryKey: ['historyList'],
     queryFn: async () => {
-      const token = localStorage.getItem('authToken');
+      const token = authToken || localStorage.getItem('authToken');
       const res = await fetch('/api/history', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -36,14 +42,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!res.ok) throw new Error("Erro buscar históricos");
       return res.json();
     },
-    // ✅ CORREÇÃO: Só executa a requisição se existir um token no localStorage
-    enabled: !!localStorage.getItem('authToken') 
+    enabled: isEnabled 
   });
 
   const { data: allData = [], isLoading, error: queryError, refetch: fetchData } = useQuery({
     queryKey: ['dados', selectedHistory],
     queryFn: async () => {
-      const token = localStorage.getItem('authToken');
+      const token = authToken || localStorage.getItem('authToken');
       const url = selectedHistory === 'current' ? '/api/dados' : `/api/dados?history_id=${selectedHistory}`;
       
       const response = await fetch(url, {
@@ -61,8 +66,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }));
     },
     staleTime: 60 * 1000, 
-    // ✅ CORREÇÃO: Bloqueia a busca de dados na tela de login
-    enabled: !!localStorage.getItem('authToken')
+    enabled: isEnabled
   });
 
   const contextValue: IDataContextProps = {

@@ -8,29 +8,35 @@ import NotFound from "./pages/NotFound";
 import { Login } from "./components/Login";
 import RelatorioPeriodo from './components/RelatorioPeriodo';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { DataProvider } from './contexts/DataContext';
+import { DataProvider, useDataContext } from './contexts/DataContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/LoadingScreen';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1, // Não fica tentando várias vezes se o Render estiver demorando
-      refetchOnWindowFocus: false, // Evita travamentos ao trocar de aba
+      retry: 1, 
+      refetchOnWindowFocus: false, 
     },
   },
 });
 
 const PrivateRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isLoading: dataLoading } = useDataContext(); 
   const hasToken = !!localStorage.getItem('authToken');
 
-  // 1. Aguarda a validação do token (e o backend acordar) antes de tentar renderizar a tela.
-  if (isLoading && hasToken) {
-    return <LoadingScreen message="Conectando ao servidor..." />;
+  // 1. Trava dupla: Aguarda a validação do token E a busca inicial dos dados.
+  // Impede completamente o acesso com os filtros em branco ou funções pela metade.
+  if (hasToken && (authLoading || dataLoading)) {
+    return (
+      <LoadingScreen 
+        message={authLoading ? "Conectando ao servidor..." : "Carregando disciplinas e filtros..."} 
+      />
+    );
   }
 
-  // 2. Se não estiver carregando, verifica se validou a sessão de fato.
+  // 2. Só libera o acesso à tela quando tudo estiver 100% carregado
   return isAuthenticated ? element : <Navigate to="/login" replace />;
 };
 
@@ -42,7 +48,6 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <AuthProvider>
-              {/* O DataProvider agora só é envelopado se for necessário, para não disparar chamadas perdidas */}
               <DataProvider>
                 <Routes>
                   <Route path="/login" element={<Login />} />
