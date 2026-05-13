@@ -30,29 +30,85 @@ const gmail = google.gmail({
 
 const REMETENTE_OFICIAL = "Equipe NED <ned@unifenas.br>";
 
-/**
- * Corrige a acentuação no assunto do e-mail codificando para Base64 (MIME)
- */
+// ==========================================
+// FUNÇÕES AUXILIARES E REGRAS DE NEGÓCIO
+// ==========================================
+
+// Corrige a acentuação no assunto
 function formatarAssunto(assunto) {
   const base64Subject = Buffer.from(assunto).toString("base64");
   return `=?utf-8?B?${base64Subject}?=`;
 }
 
-async function enviarEmail(destinatario, assunto, corpoTexto) {
+// Filtra apenas o que é pendente (Ignora "Entregue")
+const ehPendente = (item) => 
+  item.isPendente === true || 
+  String(item[COLUNAS.STATUS_CALCULADO]).toLowerCase().includes('pendente');
+
+// Verifica se a atividade é referente à UA
+// Verifica se a atividade é estritamente referente à UA (trata aspas simples retas e curvas do Excel)
+const ehUa = (item) => {
+  const nomeAtividade = String(item[COLUNAS.ATIVIDADE] || '').trim().toUpperCase();
+  return nomeAtividade === "UA'S ENVIADAS" || nomeAtividade === "UA’S ENVIADAS";
+};
+
+// Gera um arquivo CSV formatado para o Excel do Brasil
+function gerarCSV(dados) {
+  if (!dados || dados.length === 0) return null;
+  const cabecalho = ["Docente", "Curso", "Disciplina", "Atividade", "Situação"].join(";");
+  const linhas = dados.map(i => {
+    return [
+      `"${i[COLUNAS.DOCENTE] || ''}"`,
+      `"${i[COLUNAS.CURSO] || ''}"`,
+      `"${i[COLUNAS.DISCIPLINA] || ''}"`,
+      `"${i[COLUNAS.ATIVIDADE] || ''}"`,
+      `"${i[COLUNAS.STATUS_CALCULADO] || ''}"`
+    ].join(";");
+  });
+  // O \uFEFF é o BOM (Byte Order Mark) que faz o Excel reconhecer o UTF-8 (acentos)
+  return '\uFEFF' + [cabecalho, ...linhas].join('\n');
+}
+
+// ==========================================
+// MOTOR DE ENVIO (COM SUPORTE A ANEXO)
+// ==========================================
+
+async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null, csvFilename = "relatorio.csv") {
   try {
     const assuntoFormatado = formatarAssunto(assunto);
+    const boundary = "b0undary_" + Date.now();
 
-    const email = [
+    let emailLines = [
       `From: ${REMETENTE_OFICIAL}`,
       `To: ${destinatario}`,
       `Subject: ${assuntoFormatado}`,
-      "Content-Type: text/plain; charset=utf-8",
-      "MIME-Version: 1.0",
-      "",
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/plain; charset="utf-8"`,
+      ``,
       corpoTexto,
-    ].join("\n");
+      ``
+    ];
 
-    const encodedMessage = Buffer.from(email)
+    // Se houver conteúdo para o CSV, anexa ao e-mail
+    if (csvContent) {
+      const base64Csv = Buffer.from(csvContent, 'utf-8').toString("base64");
+      emailLines = emailLines.concat([
+        `--${boundary}`,
+        `Content-Type: text/csv; charset="utf-8"; name="${csvFilename}"`,
+        `Content-Disposition: attachment; filename="${csvFilename}"`,
+        `Content-Transfer-Encoding: base64`,
+        ``,
+        base64Csv,
+        ``
+      ]);
+    }
+
+    emailLines.push(`--${boundary}--`);
+
+    const encodedMessage = Buffer.from(emailLines.join("\n"))
       .toString("base64")
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
@@ -60,9 +116,7 @@ async function enviarEmail(destinatario, assunto, corpoTexto) {
 
     await gmail.users.messages.send({
       userId: "me",
-      requestBody: {
-        raw: encodedMessage,
-      },
+      requestBody: { raw: encodedMessage },
     });
 
     console.log(`[EMAIL] Sucesso: ${assunto} -> ${destinatario}`);
@@ -74,114 +128,103 @@ async function enviarEmail(destinatario, assunto, corpoTexto) {
 }
 
 // ==========================================
-// COORDENADORES
+// 1. COORDENADORES (Tudo que for pendente nos cursos dele)
 // ==========================================
 
 async function notificarCoordenadores(dados) {
-  const pendenciasPorCoordenador = dados.reduce((acc, item) => {
-    const nomeCoord = item[COLUNAS.COORDENADOR];
-    const emailCoord = item[COLUNAS.EMAIL_COORDENADOR];
-    const curso = item[COLUNAS.CURSO];
-    const docente = item[COLUNAS.DOCENTE];
+  // Filtra SOMENTE pendentes
+  const pendentes = dados.filter(item => ehPendente(item));
 
-    if (!nomeCoord || !emailCoord) return acc;
-    if (!acc[emailCoord]) acc[emailCoord] = { nome: nomeCoord, cursos: {} };
-    if (!acc[emailCoord].cursos[curso]) acc[emailCoord].cursos[curso] = {};
-    if (!acc[emailCoord].cursos[curso][docente]) acc[emailCoord].cursos[curso][docente] = [];
-
-    acc[emailCoord].cursos[curso][docente].push(item);
+  const porCoordenador = pendentes.reduce((acc, item) => {
+    const nome = item[COLUNAS.COORDENADOR];
+    const email = item[COLUNAS.EMAIL_COORDENADOR];
+    if (!nome || !email) return acc;
+    if (!acc[email]) acc[email] = { nome, itens: [] };
+    
+    acc[email].itens.push(item);
     return acc;
   }, {});
 
   let envios = 0;
-  for (const email in pendenciasPorCoordenador) {
-    const info = pendenciasPorCoordenador[email];
+  for (const email in porCoordenador) {
+    const info = porCoordenador[email];
     let corpo = `Olá, Coordenador(a) ${info.nome}.\n\n`;
-    corpo += `Encaminhamos o relatório consolidado de pendências identificadas em seus cursos. Solicitamos o seu apoio na mediação com os docentes para a regularização dos itens listados abaixo:\n\n`;
-
-    for (const curso in info.cursos) {
-      corpo += `----------------------------------------\n`;
-      corpo += `CURSO: ${curso}\n`;
-      corpo += `----------------------------------------\n\n`;
-      for (const docente in info.cursos[curso]) {
-        corpo += `• Docente: ${docente}\n`;
-        info.cursos[curso][docente].forEach(i => {
-          corpo += `  - Disciplina: ${i[COLUNAS.DISCIPLINA]}\n`;
-          corpo += `  - Item: ${i[COLUNAS.ATIVIDADE]}\n`;
-          corpo += `  - Situação: ${i[COLUNAS.STATUS_CALCULADO]}\n\n`;
-        });
-      }
-    }
+    corpo += `Encaminhamos em anexo a planilha com o relatório consolidado de todas as pendências identificadas nos cursos sob sua responsabilidade.\n\n`;
+    corpo += `Solicitamos o seu apoio na mediação com os docentes para a regularização dos itens listados no arquivo.\n\n`;
     corpo += `Estamos à disposição para eventuais dúvidas.\n\nAtenciosamente,\nEquipe NED`;
 
-    if (await enviarEmail(email, "Relatório de Pendências Acadêmicas - Cursos", corpo)) envios++;
+    const csv = gerarCSV(info.itens);
+    if (await enviarEmail(email, "Relatório de Pendências Acadêmicas - Cursos", corpo, csv, "pendencias_cursos.csv")) envios++;
   }
   return `E-mails enviados para ${envios} coordenador(es).`;
 }
 
 // ==========================================
-// DOCENTES (PENDÊNCIAS GERAIS)
+// 2. DOCENTES (Apenas atividades pendentes, EXCETO UAs)
 // ==========================================
 
 async function notificarDocentes(dados) {
-  const pendenciasPorDocente = dados.reduce((acc, item) => {
+  // Filtra SOMENTE pendentes e que NÃO sejam UAs
+  const pendentesNaoUas = dados.filter(item => ehPendente(item) && !ehUa(item));
+
+  const porDocente = pendentesNaoUas.reduce((acc, item) => {
     const nome = item[COLUNAS.DOCENTE];
     const email = item[COLUNAS.EMAIL_DOCENTE];
     if (!nome || !email) return acc;
-    if (!acc[nome]) acc[nome] = { email, atividades: [] };
-    acc[nome].atividades.push(item);
+    if (!acc[email]) acc[email] = { nome, itens: [] };
+    
+    acc[email].itens.push(item);
     return acc;
   }, {});
 
   let envios = 0;
-  for (const nome in pendenciasPorDocente) {
-    const info = pendenciasPorDocente[nome];
-    let corpo = `Prezado(a) Professor(a) ${nome}.\n\n`;
-    corpo += `Identificamos as seguintes pendências acadêmicas em nosso sistema que precisam de sua atenção para o bom andamento das disciplinas:\n\n`;
+  for (const email in porDocente) {
+    const info = porDocente[email];
+    let corpo = `Prezado(a) Professor(a) ${info.nome}.\n\n`;
+    corpo += `Identificamos pendências acadêmicas em nosso sistema que precisam de sua atenção para o bom andamento das disciplinas.\n\n`;
+    corpo += `Para facilitar a visualização e gestão, anexamos a este e-mail uma planilha contendo o detalhamento de suas atividades pendentes.\n\n`;
+    corpo += `Caso a regularização já tenha sido efetuada, favor desconsiderar este aviso.\n\nAtenciosamente,\nEquipe NED`;
 
-    info.atividades.forEach(i => {
-      corpo += `› Disciplina: ${i[COLUNAS.DISCIPLINA]}\n`;
-      corpo += `  - Atividade: ${i[COLUNAS.ATIVIDADE]}\n`;
-      corpo += `  - Situação: ${i[COLUNAS.STATUS_CALCULADO]}\n\n`;
-    });
-
-    corpo += `Caso a regularização já tenha sido efetuada, favor desconsiderar este e-mail.\n\nAtenciosamente,\nEquipe NED`;
-
-    if (await enviarEmail(info.email, "Notificação de Pendências Acadêmicas", corpo)) envios++;
+    const csv = gerarCSV(info.itens);
+    if (await enviarEmail(email, "Notificação de Pendências Acadêmicas", corpo, csv, "minhas_atividades_pendentes.csv")) envios++;
   }
   return `E-mails enviados para ${envios} docente(s).`;
 }
 
 // ==========================================
-// COBRANÇA DE MATERIAL (UAs)
+// 3. COBRANÇA DE MATERIAL (Apenas UAs pendentes)
 // ==========================================
 
 async function cobrarUasPendentes(dados) {
-  // Filtra itens que são especificamente de envio de material/UA
-  const uasPorDocente = dados.reduce((acc, item) => {
+  // Filtra SOMENTE pendentes que SEJAM UAs
+  const uasPendentes = dados.filter(item => ehPendente(item) && ehUa(item));
+
+  const uasPorDocente = uasPendentes.reduce((acc, item) => {
     const nome = item[COLUNAS.DOCENTE];
     const email = item[COLUNAS.EMAIL_DOCENTE];
     if (!nome || !email) return acc;
-    if (!acc[nome]) acc[nome] = { email, disciplinas: [] };
+    if (!acc[email]) acc[email] = { nome, disciplinas: [] };
     
-    // Evita duplicar disciplinas na lista
-    if (!acc[nome].disciplinas.includes(item[COLUNAS.DISCIPLINA])) {
-        acc[nome].disciplinas.push(item[COLUNAS.DISCIPLINA]);
+    // Evita duplicar disciplinas
+    if (!acc[email].disciplinas.includes(item[COLUNAS.DISCIPLINA])) {
+        acc[email].disciplinas.push(item[COLUNAS.DISCIPLINA]);
     }
     return acc;
   }, {});
 
   let envios = 0;
-  for (const nome in uasPorDocente) {
-    const info = uasPorDocente[nome];
-    let corpo = `Olá, Professor(a) ${nome}.\n\n`;
+  for (const email in uasPorDocente) {
+    const info = uasPorDocente[email];
+    // Como UAs geralmente são poucas disciplinas, manter a lista no corpo do e-mail é mais prático
+    let corpo = `Olá, Professor(a) ${info.nome}.\n\n`;
     corpo += `Solicitamos o envio do material das Unidades de Aprendizagem (UAs) para as disciplinas listadas abaixo. O recebimento deste conteúdo é essencial para a preparação do Ambiente Virtual de Aprendizagem (AVA):\n\n`;
     
     info.disciplinas.forEach(d => corpo += `- ${d}\n`);
 
     corpo += `\nFavor nos informar a previsão de envio ou encaminhar os arquivos o quanto antes para evitarmos atrasos na liberação aos alunos.\n\nAtenciosamente,\nEquipe NED`;
 
-    if (await enviarEmail(info.email, "Solicitação de Material Didático (UAs)", corpo)) envios++;
+    // Aqui não precisa do CSV, enviamos como null
+    if (await enviarEmail(email, "Solicitação de Material Didático (UAs)", corpo)) envios++;
   }
   return `E-mails de cobrança enviados para ${envios} docente(s).`;
 }
