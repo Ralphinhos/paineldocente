@@ -48,12 +48,15 @@ async function createTransporter() {
 
     const transporter =
       nodemailer.createTransport({
-        // Força IPv4
-        host: "74.125.133.108",
+        host: "smtp.gmail.com",
 
-        port: 465,
+        family: 4,
 
-        secure: true,
+        port: 587,
+
+        secure: false,
+
+        requireTLS: true,
 
         tls: {
           rejectUnauthorized: false,
