@@ -9,19 +9,29 @@ import { Login } from "./components/Login";
 import RelatorioPeriodo from './components/RelatorioPeriodo';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { DataProvider } from './contexts/DataContext';
-import { AuthProvider, useAuth } from './contexts/AuthContext'; 
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LoadingScreen } from './components/LoadingScreen';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1, // Não fica tentando várias vezes se o Render estiver demorando
+      refetchOnWindowFocus: false, // Evita travamentos ao trocar de aba
+    },
+  },
+});
 
 const PrivateRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => {
-  const { isAuthenticated } = useAuth();
-  
-  // ✅ CORREÇÃO: Verifica também o localStorage sincronamente. 
-  // Isso impede que o React Router expulse o usuário de volta pro login 
-  // no intervalo antes do estado global (Context) terminar de atualizar.
+  const { isAuthenticated, isLoading } = useAuth();
   const hasToken = !!localStorage.getItem('authToken');
-  
-  return (isAuthenticated || hasToken) ? element : <Navigate to="/login" replace />;
+
+  // 1. Aguarda a validação do token (e o backend acordar) antes de tentar renderizar a tela.
+  if (isLoading && hasToken) {
+    return <LoadingScreen message="Conectando ao servidor..." />;
+  }
+
+  // 2. Se não estiver carregando, verifica se validou a sessão de fato.
+  return isAuthenticated ? element : <Navigate to="/login" replace />;
 };
 
 const App = () => {
@@ -32,6 +42,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <AuthProvider>
+              {/* O DataProvider agora só é envelopado se for necessário, para não disparar chamadas perdidas */}
               <DataProvider>
                 <Routes>
                   <Route path="/login" element={<Login />} />

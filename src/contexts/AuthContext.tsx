@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface AuthContextType {
     isAuthenticated: boolean;
+    isLoading: boolean; // ADICIONADO: Exporta o estado de loading
     token: string | null;
     user: {
         name: string | null;
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             try {
+                // Se o backend demorar a acordar, isso vai esperar com segurança
                 const response = await fetch('/api/validate-session', {
                     headers: { 'Authorization': `Bearer ${storedToken}` }
                 });
@@ -57,7 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     throw new Error('Sessão Inválida');
                 }
             } catch (error) {
-                console.error("Token forjado ou expirado. Deslogando.");
+                console.error("Sessão inválida ou erro na conexão:", error);
                 localStorage.removeItem('authToken');
                 localStorage.removeItem('sessionExpireTime');
                 setUser(null);
@@ -73,7 +75,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const login = useCallback((userData: Omit<AuthContextType['user'], 'isAuthenticated'>, jwtToken: string) => {
         localStorage.setItem('authToken', jwtToken);
-        // Remove sessão antiga para evitar logout imediato pelo useIdleTimer
         localStorage.removeItem('sessionExpireTime');
         setToken(jwtToken);
         setUser(userData);
@@ -90,10 +91,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         navigate('/login');
     }, [navigate]);
 
-    if (isLoading) return null;
+    // ADICIONADO: Removemos o "if (isLoading) return null" para o fluxo fluir para o PrivateRoute do App.tsx
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, user, token, login, logout }}>
+        <AuthContext.Provider value={{ isAuthenticated, isLoading, user, token, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
