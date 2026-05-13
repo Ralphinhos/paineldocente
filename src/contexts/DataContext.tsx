@@ -1,15 +1,16 @@
-import React, { createContext, ReactNode, useState } from 'react';
+// src/contexts/DataContext.tsx
+import React, { createContext, ReactNode, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ProcessedData } from '../types';
-import { useAuth } from './AuthContext'; // Importar useAuth para forçar reatividade
+import { ProcessedData, HistoryReport } from '../types';
+import { useAuth } from './AuthContext';
 
 export interface IDataContextProps {
   allData: ProcessedData[];
   isLoading: boolean;
   error: string | null;
-  fetchData: (historyId?: string) => Promise<any>;
-  historyList: any[];
-  fetchHistoryList: () => Promise<any>;
+  fetchData: () => void;
+  historyList: HistoryReport[];
+  fetchHistoryList: () => void;
   selectedHistory: string;
   setSelectedHistory: (id: string) => void;
 }
@@ -25,12 +26,10 @@ export const useDataContext = () => {
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [selectedHistory, setSelectedHistory] = useState<string>('current');
   
-  // Usamos o state do Auth para garantir que os dados só carreguem 
-  // e reajam no momento exato em que o login terminar com sucesso
   const { isAuthenticated, token: authToken } = useAuth(); 
   const isEnabled = isAuthenticated || !!localStorage.getItem('authToken');
 
-  const { data: historyList = [], refetch: fetchHistoryList } = useQuery({
+  const { data: historyList = [], refetch: fetchHistoryList } = useQuery<HistoryReport[]>({
     queryKey: ['historyList'],
     queryFn: async () => {
       const token = authToken || localStorage.getItem('authToken');
@@ -45,7 +44,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     enabled: isEnabled 
   });
 
-  const { data: allData = [], isLoading, error: queryError, refetch: fetchData } = useQuery({
+  const { data: allData = [], isLoading, error: queryError, refetch: fetchData } = useQuery<ProcessedData[]>({
     queryKey: ['dados', selectedHistory],
     queryFn: async () => {
       const token = authToken || localStorage.getItem('authToken');
@@ -69,16 +68,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     enabled: isEnabled
   });
 
-  const contextValue: IDataContextProps = {
+  const contextValue = useMemo(() => ({
     allData,
     isLoading,
     error: queryError ? queryError.message : null,
-    fetchData: fetchData as any,
+    fetchData: fetchData as unknown as () => void,
     historyList,
-    fetchHistoryList: fetchHistoryList as any,
+    fetchHistoryList: fetchHistoryList as unknown as () => void,
     selectedHistory,
     setSelectedHistory
-  };
+  }), [allData, isLoading, queryError, fetchData, historyList, fetchHistoryList, selectedHistory]);
 
   return <DataContext.Provider value={contextValue}>{children}</DataContext.Provider>;
 };

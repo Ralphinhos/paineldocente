@@ -1,8 +1,5 @@
 // src/types/index.ts
 
-// A declaração global para 'Papa' e a interface 'RawData' foram removidas
-// pois o parsing dos dados agora é feito no backend.
-
 export interface ProcessedData {
   Docente: string;
   Disciplina: string;
@@ -11,8 +8,8 @@ export interface ProcessedData {
   Semestre: string;
   Módulo: string;
   Atividade: string;
-  'Data Limite Construção': string; // Mantido como string, pois o backend pode enviá-lo assim.
-  'Entregue': string | null; // Pode ser uma string de data ou nulo.
+  'Data Limite Construção': string;
+  'Entregue': string | null;
   'Dias s/ Acesso': number;
   Coordenador: string;
   email_coordenador: string;
@@ -23,13 +20,18 @@ export interface ProcessedData {
   isPendente: boolean;
   isAtrasado: boolean;
   isEntregueNoPrazo: boolean;
-  // O frontend espera objetos Date, que são convertidos no DataContext após o fetch.
   DataTerminoPrevisto?: Date | null;
   DataInicioSemestre?: Date | null;
 }
 
+export interface HistoryReport {
+  id: string;
+  created_at: string;
+  label: string;
+  data?: any[];
+}
+
 export interface KPIData {
-  // KPIs que dependem da seleção de modalidade
   totalPendentesModalidade: number;
   totalAtrasadasModalidade: number;
   docenteMaiorMediaAtraso: { nome: string; mediaDias: number; } | null;
@@ -40,30 +42,28 @@ export interface KPIData {
     disciplinaDestaque: string; 
     diasDisciplinaDestaque: number; 
   } | null;
-  // Mantidos para possível uso futuro ou como fallback se a lógica mudar, mas os novos acima são prioritários
-  pendentes: number; // Pode ser o total geral, independente de modalidade, se necessário
-  atrasadas: number; // Pode ser o total geral, independente de modalidade, se necessário
+  pendentes: number; 
+  atrasadas: number; 
 }
 
-// Definição para os dados do Coordenador
-  export interface Coordinator {
-    username: string; // e.g., ana.tomaz (da coluna 'Login')
-    fullName: string; // e.g., Ana Clara Tomaz (da coluna 'Coordenador')
-    courses: string[];
-    password?: string;
-  }
+export interface Coordinator {
+  username: string;
+  fullName: string;
+  courses: string[];
+  password?: string;
+}
 
 export interface DocenteStats {
-    docente: string;
-    stats: {
-        entregue: number;
-        atrasado: number;
-        pendente: number;
-        total: number;
-        diasSemAcesso: number;
-    };
-    score: number;
-    criticality: number;
+  docente: string;
+  stats: {
+      entregue: number;
+      atrasado: number;
+      pendente: number;
+      total: number;
+      diasSemAcesso: number;
+  };
+  score: number;
+  criticality: number;
 }
 
 export interface FilterState {
@@ -90,7 +90,7 @@ export interface IKpisPeriodo {
   porcentagemEntreguesNoPrazo: number;
   porcentagemComAtraso: number; 
   porcentagemPendentes: number;
-  mediaDiasAtraso: number; // Para atividades efetivamente atrasadas que tiveram diasCalculado > 0
+  mediaDiasAtraso: number; 
 }
 
 export interface CursoPerformance {
@@ -101,5 +101,3 @@ export interface CursoPerformance {
   totalEntreguesNoPrazoCurso: number;
   porcentagemEntreguesNoPrazoCurso: number;
 }
-
-// Interface DisciplinaPerformance removida conforme solicitação.

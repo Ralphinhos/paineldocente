@@ -28,31 +28,23 @@ const gmail = google.gmail({
   auth: oauth2Client,
 });
 
-const REMETENTE_OFICIAL = "Equipe NED <ned@unifenas.br>";
+// Remetente configurado via variável de ambiente para facilitar manutenção
+const REMETENTE_OFICIAL = process.env.EMAIL_SENDER || "Equipe NED <ned@unifenas.br>";
 
-// ==========================================
-// FUNÇÕES AUXILIARES E REGRAS DE NEGÓCIO
-// ==========================================
-
-// Corrige a acentuação no assunto
 function formatarAssunto(assunto) {
   const base64Subject = Buffer.from(assunto).toString("base64");
   return `=?utf-8?B?${base64Subject}?=`;
 }
 
-// Filtra apenas o que é pendente (Ignora "Entregue")
 const ehPendente = (item) => 
   item.isPendente === true || 
   String(item[COLUNAS.STATUS_CALCULADO]).toLowerCase().includes('pendente');
 
-// Verifica se a atividade é referente à UA
-// Verifica se a atividade é estritamente referente à UA (trata aspas simples retas e curvas do Excel)
 const ehUa = (item) => {
   const nomeAtividade = String(item[COLUNAS.ATIVIDADE] || '').trim().toUpperCase();
   return nomeAtividade === "UA'S ENVIADAS" || nomeAtividade === "UA’S ENVIADAS";
 };
 
-// Gera um arquivo CSV formatado para o Excel do Brasil
 function gerarCSV(dados) {
   if (!dados || dados.length === 0) return null;
   const cabecalho = ["Docente", "Curso", "Disciplina", "Atividade", "Situação"].join(";");
@@ -65,13 +57,8 @@ function gerarCSV(dados) {
       `"${i[COLUNAS.STATUS_CALCULADO] || ''}"`
     ].join(";");
   });
-  // O \uFEFF é o BOM (Byte Order Mark) que faz o Excel reconhecer o UTF-8 (acentos)
   return '\uFEFF' + [cabecalho, ...linhas].join('\n');
 }
-
-// ==========================================
-// MOTOR DE ENVIO (COM SUPORTE A ANEXO)
-// ==========================================
 
 async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null, csvFilename = "relatorio.csv") {
   try {
@@ -92,7 +79,6 @@ async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null,
       ``
     ];
 
-    // Se houver conteúdo para o CSV, anexa ao e-mail
     if (csvContent) {
       const base64Csv = Buffer.from(csvContent, 'utf-8').toString("base64");
       emailLines = emailLines.concat([
@@ -127,12 +113,7 @@ async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null,
   }
 }
 
-// ==========================================
-// 1. COORDENADORES (Tudo que for pendente nos cursos dele)
-// ==========================================
-
 async function notificarCoordenadores(dados) {
-  // Filtra SOMENTE pendentes
   const pendentes = dados.filter(item => ehPendente(item));
 
   const porCoordenador = pendentes.reduce((acc, item) => {
@@ -159,12 +140,7 @@ async function notificarCoordenadores(dados) {
   return `E-mails enviados para ${envios} coordenador(es).`;
 }
 
-// ==========================================
-// 2. DOCENTES (Apenas atividades pendentes, EXCETO UAs)
-// ==========================================
-
 async function notificarDocentes(dados) {
-  // Filtra SOMENTE pendentes e que NÃO sejam UAs
   const pendentesNaoUas = dados.filter(item => ehPendente(item) && !ehUa(item));
 
   const porDocente = pendentesNaoUas.reduce((acc, item) => {
@@ -191,12 +167,7 @@ async function notificarDocentes(dados) {
   return `E-mails enviados para ${envios} docente(s).`;
 }
 
-// ==========================================
-// 3. COBRANÇA DE MATERIAL (Apenas UAs pendentes)
-// ==========================================
-
 async function cobrarUasPendentes(dados) {
-  // Filtra SOMENTE pendentes que SEJAM UAs
   const uasPendentes = dados.filter(item => ehPendente(item) && ehUa(item));
 
   const uasPorDocente = uasPendentes.reduce((acc, item) => {
@@ -205,7 +176,6 @@ async function cobrarUasPendentes(dados) {
     if (!nome || !email) return acc;
     if (!acc[email]) acc[email] = { nome, disciplinas: [] };
     
-    // Evita duplicar disciplinas
     if (!acc[email].disciplinas.includes(item[COLUNAS.DISCIPLINA])) {
         acc[email].disciplinas.push(item[COLUNAS.DISCIPLINA]);
     }
@@ -215,15 +185,13 @@ async function cobrarUasPendentes(dados) {
   let envios = 0;
   for (const email in uasPorDocente) {
     const info = uasPorDocente[email];
-    // Como UAs geralmente são poucas disciplinas, manter a lista no corpo do e-mail é mais prático
     let corpo = `Olá, Professor(a) ${info.nome}.\n\n`;
     corpo += `Solicitamos o envio do material das Unidades de Aprendizagem (UAs) para as disciplinas listadas abaixo. O recebimento deste conteúdo é essencial para a preparação do Ambiente Virtual de Aprendizagem (AVA):\n\n`;
     
     info.disciplinas.forEach(d => corpo += `- ${d}\n`);
 
-    corpo += `\nFavor nos informar a previsão de envio ou encaminhar os arquivos o quanto antes para evitarmos atrasos na liberação aos alunos.\n\nAtenciosamente,\nEquipe NED`;
+    corpo += `\nO envio do material deve ser realizado via Lyceum. Pedimos, por gentileza, que o encaminhamento seja feito o quanto antes para evitarmos atrasos na liberação da disciplina aos alunos.\n\nAtenciosamente,\nEquipe NED`;
 
-    // Aqui não precisa do CSV, enviamos como null
     if (await enviarEmail(email, "Solicitação de Material Didático (UAs)", corpo)) envios++;
   }
   return `E-mails de cobrança enviados para ${envios} docente(s).`;

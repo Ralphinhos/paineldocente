@@ -1,9 +1,10 @@
-import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
+// src/contexts/AuthContext.tsx
+import React, { createContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface AuthContextType {
     isAuthenticated: boolean;
-    isLoading: boolean; // ADICIONADO: Exporta o estado de loading
+    isLoading: boolean;
     token: string | null;
     user: {
         name: string | null;
@@ -40,7 +41,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             try {
-                // Se o backend demorar a acordar, isso vai esperar com segurança
                 const response = await fetch('/api/validate-session', {
                     headers: { 'Authorization': `Bearer ${storedToken}` }
                 });
@@ -91,10 +91,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         navigate('/login');
     }, [navigate]);
 
-    // ADICIONADO: Removemos o "if (isLoading) return null" para o fluxo fluir para o PrivateRoute do App.tsx
+    const contextValue = useMemo(() => ({
+        isAuthenticated,
+        isLoading,
+        user,
+        token,
+        login,
+        logout
+    }), [isAuthenticated, isLoading, user, token, login, logout]);
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, isLoading, user, token, login, logout }}>
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );
