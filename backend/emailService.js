@@ -28,9 +28,10 @@ const gmail = google.gmail({
   auth: oauth2Client,
 });
 
-// Remetente e Cópia Fixa unificados apontando para GMAIL_USER
-const REMETENTE_OFICIAL = process.env.GMAIL_USER ? `Equipe NED <${process.env.GMAIL_USER}>` : "Equipe NED <ned@unifenas.br>";
-const EMAIL_COPIA_FIXO = process.env.GMAIL_USER; // E-mail institucional do ambiente Render
+// Configurações vindas das variáveis de ambiente do Render
+const GMAIL_USER = process.env.GMAIL_USER ? process.env.GMAIL_USER.trim().toLowerCase() : "";
+const REMETENTE_OFICIAL = GMAIL_USER ? `Equipe NED <${GMAIL_USER}>` : "Equipe NED <ned@unifenas.br>";
+const EMAIL_CC_FIXO_GLOBAL = process.env.EMAIL_CC_FIXO_GLOBAL || ""; // Variáveis fixas extras do admin
 
 function formatarAssunto(assunto) {
   const base64Subject = Buffer.from(assunto).toString("base64");
@@ -61,27 +62,24 @@ function gerarCSV(dados) {
   return '\uFEFF' + [cabecalho, ...linhas].join('\n');
 }
 
-async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null, csvFilename = "relatorio.csv", cc = "") {
+async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null, csvFilename = "relatorio.csv", cc = "", replyTo = "") {
   try {
     const assuntoFormatado = formatarAssunto(assunto);
     const boundary = "b0undary_" + Date.now();
-
-    // Montar a lista de e-mails em cópia
-    let copias = [];
-    if (cc) copias.push(cc);
-    if (EMAIL_COPIA_FIXO) copias.push(EMAIL_COPIA_FIXO);
 
     let emailLines = [
       `From: ${REMETENTE_OFICIAL}`,
       `To: ${destinatario}`,
     ];
 
-    // Se houver e-mails para cópia, adiciona o cabeçalho Cc
-    if (copias.length > 0) {
-        emailLines.push(`Cc: ${copias.join(", ")}`);
+    if (cc) {
+      emailLines.push(`Cc: ${cc}`);
     }
 
-    // Continua a montagem do e-mail
+    if (replyTo) {
+      emailLines.push(`Reply-To: ${replyTo}`);
+    }
+
     emailLines = emailLines.concat([
       `Subject: ${assuntoFormatado}`,
       `MIME-Version: 1.0`,
@@ -120,7 +118,7 @@ async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null,
       requestBody: { raw: encodedMessage },
     });
 
-    console.log(`[EMAIL] Sucesso: ${assunto} -> ${destinatario} (CC: ${copias.join(", ")})`);
+    console.log(`[EMAIL] Sucesso: ${assunto} -> ${destinatario}`);
     return true;
   } catch (error) {
     console.error("[EMAIL] ERRO:", error?.response?.data || error);
@@ -155,7 +153,7 @@ async function notificarCoordenadores(dados) {
   return `E-mails enviados para ${envios} coordenador(es).`;
 }
 
-async function notificarDocentes(dados) {
+async function notificarDocentes(dados, remetente = null) {
   const pendentesNaoUas = dados.filter(item => ehPendente(item) && !ehUa(item));
 
   const porDocente = pendentesNaoUas.reduce((acc, item) => {
@@ -165,13 +163,12 @@ async function notificarDocentes(dados) {
 
     if (!nome || !email) return acc;
     
-    // Criamos um "Set" para os coordenadores para evitar e-mails duplicados
     if (!acc[email]) acc[email] = { nome, itens: [], ccCoords: new Set() };
     
     acc[email].itens.push(item);
 
-    // Separa a string da planilha por vírgula ou ponto-e-vírgula e adiciona ao Set
-    const coords = String(emailsCoord).split(/[,;]+/).map(e => e.trim()).filter(Boolean);
+    // Quebra múltiplos coordenadores separados por vírgula ou ponto-e-vírgula
+    const coords = String(emailsCoord).split(/[,;]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
     coords.forEach(c => acc[email].ccCoords.add(c));
 
     return acc;
@@ -187,10 +184,41 @@ async function notificarDocentes(dados) {
 
     const csv = gerarCSV(info.itens);
     
-    // Junta todos os e-mails únicos dos coordenadores separados por vírgula
-    const ccList = Array.from(info.ccCoords).join(", "); 
+    // Normalização para evitar problemas de caixa alta/baixa nas validações
+    let finalCcSet = new Set();
+    info.ccCoords.forEach(c => finalCcSet.add(c));
 
-    if (await enviarEmail(email, "Notificação de Pendências Acadêmicas", corpo, csv, "minhas_atividades_pendentes.csv", ccList)) {
+    let replyToEmail = "";
+
+    // Árvore de Decisão condicional baseada na Role de quem disparou a ação
+    if (remetente && remetente.role === 'coordinator') {
+      // Regra 1: Se for coordenador enviando, inclui obrigatoriamente a central (GMAIL_USER) em cópia
+      if (GMAIL_USER) {
+        finalCcSet.add(GMAIL_USER);
+      }
+
+      // Regra 2: Identifica qual dos e-mails da planilha pertence ao coordenador logado para fixar no Reply-To
+      const arrCoords = Array.from(info.ccCoords);
+      const emailCorrespondente = arrCoords.find(c => remetente.username && c.includes(remetente.username.toLowerCase()));
+      
+      // Fallback: Se não achar por texto, usa o primeiro da lista daquela disciplina ou monta com o domínio padrão
+      replyToEmail = emailCorrespondente || (remetente.username ? `${remetente.username}@unifenas.br` : arrCoords[0]);
+
+    } else {
+      // Regra 3: Se for o Admin enviando, inclui os e-mails fixos extras definidos no Render
+      if (EMAIL_CC_FIXO_GLOBAL) {
+        String(EMAIL_CC_FIXO_GLOBAL).split(/[,;]+/).map(e => e.trim().toLowerCase()).filter(Boolean).forEach(f => finalCcSet.add(f));
+      }
+      
+      // Regra 4: Como o Admin já envia USANDO o GMAIL_USER, removemos ele do CC para não duplicar na própria caixa
+      if (GMAIL_USER) {
+        finalCcSet.delete(GMAIL_USER);
+      }
+    }
+
+    const ccList = Array.from(finalCcSet).join(", "); 
+
+    if (await enviarEmail(email, "Notificação de Pendências Acadêmicas", corpo, csv, "minhas_atividades_pendentes.csv", ccList, replyToEmail)) {
         envios++;
     }
   }

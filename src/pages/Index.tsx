@@ -201,8 +201,7 @@ export default function Index() {
         };
     }, [filteredData]);
     
-    const handleNotification = async (action: string) => {
-    // 1. Evita disparar se a tabela estiver vazia
+   const handleNotification = async (action: string) => {
     if (filteredData.length === 0) {
         sonnerToast.warning("Nenhum dado na tela", {
             description: "Filtre ou selecione dados antes de enviar notificações."
@@ -211,15 +210,15 @@ export default function Index() {
     }
 
     try {
-        // 2. Muda o estado para isNotifying = true (provavelmente faz o ícone no Sidebar girar/carregar)
         setIsNotifying(true);
-        sonnerToast.info("Enviando e-mails...", { description: "Por favor, aguarde." });
+        
+        // Cria um toast fixo de "Carregando" que será atualizado depois
+        const toastId = sonnerToast.loading("Enviando e-mails...", { 
+            description: "Aguarde o processamento de todos os disparos.",
+        });
 
-        // 3. Pega a chave do porteiro
         const token = localStorage.getItem('authToken');
         
-        // 4. Bate na rota NOVA que criamos no backend
-        // Se no ambiente de dev a URL for diferente, use algo como import.meta.env.VITE_API_URL + '/api/notificacoes'
         const response = await fetch('/api/notificacoes', {
             method: 'POST',
             headers: {
@@ -228,29 +227,31 @@ export default function Index() {
             },
             body: JSON.stringify({ 
                 action: action, 
-                dados: filteredData // Os dados filtrados que estão visíveis na tela!
+                dados: filteredData 
             }) 
         });
 
         const result = await response.json();
 
-        // 5. Exibe a resposta do Backend (Sucesso ou Erro)
         if (response.ok && result.success) {
-            sonnerToast.success("Sucesso!", {
-                description: result.message // Ex: "E-mails para 5 docente(s) enviados com sucesso."
+            // Converte o toast de loading para SUCESSO (Verde)
+            sonnerToast.success("Envio Concluído!", {
+                id: toastId, // Usa o mesmo ID para substituir o loading na tela
+                description: result.message
             });
         } else {
+            // Converte o toast de loading para ERRO (Vermelho)
             sonnerToast.error("Erro no envio", {
+                id: toastId,
                 description: result.error || "Ocorreu um problema ao processar os e-mails."
             });
         }
     } catch (error) {
         console.error('Erro na requisição de notificação:', error);
         sonnerToast.error("Falha de Conexão", {
-            description: "Não foi possível conectar ao servidor. O backend está rodando?"
+            description: "Não foi possível conectar ao servidor."
         });
     } finally {
-        // 6. Desliga o loading
         setIsNotifying(false);
     }
 };

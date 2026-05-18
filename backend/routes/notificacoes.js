@@ -1,4 +1,3 @@
-// backend/routes/notificacoes.js
 const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/authMiddleware');
@@ -7,30 +6,26 @@ const { notificarCoordenadores, notificarDocentes, cobrarUasPendentes } = requir
 router.post('/notificacoes', verifyToken, async (req, res) => {
   try {
     const { action, dados } = req.body;
+    const user = req.user; 
+    let resultado = '';
+
+    // Agora o sistema aguarda o término da função para pegar a mensagem real
+    if (action === 'coordenadores') {
+      resultado = await notificarCoordenadores(dados);
+    } else if (action === 'docentes') {
+      resultado = await notificarDocentes(dados, user);
+    } else if (action === 'cobrancaUas') {
+      resultado = await cobrarUasPendentes(dados);
+    }
 
     res.json({ 
       success: true, 
-      message: 'A solicitação foi recebida! Os e-mails estão sendo disparados em segundo plano e chegarão em breve.' 
+      message: resultado // Ex: "E-mails enviados para 5 docente(s)."
     });
-
-    if (action === 'coordenadores') {
-      notificarCoordenadores(dados)
-        .then(msg => console.log('[Background] Coordenadores:', msg))
-        .catch(err => console.error('[Background] Erro Coordenadores:', err));
-        
-    } else if (action === 'docentes') {
-      notificarDocentes(dados)
-        .then(msg => console.log('[Background] Docentes:', msg))
-        .catch(err => console.error('[Background] Erro Docentes:', err));
-        
-    } else if (action === 'cobrancaUas') {
-      cobrarUasPendentes(dados)
-        .then(msg => console.log('[Background] Cobrança UAs:', msg))
-        .catch(err => console.error('[Background] Erro Cobrança UAs:', err));
-    }
 
   } catch (error) {
     console.error('Erro fatal na rota de notificações:', error);
+    res.status(500).json({ success: false, error: 'Ocorreu um erro interno no envio.' });
   }
 });
 
