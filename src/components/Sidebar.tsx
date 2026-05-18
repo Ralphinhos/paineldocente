@@ -103,18 +103,24 @@ export const Sidebar: FC<SidebarProps> = ({ kpis, onNotification, isNotifying = 
         )}
       </div>
 
-      {/* Seção de Ações de Comunicação - VISÍVEL APENAS PARA ADMIN */}
-      {userRole === 'admin' && onNotification && (
+      {/* Seção de Ações de Comunicação - VISÍVEL PARA ADMIN E COORDENADOR */}
+      {(userRole === 'admin' || userRole === 'coordinator') && onNotification && (
         <div className={actionsCardClasses}>
           <h3 className="text-sm font-semibold text-white mb-2 text-center">Ações de Comunicação</h3>
           <div className="space-y-2">
-            <button 
-              onClick={() => onNotification && onNotification('coordenadores')} 
-              className="w-full text-sm py-2 px-4 bg-[#2b466d] text-white font-semibold rounded-md hover:bg-[#3c5f94] transition-colors disabled:opacity-50"
-              disabled={isNotifying}
-            >
-              Notificar Coordenadores
-            </button>
+            
+            {/* Visível APENAS para ADMIN */}
+            {userRole === 'admin' && (
+              <button 
+                onClick={() => onNotification && onNotification('coordenadores')} 
+                className="w-full text-sm py-2 px-4 bg-[#2b466d] text-white font-semibold rounded-md hover:bg-[#3c5f94] transition-colors disabled:opacity-50"
+                disabled={isNotifying}
+              >
+                Notificar Coordenadores
+              </button>
+            )}
+
+            {/* Visível para ADMIN e COORDENADOR */}
             <button 
               onClick={() => onNotification && onNotification('docentes')} 
               className="w-full text-sm py-2 px-4 bg-transparent border border-[#2b466d] text-[#adbbd1] hover:bg-[rgba(43,70,109,0.2)] font-semibold rounded-md transition-colors disabled:opacity-50"
@@ -122,13 +128,18 @@ export const Sidebar: FC<SidebarProps> = ({ kpis, onNotification, isNotifying = 
             >
               Notificar Docentes
             </button>
-            <button 
-              onClick={() => onNotification && onNotification('cobrancaUas')} 
-              className="w-full text-sm py-2 px-4 bg-transparent border border-[#00adc7] text-[#00adc7] hover:bg-[rgba(0,173,199,0.1)] font-semibold rounded-md transition-colors disabled:opacity-50"
-              disabled={isNotifying}
-            >
-              ✨ Cobrar UAs Pendentes
-            </button>
+
+            {/* Visível APENAS para ADMIN */}
+            {userRole === 'admin' && (
+              <button 
+                onClick={() => onNotification && onNotification('cobrancaUas')} 
+                className="w-full text-sm py-2 px-4 bg-transparent border border-[#00adc7] text-[#00adc7] hover:bg-[rgba(0,173,199,0.1)] font-semibold rounded-md transition-colors disabled:opacity-50"
+                disabled={isNotifying}
+              >
+                ✨ Cobrar UAs Pendentes
+              </button>
+            )}
+            
           </div>
         </div>
       )}
