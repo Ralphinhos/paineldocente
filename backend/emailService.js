@@ -60,13 +60,17 @@ function gerarCSV(dados) {
   return '\uFEFF' + [cabecalho, ...linhas].join('\n');
 }
 
-async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null, csvFilename = "relatorio.csv", cc = "", replyTo = "") {
+// Adicionado o parâmetro "de" no final para customizar o Remetente dinamicamente
+async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null, csvFilename = "relatorio.csv", cc = "", replyTo = "", de = "") {
   try {
     const assuntoFormatado = formatarAssunto(assunto);
     const boundary = "b0undary_" + Date.now();
 
+    // Se houver um remetente customizado (Nome do Coordenador), usa ele. Senão, usa o padrão.
+    const remetenteReal = de || REMETENTE_OFICIAL;
+
     let emailLines = [
-      `From: ${REMETENTE_OFICIAL}`,
+      `From: ${remetenteReal}`,
       `To: ${destinatario}`,
     ];
 
@@ -189,35 +193,35 @@ async function notificarDocentes(dados, remetente = null) {
     
     let finalCcSet = new Set();
     let replyToEmail = "";
+    let deHeader = REMETENTE_OFICIAL; // Inicia com o padrão da Equipe NED
 
-    // LÓGICA DE SEPARAÇÃO: Verifica se quem clicou foi um coordenador
+    // LÓGICA DE CUSTOMIZAÇÃO DO REMETENTE E CÓPIAS
     if (remetente && remetente.role === 'coordinator') {
-      // 1. Adiciona obrigatoriamente a central (GMAIL_USER) no CC
+      // 1. Modifica o nome visível do campo From para o nome real do coordenador logado
+      if (remetente.name) {
+        deHeader = `${remetente.name} <${GMAIL_USER}>`;
+      }
+
+      // 2. Garante a central (GMAIL_USER) na cópia
       if (GMAIL_USER) finalCcSet.add(GMAIL_USER);
 
       const arrCoords = Array.from(info.ccCoords);
-      // 2. Busca na lista de e-mails qual deles pertence ao coordenador logado
       const emailLogado = arrCoords.find(c => remetente.username && c.includes(remetente.username.toLowerCase()));
       
       if (emailLogado) {
         replyToEmail = emailLogado;
-        // 3. Os OUTROS coordenadores da mesma disciplina vão para a lista de cópia (Cc)
-        arrCoords.forEach(c => {
-          if (c !== emailLogado) finalCcSet.add(c);
-        });
+        arrCoords.forEach(c => finalCcSet.add(c)); // Mantém todos os coordenadores da planilha em cópia
       } else {
-        // Fallback caso o username não combine perfeitamente por texto
         replyToEmail = remetente.username ? `${remetente.username}@unifenas.br` : arrCoords[0];
-        arrCoords.forEach(c => {
-          if (c !== replyToEmail) finalCcSet.add(c);
-        });
+        arrCoords.forEach(c => finalCcSet.add(c));
       }
     } else {
-      // Se for o Admin enviando, coloca todos os coordenadores da planilha no CC
+      // Se for o Admin enviando, o remetente assume o nome do Admin ou permanece Equipe NED
+      deHeader = `Equipe NED <${GMAIL_USER}>`;
       info.ccCoords.forEach(c => finalCcSet.add(c));
     }
 
-    // 4. Injeta SEMPRE os e-mails fixos do admin (EMAIL_CC_FIXO_GLOBAL) no CC
+    // 3. Injeta e-mails fixos globais (EMAIL_CC_FIXO_GLOBAL) em cópia
     const fixos = process.env.EMAIL_CC_FIXO_GLOBAL || "";
     if (fixos) {
       String(fixos)
@@ -227,15 +231,16 @@ async function notificarDocentes(dados, remetente = null) {
         .forEach(f => finalCcSet.add(f));
     }
 
-    // 5. Se o Admin for o remetente, remove o GMAIL_USER do Cc para não duplicar na caixa de entrada dele
+    // 4. Se for o Admin enviando, remove a duplicidade da própria caixa
     if (!remetente || remetente.role !== 'coordinator') {
       if (GMAIL_USER) finalCcSet.delete(GMAIL_USER);
     }
 
     const ccList = Array.from(finalCcSet).join(", "); 
-    console.log(`[DEBUG - ENVIO] To: ${email} | Cc: ${ccList} | Reply-To: ${replyToEmail}`);
+    console.log(`[DEBUG - ENVIO] From: ${deHeader} | To: ${email} | Cc: ${ccList}`);
 
-    if (await enviarEmail(email, "Notificação de Pendências Acadêmicas", corpo, csv, "minhas_atividades_pendentes.csv", ccList, replyToEmail)) {
+    // Passado deHeader como o 8º parâmetro da função enviarEmail
+    if (await enviarEmail(email, "Notificação de Pendências Acadêmicas", corpo, csv, "minhas_atividades_pendentes.csv", ccList, replyToEmail, deHeader)) {
         envios++;
     }
   }
