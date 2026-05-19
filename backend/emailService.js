@@ -36,6 +36,12 @@ function formatarAssunto(assunto) {
   return `=?utf-8?B?${base64Subject}?=`;
 }
 
+// NOVA FUNÇÃO: Para tratar acentos no nome de quem envia
+function formatarRemetenteComAcento(nome, email) {
+  const nomeBase64 = Buffer.from(nome, 'utf-8').toString("base64");
+  return `=?utf-8?B?${nomeBase64}?= <${email}>`;
+}
+
 const ehPendente = (item) => 
   item.isPendente === true || 
   String(item[COLUNAS.STATUS_CALCULADO]).toLowerCase().includes('pendente');
@@ -60,13 +66,11 @@ function gerarCSV(dados) {
   return '\uFEFF' + [cabecalho, ...linhas].join('\n');
 }
 
-// Adicionado o parâmetro "de" no final para customizar o Remetente dinamicamente
 async function enviarEmail(destinatario, assunto, corpoTexto, csvContent = null, csvFilename = "relatorio.csv", cc = "", replyTo = "", de = "") {
   try {
     const assuntoFormatado = formatarAssunto(assunto);
     const boundary = "b0undary_" + Date.now();
 
-    // Se houver um remetente customizado (Nome do Coordenador), usa ele. Senão, usa o padrão.
     const remetenteReal = de || REMETENTE_OFICIAL;
 
     let emailLines = [
@@ -193,16 +197,14 @@ async function notificarDocentes(dados, remetente = null) {
     
     let finalCcSet = new Set();
     let replyToEmail = "";
-    let deHeader = REMETENTE_OFICIAL; // Inicia com o padrão da Equipe NED
+    let deHeader = REMETENTE_OFICIAL; 
 
-    // LÓGICA DE CUSTOMIZAÇÃO DO REMETENTE E CÓPIAS
     if (remetente && remetente.role === 'coordinator') {
-      // 1. Modifica o nome visível do campo From para o nome real do coordenador logado
+      // 1. Usa a nova função para envelopar o nome do coordenador em UTF-8 Base64
       if (remetente.name) {
-        deHeader = `${remetente.name} <${GMAIL_USER}>`;
+        deHeader = formatarRemetenteComAcento(remetente.name, GMAIL_USER);
       }
 
-      // 2. Garante a central (GMAIL_USER) na cópia
       if (GMAIL_USER) finalCcSet.add(GMAIL_USER);
 
       const arrCoords = Array.from(info.ccCoords);
@@ -210,18 +212,16 @@ async function notificarDocentes(dados, remetente = null) {
       
       if (emailLogado) {
         replyToEmail = emailLogado;
-        arrCoords.forEach(c => finalCcSet.add(c)); // Mantém todos os coordenadores da planilha em cópia
+        arrCoords.forEach(c => finalCcSet.add(c)); 
       } else {
         replyToEmail = remetente.username ? `${remetente.username}@unifenas.br` : arrCoords[0];
         arrCoords.forEach(c => finalCcSet.add(c));
       }
     } else {
-      // Se for o Admin enviando, o remetente assume o nome do Admin ou permanece Equipe NED
       deHeader = `Equipe NED <${GMAIL_USER}>`;
       info.ccCoords.forEach(c => finalCcSet.add(c));
     }
 
-    // 3. Injeta e-mails fixos globais (EMAIL_CC_FIXO_GLOBAL) em cópia
     const fixos = process.env.EMAIL_CC_FIXO_GLOBAL || "";
     if (fixos) {
       String(fixos)
@@ -231,7 +231,6 @@ async function notificarDocentes(dados, remetente = null) {
         .forEach(f => finalCcSet.add(f));
     }
 
-    // 4. Se for o Admin enviando, remove a duplicidade da própria caixa
     if (!remetente || remetente.role !== 'coordinator') {
       if (GMAIL_USER) finalCcSet.delete(GMAIL_USER);
     }
@@ -239,7 +238,6 @@ async function notificarDocentes(dados, remetente = null) {
     const ccList = Array.from(finalCcSet).join(", "); 
     console.log(`[DEBUG - ENVIO] From: ${deHeader} | To: ${email} | Cc: ${ccList}`);
 
-    // Passado deHeader como o 8º parâmetro da função enviarEmail
     if (await enviarEmail(email, "Notificação de Pendências Acadêmicas", corpo, csv, "minhas_atividades_pendentes.csv", ccList, replyToEmail, deHeader)) {
         envios++;
     }
