@@ -188,11 +188,36 @@ async function notificarDocentes(dados, remetente = null) {
     const csv = gerarCSV(info.itens);
     
     let finalCcSet = new Set();
-    
-    // 1. Adiciona os e-mails dos coordenadores encontrados na planilha para a disciplina
-    info.ccCoords.forEach(c => finalCcSet.add(c));
+    let replyToEmail = "";
 
-    // 2. Adiciona SEMPRE os E-mails Fixos configurados no Render
+    // LÓGICA DE SEPARAÇÃO: Verifica se quem clicou foi um coordenador
+    if (remetente && remetente.role === 'coordinator') {
+      // 1. Adiciona obrigatoriamente a central (GMAIL_USER) no CC
+      if (GMAIL_USER) finalCcSet.add(GMAIL_USER);
+
+      const arrCoords = Array.from(info.ccCoords);
+      // 2. Busca na lista de e-mails qual deles pertence ao coordenador logado
+      const emailLogado = arrCoords.find(c => remetente.username && c.includes(remetente.username.toLowerCase()));
+      
+      if (emailLogado) {
+        replyToEmail = emailLogado;
+        // 3. Os OUTROS coordenadores da mesma disciplina vão para a lista de cópia (Cc)
+        arrCoords.forEach(c => {
+          if (c !== emailLogado) finalCcSet.add(c);
+        });
+      } else {
+        // Fallback caso o username não combine perfeitamente por texto
+        replyToEmail = remetente.username ? `${remetente.username}@unifenas.br` : arrCoords[0];
+        arrCoords.forEach(c => {
+          if (c !== replyToEmail) finalCcSet.add(c);
+        });
+      }
+    } else {
+      // Se for o Admin enviando, coloca todos os coordenadores da planilha no CC
+      info.ccCoords.forEach(c => finalCcSet.add(c));
+    }
+
+    // 4. Injeta SEMPRE os e-mails fixos do admin (EMAIL_CC_FIXO_GLOBAL) no CC
     const fixos = process.env.EMAIL_CC_FIXO_GLOBAL || "";
     if (fixos) {
       String(fixos)
@@ -202,23 +227,13 @@ async function notificarDocentes(dados, remetente = null) {
         .forEach(f => finalCcSet.add(f));
     }
 
-    let replyToEmail = "";
-
-    // 3. Regras Específicas do Perfil Logado
-    if (remetente && remetente.role === 'coordinator') {
-      // Se for coordenador usando o painel, a central (GMAIL_USER) também recebe cópia obrigatoriamente
-      if (GMAIL_USER) finalCcSet.add(GMAIL_USER);
-
-      const arrCoords = Array.from(info.ccCoords);
-      const emailCorrespondente = arrCoords.find(c => remetente.username && c.includes(remetente.username.toLowerCase()));
-      replyToEmail = emailCorrespondente || (remetente.username ? `${remetente.username}@unifenas.br` : arrCoords[0]);
+    // 5. Se o Admin for o remetente, remove o GMAIL_USER do Cc para não duplicar na caixa de entrada dele
+    if (!remetente || remetente.role !== 'coordinator') {
+      if (GMAIL_USER) finalCcSet.delete(GMAIL_USER);
     }
 
     const ccList = Array.from(finalCcSet).join(", "); 
-    
-    // Os logs abaixo vão aparecer no terminal do Render para você conferir quem de fato entrou no pacote
-    console.log(`[DEBUG] Fixos lidos do Render: ${fixos}`);
-    console.log(`[DEBUG - ENVIO DOCENTE] To: ${email} | Cc: ${ccList} | Reply-To: ${replyToEmail}`);
+    console.log(`[DEBUG - ENVIO] To: ${email} | Cc: ${ccList} | Reply-To: ${replyToEmail}`);
 
     if (await enviarEmail(email, "Notificação de Pendências Acadêmicas", corpo, csv, "minhas_atividades_pendentes.csv", ccList, replyToEmail)) {
         envios++;
