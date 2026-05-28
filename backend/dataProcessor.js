@@ -2,59 +2,82 @@ const processData = (data) => {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
+  // Função auxiliar para evitar repetição de código ao extrair e validar datas
+  const parseDate = (dateStr) => {
+    if (!dateStr || typeof dateStr !== 'string' || dateStr.trim() === '') return null;
+    const partes = dateStr.trim().split(/[\/\-]/);
+    if (partes.length === 3) {
+      let dt;
+      if (partes[0].length <= 2) {
+        // Formato: DD/MM/YYYY
+        dt = new Date(
+          parseInt(partes[2], 10),
+          parseInt(partes[1], 10) - 1,
+          parseInt(partes[0], 10)
+        );
+      } else {
+        // Formato: YYYY-MM-DD
+        dt = new Date(
+          parseInt(partes[0], 10),
+          parseInt(partes[1], 10) - 1,
+          parseInt(partes[2], 10)
+        );
+      }
+      dt.setHours(0, 0, 0, 0);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+    return null;
+  };
+
   return data.map((row) => {
     const entregueRaw = row['Entregue'] || row['ENTREGUE'];
+    const dataLimiteRaw = row['Data Limite Construção'] || row['Data Limite Construcao'] || '';
+
+    // Transforma as duas colunas em objetos Date para possibilitar a comparação matemática
+    const dataEntregue = parseDate(entregueRaw);
+    const dataLimite = parseDate(dataLimiteRaw);
+
+    // Se houver qualquer conteúdo preenchido na coluna, consideramos como entregue
     const isEntregue = entregueRaw && entregueRaw.trim() !== '';
 
-    // Parseia a data limite (DD/MM/YYYY ou YYYY-MM-DD)
-    let dataLimite = null;
-    const dataLimiteRaw = row['Data Limite Construção'] || row['Data Limite Construcao'] || '';
-    if (dataLimiteRaw && dataLimiteRaw.trim() !== '') {
-      const partes = dataLimiteRaw.trim().split(/[\/\-]/);
-      if (partes.length === 3) {
-        // DD/MM/YYYY
-        if (partes[0].length <= 2) {
-          dataLimite = new Date(
-            parseInt(partes[2], 10),
-            parseInt(partes[1], 10) - 1,
-            parseInt(partes[0], 10)
-          );
-        } else {
-          // YYYY-MM-DD
-          dataLimite = new Date(
-            parseInt(partes[0], 10),
-            parseInt(partes[1], 10) - 1,
-            parseInt(partes[2], 10)
-          );
-        }
-        dataLimite.setHours(0, 0, 0, 0);
-        if (isNaN(dataLimite.getTime())) dataLimite = null;
+    // Lógica de status baseada na data real de entrega
+    const isPendente = !isEntregue;
+    let isAtrasado = false;
+    let isEntregueNoPrazo = false;
+
+    if (isEntregue) {
+      if (dataEntregue && dataLimite) {
+        // É considerado atrasado apenas se a data enviada for MAIOR que a data limite
+        isAtrasado = dataEntregue > dataLimite;
+        isEntregueNoPrazo = !isAtrasado;
+      } else {
+        // Se foi entregue mas a atividade não possuía data limite, consideramos no prazo
+        isEntregueNoPrazo = true;
       }
     }
 
-    // Calcula dias de atraso em relação à data limite
+    // Calcula dias de atraso de forma precisa
     let diasCalculado = 0;
     if (dataLimite) {
-      const diffMs = hoje.getTime() - dataLimite.getTime();
-      const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      diasCalculado = diffDias > 0 ? diffDias : 0;
+      if (isPendente) {
+        // Se ainda não entregou, os dias de atraso correm até a data de HOJE
+        const diffMs = hoje.getTime() - dataLimite.getTime();
+        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        diasCalculado = diffDias > 0 ? diffDias : 0;
+      } else if (isAtrasado && dataEntregue) {
+        // Se entregou com atraso, os dias de atraso "congelam" usando a diferença 
+        // entre a data em que efetivamente enviou e a data limite
+        const diffMs = dataEntregue.getTime() - dataLimite.getTime();
+        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        diasCalculado = diffDias > 0 ? diffDias : 0;
+      }
     }
-
-    // Lógica de status:
-    // - isPendente: não entregue E prazo já passou (ou sem prazo = pendente também)
-    // - isAtrasado: entregue, MAS o prazo já havia passado na data de hoje
-    //   (assume-se que se foi entregue e dataLimite < hoje, foi entregue com atraso)
-    // - isEntregueNoPrazo: entregue E prazo ainda não passou (ou não há prazo)
-    const prazoPassed = dataLimite ? dataLimite < hoje : false;
-
-    const isPendente = !isEntregue;
-    const isAtrasado = isEntregue && prazoPassed;
-    const isEntregueNoPrazo = isEntregue && !prazoPassed;
 
     let statusCalculado = 'Pendente';
     if (isAtrasado) statusCalculado = 'Entregue com Atraso';
     else if (isEntregueNoPrazo) statusCalculado = 'Entregue';
 
+    // Restante da lógica de limpeza de dados original...
     const diasSemAcessoStr =
       row['Dias s/ Acesso'] ||
       row['Dias S/ Acesso'] ||
