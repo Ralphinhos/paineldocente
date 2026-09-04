@@ -1,0 +1,130 @@
+name: painel-docente
+
+x-backend-common: &backend-common
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  env_file:
+    - .env.production
+  environment:
+    NODE_ENV: production
+    PORT: 3001
+    AUTH_MODE: proxy
+    DEMO_AUTH_ENABLED: "false"
+    COOKIE_SECURE: "true"
+    DATA_SOURCE: moodle
+    SNAPSHOT_STORE: postgres
+    APP_DATABASE_URL: "postgresql://painel:${APP_DB_PASSWORD}@postgres:5432/painel_docente"
+    MOODLE_DB_CA_FILE: /run/secrets/moodle-ca.pem
+  depends_on:
+    postgres:
+      condition: service_healthy
+  volumes:
+    - ./backend/config/rules.json:/app/config/rules.json:ro
+    - ./backend/config/deadlines.json:/app/config/deadlines.json:ro
+    - ./secrets/moodle-ca.pem:/run/secrets/moodle-ca.pem:ro
+  read_only: true
+  tmpfs:
+    - /tmp:uid=1000,gid=1000,mode=0700
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+  networks: [app]
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: painel_docente
+      POSTGRES_USER: painel
+      POSTGRES_PASSWORD: "${APP_DB_PASSWORD:?Defina APP_DB_PASSWORD em .env.production}"
+    volumes:
+      - painel_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U painel -d painel_docente"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    restart: unless-stopped
+    networks: [app]
+
+  api:
+    <<: *backend-common
+    command: ["node", "server.js"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 4s
+      retries: 8
+
+  worker:
+    <<: *backend-common
+    command: ["node", "worker.js"]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      AUTH_PROXY_SHARED_SECRET: "${AUTH_PROXY_SHARED_SECRET:?Defina AUTH_PROXY_SHARED_SECRET em .env.production}"
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+      - /var/run:uid=101,gid=101,mode=0755
+      - /tmp:uid=101,gid=101,mode=0700
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    networks: [edge, app]
+
+  gateway:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: "${OIDC_ISSUER_URL}"
+      OAUTH2_PROXY_CLIENT_ID: "${OIDC_CLIENT_ID}"
+      OAUTH2_PROXY_CLIENT_SECRET: "${OIDC_CLIENT_SECRET}"
+      OAUTH2_PROXY_REDIRECT_URL: "${APP_ORIGIN}/oauth2/callback"
+      OAUTH2_PROXY_COOKIE_SECRET: "${OAUTH_COOKIE_SECRET}"
+      OAUTH2_PROXY_COOKIE_NAME: __Host-painel_oauth
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: strict
+      OAUTH2_PROXY_COOKIE_EXPIRE: 8h
+      OAUTH2_PROXY_COOKIE_REFRESH: 1h
+      OAUTH2_PROXY_COOKIE_CSRF_PER_REQUEST: "true"
+      OAUTH2_PROXY_EMAIL_DOMAINS: unifenas.br
+      OAUTH2_PROXY_SCOPE: "openid profile email"
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_UPSTREAMS: http://web:8080
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "false"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:4180"
+    user: "65532:65532"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=65532,gid=65532,mode=0700
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    networks: [edge]
+
+volumes:
+  painel_data:
+
+networks:
+  edge:
+    driver: bridge
+  app:
+    driver: bridge

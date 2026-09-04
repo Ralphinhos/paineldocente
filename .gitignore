@@ -14,8 +14,12 @@ pnpm-debug.log*
 
 # Environment variables
 .env
-.env*.local
+.env.*
+!.env.production.example
 google-credentials.json
+*.pem
+*.key
+secrets/
 
 # IDEs and editors
 .vscode/

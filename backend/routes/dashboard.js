@@ -1,0 +1,3 @@
+const express = require('express'); const { asyncHandler } = require('../core/http');
+function dashboardRoutes({ auth, dashboardService }) { const router = express.Router(); router.use(auth.required); router.get('/', asyncHandler(async (request, response) => { const dashboard = await dashboardService.getDashboard(request.user, { period: request.query.period, modality: request.query.modality, courseId: request.query.courseId, status: request.query.status, query: request.query.query, page: request.query.page, pageSize: request.query.pageSize }); response.set('Cache-Control', 'private, no-store'); response.json(dashboard); })); return router; }
+module.exports = { dashboardRoutes };

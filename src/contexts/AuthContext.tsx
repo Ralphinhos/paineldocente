@@ -1,108 +1,78 @@
-// src/contexts/AuthContext.tsx
-import React, { createContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { apiRequest } from "@/api/client";
+import { AuthContext } from "@/contexts/auth";
+import type { DemoProfile, SessionResponse, User } from "@/types/dashboard";
 
-interface AuthContextType {
-    isAuthenticated: boolean;
-    isLoading: boolean;
-    token: string | null;
-    user: {
-        name: string | null;
-        role: string | null;
-        courses: string[];
-        username: string | null;
-    } | null;
-    login: (userData: Omit<AuthContextType['user'], 'isAuthenticated'>, token: string) => void;
-    logout: () => void;
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [authMode, setAuthMode] = useState<"demo" | "proxy">("demo");
+  const [demoEnabled, setDemoEnabled] = useState(false);
+  const [demoProfiles, setDemoProfiles] = useState<DemoProfile[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const applySession = useCallback((session: SessionResponse) => {
+    setAuthMode(session.authMode);
+    setDemoEnabled(session.demoEnabled);
+    if (session.authenticated) {
+      setUser(session.user);
+      setCsrfToken(session.csrfToken);
+      setDemoProfiles([]);
+    } else {
+      setUser(null);
+      setCsrfToken(null);
+      setDemoProfiles(session.demoProfiles);
+    }
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      applySession(await apiRequest<SessionResponse>("/api/auth/session"));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Não foi possível verificar a sessão.");
+    } finally {
+      setLoading(false);
+    }
+  }, [applySession]);
+
+  useEffect(() => { void refreshSession(); }, [refreshSession]);
+
+  const loginDemo = useCallback(async (profileId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const session = await apiRequest<Extract<SessionResponse, { authenticated: true }>>("/api/auth/demo-login", {
+        method: "POST",
+        body: JSON.stringify({ profileId }),
+      });
+      applySession({ ...session, authMode: "demo", demoEnabled: true });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Não foi possível entrar.");
+    } finally {
+      setLoading(false);
+    }
+  }, [applySession]);
+
+  const logout = useCallback(async () => {
+    try {
+      await apiRequest<void>("/api/auth/logout", { method: "POST", csrfToken });
+    } finally {
+      setUser(null);
+      setCsrfToken(null);
+      if (authMode === "proxy") {
+        window.location.assign(`/oauth2/sign_out?rd=${encodeURIComponent(`${window.location.origin}/`)}`);
+      } else {
+        await refreshSession();
+      }
+    }
+  }, [authMode, csrfToken, refreshSession]);
+
+  const value = useMemo(
+    () => ({ user, loading, csrfToken, authMode, demoEnabled, demoProfiles, error, loginDemo, logout, refreshSession }),
+    [user, loading, csrfToken, authMode, demoEnabled, demoProfiles, error, loginDemo, logout, refreshSession],
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-    const context = React.useContext(AuthContext);
-    if (!context) throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-    return context;
-};
-
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<AuthContextType['user']>(null);
-    const [token, setToken] = useState<string | null>(null);
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const navigate = useNavigate();
-
-    useEffect(() => {
-        const validateSession = async () => {
-            const storedToken = localStorage.getItem('authToken');
-
-            if (!storedToken) {
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/validate-session', {
-                    headers: { 'Authorization': `Bearer ${storedToken}` }
-                });
-
-                if (response.ok) {
-                    const { user: decodedUser } = await response.json();
-                    setUser({
-                        name: decodedUser.name,
-                        role: decodedUser.role,
-                        courses: decodedUser.courses || [],
-                        username: decodedUser.username
-                    });
-                    setToken(storedToken);
-                    setIsAuthenticated(true);
-                } else {
-                    throw new Error('Sessão Inválida');
-                }
-            } catch (error) {
-                console.error("Sessão inválida ou erro na conexão:", error);
-                localStorage.removeItem('authToken');
-                localStorage.removeItem('sessionExpireTime');
-                setUser(null);
-                setToken(null);
-                setIsAuthenticated(false);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        validateSession();
-    }, []);
-
-    const login = useCallback((userData: Omit<AuthContextType['user'], 'isAuthenticated'>, jwtToken: string) => {
-        localStorage.setItem('authToken', jwtToken);
-        localStorage.removeItem('sessionExpireTime');
-        setToken(jwtToken);
-        setUser(userData);
-        setIsAuthenticated(true);
-        navigate('/');
-    }, [navigate]);
-
-    const logout = useCallback(() => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('sessionExpireTime');
-        setToken(null);
-        setUser(null);
-        setIsAuthenticated(false);
-        navigate('/login');
-    }, [navigate]);
-
-    const contextValue = useMemo(() => ({
-        isAuthenticated,
-        isLoading,
-        user,
-        token,
-        login,
-        logout
-    }), [isAuthenticated, isLoading, user, token, login, logout]);
-
-    return (
-        <AuthContext.Provider value={contextValue}>
-            {children}
-        </AuthContext.Provider>
-    );
-};

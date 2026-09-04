@@ -1,0 +1,53 @@
+name: painel-docente-demo
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      APP_ORIGIN: http://localhost:8080
+      AUTH_MODE: demo
+      DEMO_AUTH_ENABLED: "true"
+      COOKIE_SECURE: "false"
+      JWT_SECRET: demo-development-secret-change-before-use-123456
+      DATA_SOURCE: demo
+      SNAPSHOT_STORE: memory
+      RULES_APPROVED: "false"
+      EMAIL_SEND_ENABLED: "false"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      AUTH_PROXY_SHARED_SECRET: demo-proxy-secret-not-used-1234567890
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+      - /var/run:uid=101,gid=101,mode=0755
+      - /tmp:uid=101,gid=101,mode=0700
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+networks:
+  default:
+    driver: bridge

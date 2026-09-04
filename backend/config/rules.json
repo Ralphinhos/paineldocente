@@ -1,0 +1,41 @@
+{
+  "version": "2026.1-piloto",
+  "status": "PILOT",
+  "description": "Catálogo inicial sujeito à homologação formal do NED antes de qualquer envio.",
+  "accessThresholds": { "currentMaxDays": 3, "attentionMaxDays": 6 },
+  "modalities": {
+    "GRADUACAO_EAD": {
+      "label": "Graduação EaD",
+      "requirements": [
+        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "videos", "label": "Videoaulas", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "forum_diagnostico", "label": "Fórum diagnóstico", "required": true, "quantity": 1 },
+        { "id": "desafio", "label": "Desafio", "required": true, "quantity": 1 },
+        { "id": "avaliacao_final", "label": "Avaliação final", "required": true, "quantity": 1 },
+        { "id": "tarefa_bonus", "label": "Tarefa bônus", "required": false, "quantity": 1 }
+      ]
+    },
+    "MODULAR": {
+      "label": "Modular",
+      "requirements": [
+        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "videos", "label": "Videoaulas", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "forum_avaliativo", "label": "Fórum avaliativo", "required": true, "quantity": 1 },
+        { "id": "desafio", "label": "Desafio", "required": true, "quantity": 1 },
+        { "id": "avaliacao_final", "label": "Avaliação final", "required": true, "quantity": 1 }
+      ]
+    },
+    "SEMESTRAL": {
+      "label": "Semestral",
+      "requirements": [
+        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "videos", "label": "Videoaulas", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "forum", "label": "Fórum", "required": true, "quantity": 1 },
+        { "id": "desafio", "label": "Desafio", "required": true, "quantity": 1 },
+        { "id": "avaliacao_bimestral_1", "label": "Avaliação bimestral 1", "required": true, "quantity": 1 },
+        { "id": "avaliacao_bimestral_2", "label": "Avaliação bimestral 2", "required": true, "quantity": 1 },
+        { "id": "substitutiva", "label": "Avaliação substitutiva", "required": true, "quantity": 1 }
+      ]
+    }
+  }
+}
