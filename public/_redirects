@@ -1,8 +1,0 @@
-# Netlify Redirects File
-
-# Redirecionar todas as chamadas de API para o backend no Render
-# Substitua SEU_BACKEND_RENDER pela URL real que o Render fornecer
-/api/*  https://paineldocente.onrender.com/api/:splat  200
-
-# Redirecionar todas as rotas do frontend para o index.html (SPA Fallback)
-/*  /index.html  200

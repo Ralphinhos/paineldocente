@@ -1,89 +1,155 @@
-# Guia de Configuração e Implantação (Render + Netlify)
+# Implantação interna
 
-Este guia consolida todas as informações necessárias para você colocar o seu projeto (Backend e Frontend) no ar utilizando serviços modernos e gratuitos.
+## 1. Pré-requisitos
 
----
+- Servidor Linux com Docker Engine e Docker Compose.
+- DNS interno e HTTPS no proxy institucional.
+- Aplicação OIDC institucional configurada.
+- Usuário SQL Server exclusivo, somente leitura, para o Moodle.
+- Certificado CA usado pelo SQL Server em `secrets/moodle-ca.pem`.
+- Credenciais SMTP somente na etapa final.
 
-## 1. Configurando o Google Sheets API (Para ler a planilha)
+## 2. Demonstração segura
 
-Para que o backend consiga ler a sua planilha automaticamente, você precisará de uma **Conta de Serviço (Service Account)** do Google Cloud:
-
-1. Acesse o [Google Cloud Console](https://console.cloud.google.com/).
-2. Crie um novo projeto ou selecione um existente.
-3. No menu lateral, vá em **APIs e Serviços > Biblioteca**. Pesquise por **Google Sheets API** e clique em **Ativar**.
-4. Vá em **APIs e Serviços > Credenciais**.
-5. Clique em **Criar Credenciais** e selecione **Conta de Serviço**. Dê um nome (ex: `painel-planilha`) e conclua a criação.
-6. Após criar, na lista de Contas de Serviço, clique no email gerado (algo como `painel-planilha@seu-projeto.iam.gserviceaccount.com`).
-7. Vá na aba **Chaves** -> **Adicionar Chave** -> **Criar nova chave**. Escolha o formato **JSON** e baixe o arquivo para o seu computador.
-8. **Preparar o JSON para o Render:** O arquivo baixado tem várias linhas de texto. Para facilitar a configuração no Render, o ideal é transformar todo o arquivo em uma única linha, sem espaços. Você pode usar um site como o [JSON Minifier](https://jsonformatter.org/json-minify) para fazer isso.
-9. **Na sua planilha do Google:** Clique no botão azul "Compartilhar" (canto superior direito) e compartilhe a planilha dando acesso de **Leitor** ao email da Conta de Serviço que você acabou de criar.
-10. O `SPREADSHEET_ID` que você precisa é o código que fica na URL da planilha. Exemplo: se a URL é `https://docs.google.com/spreadsheets/d/1BxiMVs0XRX5bnYpz1BPTn-0/edit`, o ID é **`1BxiMVs0XRX5bnYpz1BPTn-0`**.
-
----
-
-## 2. Configurando o Supabase (Para armazenar o Histórico)
-
-O Supabase será o banco de dados que vai guardar as "fotografias" da sua planilha.
-
-1. Acesse o [Supabase](https://supabase.com/) e crie um projeto.
-2. No painel do projeto recém-criado, vá em **Project Settings** (ícone de engrenagem no menu lateral esquerdo).
-3. Na seção **API**, você encontrará a **Project URL** (Essa é a sua `SUPABASE_URL`) e a **Project API keys (anon / public)** (Essa é a sua `SUPABASE_KEY`). Guarde ambas.
-
-### 2.1 Criando a Tabela
-
-Você precisa criar uma tabela para armazenar os relatórios:
-
-1. No menu lateral esquerdo do Supabase, clique em **SQL Editor**.
-2. Clique em "New query" e cole exatamente o seguinte código SQL:
-
-```sql
-create table public.history_reports (
-  id uuid not null default gen_random_uuid (),
-  created_at timestamp with time zone not null default now(),
-  label text not null,
-  data jsonb not null,
-  constraint history_reports_pkey primary key (id)
-);
+```bash
+docker compose -f compose.demo.yml up --build -d
+docker compose -f compose.demo.yml ps
 ```
 
-3. Clique no botão verde **Run** (ou pressione Cmd/Ctrl + Enter). Isso criará a tabela.
+Acesse `http://localhost:8080`. Dados e perfis são fictícios; envio externo é impossível.
 
----
+## 3. Preparar produção
 
-## 3. Hospedando o Backend no Render (Web Service)
+```bash
+cp .env.production.example .env.production
+mkdir -p secrets
+chmod 700 secrets
+chmod 600 .env.production secrets/moodle-ca.pem
+```
 
-O Render.com hospedará sua API.
+Preencha `.env.production`. Gere segredos diferentes:
 
-1. Acesse o [Render](https://render.com/) e crie um novo **Web Service**.
-2. Conecte-o ao seu repositório do GitHub contendo este código.
-3. Configure o deploy da seguinte forma:
-   - **Name:** `api-painel` (ou algo de sua preferência)
-   - **Root Directory:** `backend` (⚠️ Muito importante: certifique-se de preencher este campo, pois o backend está em uma pasta separada)
-   - **Environment:** `Node`
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-4. Vá até a seção **Environment Variables** e adicione as seguintes variáveis:
-   - `PORT`: `3001`
-   - `SUPABASE_URL`: `URL do seu projeto Supabase` (obtido no Passo 2)
-   - `SUPABASE_KEY`: `Chave anon do Supabase` (obtido no Passo 2)
-   - `SPREADSHEET_ID`: `ID da sua planilha` (obtido no Passo 1)
-   - `GOOGLE_CREDENTIALS`: `O conteúdo do arquivo JSON minificado em uma única linha` (obtido no Passo 1)
-5. Finalize a criação e aguarde o deploy. Quando estiver pronto, você receberá uma URL, por exemplo: `https://api-painel.onrender.com`.
+```bash
+# JWT e segredo interno
+openssl rand -base64 48 | tr -d '\n'
+# Cookie OIDC
+openssl rand -base64 32 | tr -d '\n'
+# Senha PostgreSQL sem caracteres que exigem codificação de URL
+openssl rand -hex 24
+```
 
----
+Regras:
 
-## 4. Hospedando o Frontend no Netlify
+- `AUTH_USERS_JSON` define perfil e escopo; nunca vem do navegador.
+- `courseIds` da coordenação devem usar IDs reais do Moodle.
+- `APP_DB_PASSWORD` deve ser alfanumérico ou codificado para URL.
+- `RULES_APPROVED=false` e `EMAIL_SEND_ENABLED=false` durante homologação.
 
-1. **Antes de fazer o deploy do Frontend:** Abra o arquivo `public/_redirects` do seu projeto.
-2. Altere a linha que diz:
-   `/api/*  https://SEU_BACKEND_RENDER.onrender.com/api/:splat  200`
-   Substitua `https://SEU_BACKEND_RENDER.onrender.com` pela URL real que o Render te deu (Ex: `https://api-painel.onrender.com`). Faça um commit com essa alteração.
-3. Acesse o [Netlify](https://www.netlify.com/) e clique em **Add new site** > **Import an existing project**.
-4. Conecte ao seu repositório do GitHub.
-5. Configure o deploy da seguinte forma:
-   - **Base directory:** Vazio (deixe em branco)
-   - **Build command:** `npm run build`
-   - **Publish directory:** `dist`
-6. Clique em **Deploy site**.
+## 4. Permissão mínima no Moodle
 
-Pronto! O seu front-end fará os requests no endereço `/api/...`, e o servidor do Netlify, lendo o arquivo `_redirects`, encaminhará de forma segura (proxy reverso) para o seu servidor no Render, evitando qualquer erro de CORS ou URLs complexas no código.
+Peça ao DBA um login dedicado. Exemplo para SQL Server:
+
+```sql
+USE [moodle];
+CREATE USER [painel_docente_ro] FOR LOGIN [painel_docente_ro];
+
+GRANT SELECT ON OBJECT::dbo.mdl_assign TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_context TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_course TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_course_categories TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_course_modules TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_customfield_data TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_customfield_field TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_forum TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_logstore_standard_log TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_modules TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_page TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_quiz TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_resource TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_role_assignments TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_url TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_user TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_user_lastaccess TO [painel_docente_ro];
+
+DENY INSERT, UPDATE, DELETE, EXECUTE TO [painel_docente_ro];
+```
+
+Não reutilize conta administrativa do Moodle. TLS permanece obrigatório: `encrypt=true` e `trustServerCertificate=false`.
+
+## 5. Subir serviços
+
+```bash
+docker compose --env-file .env.production config
+docker compose --env-file .env.production build --pull
+docker compose --env-file .env.production up -d
+docker compose --env-file .env.production ps
+docker compose --env-file .env.production logs --tail=100 api worker
+```
+
+Somente `127.0.0.1:8080` é publicado. O proxy HTTPS institucional deve encaminhar para esse endereço e preservar `Host`, `X-Forwarded-For` e `X-Forwarded-Proto=https`.
+
+## 6. Homologar antes de publicar
+
+Siga [docs/VALIDACAO_REGRAS.md](docs/VALIDACAO_REGRAS.md). Depois, valide uma nova fotografia:
+
+```bash
+docker compose --env-file .env.production run --rm api node scripts/validate-snapshot.js --fresh
+```
+
+Somente após aprovação NED + TI:
+
+1. preencha `backend/config/deadlines.json`;
+2. altere o catálogo de regras para status homologado;
+3. defina `RULES_APPROVED=true`;
+4. recrie `api` e `worker`;
+5. execute:
+
+```bash
+docker compose --env-file .env.production run --rm api node scripts/validate-snapshot.js --fresh --require-publishable
+```
+
+Saída válida e `publishAllowed=true` são obrigatórias.
+
+## 7. Habilitar e-mail semanal
+
+Configure `REPORT_RECIPIENTS_JSON` no servidor e teste primeiro a prévia. Depois:
+
+```dotenv
+EMAIL_SEND_ENABLED=true
+```
+
+Recrie API e worker. Faça um envio controlado:
+
+```bash
+docker compose --env-file .env.production run --rm -e REPORT_AUDIENCE=executive api node scripts/send-weekly-report.js
+```
+
+Valores de `REPORT_AUDIENCE`: `coordinators`, `executive` ou vazio para ambos. O comando é idempotente por fotografia e destinatário.
+
+Agende no cron do servidor somente após o teste:
+
+```cron
+0 8 * * 1 cd /opt/painel-docente && /usr/bin/docker compose --env-file .env.production run --rm api node scripts/send-weekly-report.js >> /var/log/painel-docente-email.log 2>&1
+```
+
+O exemplo envia às segundas, 08h no fuso do servidor. Ajuste após decisão institucional.
+
+## 8. Backup e restauração
+
+Backup diário do histórico:
+
+```bash
+docker compose --env-file .env.production exec -T postgres pg_dump -U painel -d painel_docente -Fc > painel_docente.dump
+```
+
+Teste a restauração em ambiente separado. Nunca restaure por cima da produção sem janela aprovada.
+
+## 9. Atualização e reversão
+
+```bash
+git pull --ff-only
+docker compose --env-file .env.production build --pull
+docker compose --env-file .env.production up -d
+```
+
+Para reverter, use o commit anterior aprovado, reconstrua imagens e preserve o volume `painel_data`.

@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+backend/node_modules
+dist
+coverage
+*.log
+.env
+.env.*
+!.env.production.example
+secrets
+upload
+*.xlsx
+*.xls
+*.pdf
+*.zip
