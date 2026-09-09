@@ -33,3 +33,11 @@ test('normalização bloqueia conflitos e requisito singular duplicado', () => {
   assert.ok(source.sourceIssues.some((issue) => issue.code === 'WORKLOAD_CONFLICT'));
   assert.equal(source.courses[0].activities[0].mappingConfidence, 'AMBIGUOUS');
 });
+
+test('rótulo de vídeo mantém prazos individuais sem usar edição como entrega', () => {
+  const manualDeadlines = { version: 'test', periods: { '2026/2': { MODULAR: { defaults: { videos: ['2026-08-01T02:59:59.000Z', '2026-08-08T02:59:59.000Z'] } } } } };
+  const source = normalizeRows([row({ module_name: 'label', activity_name: 'Videoaula 1' })], generatedAt, manualDeadlines);
+  const course = source.courses[0]; const activity = course.activities[0];
+  assert.deepEqual(course.requirementDeadlines.videos, manualDeadlines.periods['2026/2'].MODULAR.defaults.videos);
+  assert.equal(activity.requirementId, 'videos'); assert.equal(activity.deadlineAt, '2026-08-01T02:59:59.000Z'); assert.equal(activity.configuredAt, null);
+});

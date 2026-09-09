@@ -23,3 +23,35 @@ test('proxy rejeita conta institucional sem mapeamento', async () => {
   await request(createApp(runtime)).get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'sem-acesso@unifenas.br').expect(403).expect((response) => assert.equal(response.body.error.code, 'USER_NOT_AUTHORIZED'));
   await runtime.close();
 });
+test('NED recebe itens individuais de UA e videoaula', async () => {
+  const { runtime, agent } = await login('ned');
+  const response = await agent.get('/api/operations/manual-deliveries?pageSize=50').expect(200);
+  assert.ok(response.body.items.length > 0);
+  assert.ok(response.body.items.some((item) => item.requirement.id === 'unidades_aprendizagem:1'));
+  assert.ok(response.body.items.some((item) => item.requirement.id === 'videos:1'));
+  await runtime.close();
+});
+test('coordenação não altera controle manual do NED', async () => {
+  const { runtime, agent } = await login('coordenacao');
+  await agent.get('/api/operations/manual-deliveries').expect(403);
+  await runtime.close();
+});
+test('não aplicável exige justificativa', async () => {
+  const { runtime, agent, csrf } = await login('ned');
+  const current = await agent.get('/api/operations/manual-deliveries?pageSize=50').expect(200);
+  const item = current.body.items.find((candidate) => candidate.editable);
+  await agent.post('/api/operations/manual-deliveries').set('Origin', env.APP_ORIGIN).set('x-csrf-token', csrf).send({ snapshotId: current.body.meta.snapshotId, deliveries: [{ courseId: item.course.id, teacherId: item.teacher.id, requirementId: item.requirement.baseId, itemNumber: item.requirement.itemNumber, disposition: 'NOT_APPLICABLE', evidenceDate: null, publishedDate: null, justification: '' }] }).expect(400).expect((response) => assert.equal(response.body.error.code, 'MANUAL_DELIVERY_INVALID'));
+  await runtime.close();
+});
+test('NED salva data docente, mantém publicação separada e gera fotografia', async () => {
+  const { runtime, agent, csrf } = await login('ned');
+  const current = await agent.get('/api/operations/manual-deliveries?pageSize=50').expect(200);
+  const item = current.body.items.find((candidate) => candidate.course.id === '1101' && candidate.requirement.id === 'videos:1');
+  const response = await agent.post('/api/operations/manual-deliveries').set('Origin', env.APP_ORIGIN).set('x-csrf-token', csrf).send({ snapshotId: current.body.meta.snapshotId, deliveries: [{ courseId: item.course.id, teacherId: item.teacher.id, requirementId: item.requirement.baseId, itemNumber: item.requirement.itemNumber, disposition: 'DELIVERED', evidenceDate: '2026-09-01', publishedDate: '2026-09-08', justification: null }] }).expect(201);
+  assert.notEqual(response.body.snapshotId, current.body.meta.snapshotId);
+  const latest = await runtime.services.store.latestSnapshot();
+  const row = latest.rows.find((candidate) => candidate.course.id === '1101' && candidate.requirement.id === 'videos:1');
+  assert.equal(row.manualEvidenceDate, '2026-09-01'); assert.equal(row.publishedDate, '2026-09-08'); assert.equal(row.timingSource, 'MANUAL_NED');
+  assert.ok(runtime.services.store.auditEvents.some((event) => event.action === 'MANUAL_DELIVERY_UPSERT'));
+  await runtime.close();
+});

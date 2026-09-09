@@ -1,14 +1,14 @@
 {
-  "version": "2026.1-piloto",
+  "version": "2026.2-piloto",
   "status": "PILOT",
   "description": "Catálogo inicial sujeito à homologação formal do NED antes de qualquer envio.",
-  "accessThresholds": { "currentMaxDays": 3, "attentionMaxDays": 6 },
+  "accessThresholds": { "currentMaxDays": 7, "attentionMaxDays": 14 },
   "modalities": {
     "GRADUACAO_EAD": {
       "label": "Graduação EaD",
       "requirements": [
-        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
-        { "id": "videos", "label": "Videoaulas", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "itemLabel": "Unidade de aprendizagem", "required": true, "control": "MANUAL_ITEM", "evidenceType": "SENT_BY_TEACHER", "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "videos", "label": "Videoaulas", "itemLabel": "Videoaula", "required": true, "control": "MANUAL_ITEM", "evidenceType": "RECORDED_BY_TEACHER", "quantityByWorkload": { "40": 4, "80": 8 } },
         { "id": "forum_diagnostico", "label": "Fórum diagnóstico", "required": true, "quantity": 1 },
         { "id": "desafio", "label": "Desafio", "required": true, "quantity": 1 },
         { "id": "avaliacao_final", "label": "Avaliação final", "required": true, "quantity": 1 },
@@ -18,8 +18,8 @@
     "MODULAR": {
       "label": "Modular",
       "requirements": [
-        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
-        { "id": "videos", "label": "Videoaulas", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "itemLabel": "Unidade de aprendizagem", "required": true, "control": "MANUAL_ITEM", "evidenceType": "SENT_BY_TEACHER", "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "videos", "label": "Videoaulas", "itemLabel": "Videoaula", "required": true, "control": "MANUAL_ITEM", "evidenceType": "RECORDED_BY_TEACHER", "quantityByWorkload": { "40": 4, "80": 8 } },
         { "id": "forum_avaliativo", "label": "Fórum avaliativo", "required": true, "quantity": 1 },
         { "id": "desafio", "label": "Desafio", "required": true, "quantity": 1 },
         { "id": "avaliacao_final", "label": "Avaliação final", "required": true, "quantity": 1 }
@@ -28,8 +28,8 @@
     "SEMESTRAL": {
       "label": "Semestral",
       "requirements": [
-        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
-        { "id": "videos", "label": "Videoaulas", "required": true, "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "unidades_aprendizagem", "label": "Unidades de aprendizagem", "itemLabel": "Unidade de aprendizagem", "required": true, "control": "MANUAL_ITEM", "evidenceType": "SENT_BY_TEACHER", "quantityByWorkload": { "40": 4, "80": 8 } },
+        { "id": "videos", "label": "Videoaulas", "itemLabel": "Videoaula", "required": true, "control": "MANUAL_ITEM", "evidenceType": "RECORDED_BY_TEACHER", "quantityByWorkload": { "40": 4, "80": 8 } },
         { "id": "forum", "label": "Fórum", "required": true, "quantity": 1 },
         { "id": "desafio", "label": "Desafio", "required": true, "quantity": 1 },
         { "id": "avaliacao_bimestral_1", "label": "Avaliação bimestral 1", "required": true, "quantity": 1 },

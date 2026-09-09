@@ -8,13 +8,17 @@ NED confirma por escrito:
 
 | Item | Proposta piloto |
 |---|---|
-| Acesso em dia | 0 a 3 dias |
-| Atenção | 4 a 6 dias |
-| Crítico | 7 dias ou mais |
+| Acesso em dia | 0 a 7 dias |
+| Atenção | 8 a 14 dias |
+| Crítico | 15 dias ou mais |
 | Graduação EaD 40h/80h | 4/8 unidades e 4/8 videoaulas |
 | Modular 40h/80h | 4/8 unidades e 4/8 videoaulas |
 | Semestral 40h/80h | 4/8 unidades e 4/8 videoaulas |
 | Estrutura herdada | Pronta antes da atribuição; acesso continua avaliado |
+| Unidade de aprendizagem | Controle individual pela data de envio do docente |
+| Videoaula | Controle individual pela data de gravação do docente |
+| Publicação | Informação operacional, fora do indicador docente |
+| Não aplicável | Exige justificativa e não entra no cálculo de entregas aplicáveis |
 
 Também confirme fóruns, desafios e avaliações listados em `backend/config/rules.json`.
 
@@ -44,6 +48,15 @@ Não use o prazo de envio do aluno como prazo de construção do professor. Pree
 ```
 
 Use ISO 8601 com fuso. NED assina a origem de cada data.
+
+Quando cada UA ou vídeo tiver um prazo diferente, use uma lista na ordem dos itens:
+
+```json
+"unidades_aprendizagem": [
+  "2026-08-01T02:59:59.000Z",
+  "2026-08-08T02:59:59.000Z"
+]
+```
 
 ## Gate 3 · Conferência Moodle
 
@@ -96,7 +109,7 @@ A ligação usa `contextinstanceid` do log, que representa o módulo do curso. `
 1. Escolha curso restaurado pronto antes da atribuição.
 2. Confirme todos os requisitos visíveis e completos.
 3. Esperado: `INHERITED_READY` para estrutura.
-4. Afaste o acesso do docente por 7 dias.
+4. Afaste o acesso do docente por 15 dias.
 5. Esperado: acesso `CRITICAL` sem transformar estrutura em pendência.
 
 ### Dois docentes
@@ -104,6 +117,15 @@ A ligação usa `contextinstanceid` do log, que representa o módulo do curso. `
 1. Escolha disciplina com dois docentes.
 2. Esperado: estrutura não dobra no resumo.
 3. Esperado: acesso é calculado uma vez por docente e disciplina.
+
+### UA e videoaula
+
+1. Registre separadamente a data de envio de uma UA e a data de gravação de um vídeo.
+2. Esperado: cada item recebe sua própria situação conforme o prazo oficial.
+3. Altere apenas a data de publicação.
+4. Esperado: a situação docente permanece igual.
+5. Marque um item como não aplicável sem justificativa.
+6. Esperado: gravação rejeitada.
 
 ## Validação automatizada
 

@@ -12,15 +12,29 @@ const activitySchema = z.object({
   mappingConfidence: z.enum(['EXACT', 'AMBIGUOUS']).default('EXACT'), events: z.array(eventSchema).default([]),
 });
 const teacherSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), name: z.string(), email: z.string().email().nullable().default(null), assignedAt: z.string().datetime().nullable(), lastAccessAt: z.string().datetime().nullable(), accessEvents: z.array(eventSchema).default([]) });
+const deadlineValueSchema = z.union([z.string().datetime(), z.array(z.string().datetime())]);
 const courseSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String), name: z.string(), shortName: z.string(), period: z.string(), modality: z.string(), workloadHours: z.number().int().positive(),
   startsAt: z.string().datetime(), endsAt: z.string().datetime(), originalCourseId: z.union([z.string(), z.number()]).transform(String).nullable().default(null), restoredAt: z.string().datetime().nullable().default(null),
-  teachers: z.array(teacherSchema).min(1), activities: z.array(activitySchema),
+  teachers: z.array(teacherSchema).min(1), activities: z.array(activitySchema), requirementDeadlines: z.record(z.string(), deadlineValueSchema).default({}),
 });
 const sourceSchema = z.object({ source: z.enum(['demo', 'moodle']), generatedAt: z.string().datetime(), courses: z.array(courseSchema), sourceIssues: z.array(z.object({ code: z.string(), message: z.string(), severity: z.enum(['INFO', 'WARNING', 'CRITICAL']), courseId: z.string().optional() })).default([]) });
 
 function loadCatalog(catalogPath) { const raw = JSON.parse(fs.readFileSync(catalogPath, 'utf8')); if (!raw.version || !raw.modalities || !raw.accessThresholds) throw new Error('Catálogo de regras incompleto.'); return Object.freeze(raw); }
 function expectedQuantity(requirement, workload) { return requirement.quantityByWorkload ? requirement.quantityByWorkload[String(workload)] ?? null : requirement.quantity ?? 1; }
+function manualDeliveryKey(courseId, teacherId, requirementId, itemNumber) { return `${courseId}:${teacherId}:${requirementId}:${itemNumber}`; }
+function manualDateToIso(value) { return value ? `${value}T12:00:00.000Z` : null; }
+function saoPauloDate(value) {
+  const parts = new Intl.DateTimeFormat('en', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value));
+  const part = (type) => parts.find((item) => item.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+function requirementDeadline(course, activity, requirementId, itemNumber = 1) {
+  const configured = course.requirementDeadlines?.[requirementId];
+  if (Array.isArray(configured)) return { deadlineAt: configured[itemNumber - 1] || null, deadlineSource: configured[itemNumber - 1] ? 'OFFICIAL_CATALOG' : null };
+  if (configured) return { deadlineAt: configured, deadlineSource: 'OFFICIAL_CATALOG' };
+  return { deadlineAt: activity?.deadlineAt ?? null, deadlineSource: activity?.deadlineSource ?? null };
+}
 function latestIso(values) { const valid = values.filter(Boolean).map((value) => new Date(value)); return valid.length ? new Date(Math.max(...valid.map(Number))).toISOString() : null; }
 function calculateAccess(teacher, course, asOf, thresholds) {
   const active = new Date(course.startsAt) <= asOf && asOf <= new Date(course.endsAt);
@@ -42,9 +56,9 @@ function evidenceFor(activity, teacherId) {
     return { type: 'OTHER_EVENT', occurredAt: event.occurredAt, supports: 'CONTEXT_ONLY', note: 'Evento preservado apenas como contexto.' };
   });
 }
-function result(status, reasonCode, reason, activity, quantity, evidence, overdue = false) {
+function result(status, reasonCode, reason, activity, quantity, evidence, overdue = false, extras = {}) {
   const timingTrusted = Boolean(activity?.configuredAt && activity?.configurationTimeSource);
-  return { status, reasonCode, reason, overdue, deadlineAt: activity?.deadlineAt ?? null, deadlineSource: activity?.deadlineSource ?? null, configuredAt: timingTrusted ? activity.configuredAt : null, timingSource: timingTrusted ? activity.configurationTimeSource : null, expectedQuantity: quantity, observedQuantity: activity?.observedQuantity ?? 0, evidence };
+  return { status, reasonCode, reason, overdue, deadlineAt: activity?.deadlineAt ?? null, deadlineSource: activity?.deadlineSource ?? null, configuredAt: timingTrusted ? activity.configuredAt : null, timingSource: timingTrusted ? activity.configurationTimeSource : null, expectedQuantity: quantity, observedQuantity: activity?.observedQuantity ?? 0, evidence, ...extras };
 }
 function evaluateRequirement({ requirement, activity, course, teacher, inheritedReady, generatedAt }) {
   const quantity = expectedQuantity(requirement, course.workloadHours);
@@ -58,6 +72,47 @@ function evaluateRequirement({ requirement, activity, course, teacher, inherited
   if (!activity.configuredAt || !activity.configurationTimeSource) return result('NOT_VERIFIABLE', 'CONFIGURATION_DATE_UNKNOWN', 'Estado atual está pronto, mas não há fotografia confiável para classificar o prazo.', activity, quantity, evidence);
   const late = new Date(activity.configuredAt) > new Date(activity.deadlineAt);
   return result(late ? 'DELIVERED_LATE' : 'DELIVERED_ON_TIME', late ? 'CONFIGURED_AFTER_DEADLINE' : 'CONFIGURED_BY_DEADLINE', late ? 'Configuração válida concluída após o prazo.' : 'Configuração válida concluída até o prazo.', activity, quantity, evidence);
+}
+
+function evaluateManualRequirement({ requirement, activity, course, inheritedReady, generatedAt, record, itemNumber }) {
+  const quantity = expectedQuantity(requirement, course.workloadHours);
+  const deadline = requirementDeadline(course, activity, requirement.id, itemNumber);
+  const evidenceDate = record?.evidenceDate || null;
+  const configuredAt = manualDateToIso(evidenceDate);
+  const manualActivity = {
+    configuredAt,
+    configurationTimeSource: configuredAt ? 'MANUAL_NED' : null,
+    deadlineAt: deadline.deadlineAt,
+    deadlineSource: deadline.deadlineSource,
+    observedQuantity: record?.disposition === 'DELIVERED' ? 1 : 0,
+  };
+  const extras = {
+    manualControl: true,
+    manualDisposition: record?.disposition || 'PENDING',
+    manualEvidenceDate: evidenceDate,
+    publishedDate: record?.publishedDate || null,
+    manualJustification: record?.justification || null,
+    manualUpdatedBy: record?.updatedBy || null,
+    manualUpdatedAt: record?.updatedAt || null,
+  };
+  if (quantity === null) return result('NOT_VERIFIABLE', 'WORKLOAD_RULE_MISSING', `Carga horária ${course.workloadHours}h sem quantidade homologada.`, manualActivity, null, [], false, extras);
+  if (inheritedReady) return result('INHERITED_READY', 'RESTORED_STRUCTURE_READY', 'Estrutura herdada estava pronta antes da responsabilidade deste docente.', manualActivity, 1, [], false, extras);
+  if (record?.disposition === 'NOT_APPLICABLE') {
+    if (!record.justification?.trim()) return result('NOT_VERIFIABLE', 'NOT_APPLICABLE_REASON_MISSING', 'Item marcado como não aplicável sem justificativa.', manualActivity, 1, [], false, extras);
+    return result('NOT_APPLICABLE', 'MANUAL_NOT_APPLICABLE', 'Item dispensado pelo NED com justificativa registrada.', manualActivity, 1, [], false, extras);
+  }
+  if (!deadline.deadlineAt || deadline.deadlineSource !== 'OFFICIAL_CATALOG' && deadline.deadlineSource !== 'DEMO_SCHEDULE') return result('NOT_VERIFIABLE', 'DEADLINE_MISSING', 'Prazo oficial ausente; atraso não pode ser calculado com segurança.', manualActivity, 1, [], false, extras);
+  if (record?.disposition === 'DELIVERED') {
+    if (!evidenceDate) return result('NOT_VERIFIABLE', 'MANUAL_EVIDENCE_DATE_MISSING', 'Entrega manual sem a data informada pelo docente.', manualActivity, 1, [], false, extras);
+    const late = evidenceDate > saoPauloDate(deadline.deadlineAt);
+    const evidenceType = requirement.evidenceType === 'SENT_BY_TEACHER' ? 'UA_SENT_BY_TEACHER' : 'VIDEO_RECORDED_BY_TEACHER';
+    const note = requirement.evidenceType === 'SENT_BY_TEACHER' ? 'Data em que o docente encaminhou a unidade ao NED.' : 'Data em que o docente gravou a videoaula.';
+    const evidence = [{ type: evidenceType, occurredAt: configuredAt, supports: 'DELIVERY_DATE', note }];
+    return result(late ? 'DELIVERED_LATE' : 'DELIVERED_ON_TIME', late ? 'MANUAL_DATE_AFTER_DEADLINE' : 'MANUAL_DATE_BY_DEADLINE', late ? 'Data informada pelo docente posterior ao prazo oficial.' : 'Data informada pelo docente dentro do prazo oficial.', manualActivity, 1, evidence, false, extras);
+  }
+  const overdue = new Date(deadline.deadlineAt) < generatedAt;
+  const missing = requirement.evidenceType === 'SENT_BY_TEACHER' ? 'Data de envio da unidade ainda não registrada.' : 'Data de gravação da videoaula ainda não registrada.';
+  return result('PENDING', overdue ? 'MANUAL_ITEM_OVERDUE' : 'MANUAL_ITEM_OPEN', overdue ? `${missing} Prazo vencido.` : missing, manualActivity, 1, [], overdue, extras);
 }
 
 function reconcileObservedTiming(rows, source, previousSnapshot) {
@@ -84,12 +139,19 @@ function reconcileObservedTiming(rows, source, previousSnapshot) {
 
 function buildSnapshot(rawSource, catalog, options = {}) {
   const source = sourceSchema.parse(rawSource); const generatedAt = new Date(source.generatedAt); const qualityIssues = [...source.sourceIssues]; const rows = [];
+  const manualDeliveries = new Map((options.manualDeliveries || []).map((record) => [manualDeliveryKey(record.courseId, record.teacherId, record.requirementId, record.itemNumber), record]));
   for (const course of source.courses) {
     const modality = catalog.modalities[course.modality];
     if (!modality) { qualityIssues.push({ code: 'UNKNOWN_MODALITY', message: `Modalidade não mapeada: ${course.modality}.`, severity: 'CRITICAL', courseId: course.id }); continue; }
     const required = modality.requirements.filter((requirement) => requirement.required);
     for (const requirement of required) {
       const matches = course.activities.filter((activity) => activity.requirementId === requirement.id);
+      if (requirement.control === 'MANUAL_ITEM') {
+        const quantity = expectedQuantity(requirement, course.workloadHours) ?? 1;
+        const missingDeadline = Array.from({ length: quantity }, (_value, index) => requirementDeadline(course, matches[0], requirement.id, index + 1)).some((deadline) => !deadline.deadlineAt);
+        if (missingDeadline) qualityIssues.push({ code: 'DEADLINE_MISSING', message: `${course.shortName}: prazo oficial ausente para um ou mais itens de ${requirement.label}.`, severity: 'CRITICAL', courseId: course.id });
+        continue;
+      }
       if (matches.length > 1) qualityIssues.push({ code: 'DUPLICATE_REQUIREMENT_MAPPING', message: `${course.shortName}: múltiplas atividades para ${requirement.label}.`, severity: 'CRITICAL', courseId: course.id });
       if (!matches.length) qualityIssues.push({ code: 'REQUIREMENT_NOT_MAPPED', message: `${course.shortName}: requisito não localizado (${requirement.label}).`, severity: 'CRITICAL', courseId: course.id });
       if (matches[0] && !matches[0].deadlineAt) qualityIssues.push({ code: 'DEADLINE_MISSING', message: `${course.shortName}: prazo oficial ausente para ${requirement.label}.`, severity: 'CRITICAL', courseId: course.id });
@@ -99,8 +161,17 @@ function buildSnapshot(rawSource, catalog, options = {}) {
       const currentReady = required.every((requirement) => { const activity = course.activities.find((candidate) => candidate.requirementId === requirement.id); const quantity = expectedQuantity(requirement, course.workloadHours); return quantity !== null && activity?.mappingConfidence === 'EXACT' && activity.visible && activity.observedQuantity >= quantity; });
       const inheritedReady = Boolean(course.originalCourseId && course.restoredAt && teacher.assignedAt && new Date(course.restoredAt) <= new Date(teacher.assignedAt) && currentReady);
       for (const requirement of required) {
-        const evaluation = evaluateRequirement({ requirement, activity: course.activities.find((candidate) => candidate.requirementId === requirement.id), course, teacher, inheritedReady, generatedAt });
-        rows.push({ snapshotId: null, course: { id: course.id, name: course.name, shortName: course.shortName, period: course.period, modality: course.modality, modalityLabel: modality.label, workloadHours: course.workloadHours, startsAt: course.startsAt, endsAt: course.endsAt }, teacher: { id: teacher.id, name: teacher.name, email: teacher.email }, requirement: { id: requirement.id, label: requirement.label }, structureStatus: evaluation.status, accessStatus: access.status, lastAccessAt: access.lastAccessAt, daysSinceAccess: access.daysSinceAccess, provenance: inheritedReady ? 'INHERITED_VERIFIED' : course.originalCourseId ? 'RESTORED_NOT_EXEMPT' : 'CREATED_FOR_PERIOD', calculatedAt: source.generatedAt, rulesVersion: catalog.version, ...evaluation });
+        const activity = course.activities.find((candidate) => candidate.requirementId === requirement.id);
+        const count = requirement.control === 'MANUAL_ITEM' ? expectedQuantity(requirement, course.workloadHours) ?? 1 : 1;
+        for (let itemNumber = 1; itemNumber <= count; itemNumber += 1) {
+          const manual = requirement.control === 'MANUAL_ITEM';
+          const evaluation = manual
+            ? evaluateManualRequirement({ requirement, activity, course, teacher, inheritedReady, generatedAt, itemNumber, record: manualDeliveries.get(manualDeliveryKey(course.id, teacher.id, requirement.id, itemNumber)) })
+            : evaluateRequirement({ requirement, activity, course, teacher, inheritedReady, generatedAt });
+          const requirementKey = manual ? `${requirement.id}:${itemNumber}` : requirement.id;
+          const requirementLabel = manual ? `${requirement.itemLabel || requirement.label} ${itemNumber}` : requirement.label;
+          rows.push({ snapshotId: null, course: { id: course.id, name: course.name, shortName: course.shortName, period: course.period, modality: course.modality, modalityLabel: modality.label, workloadHours: course.workloadHours, startsAt: course.startsAt, endsAt: course.endsAt }, teacher: { id: teacher.id, name: teacher.name, email: teacher.email }, requirement: { id: requirementKey, baseId: requirement.id, label: requirementLabel, manualControl: manual, itemNumber: manual ? itemNumber : null, evidenceType: manual ? requirement.evidenceType : null }, structureStatus: evaluation.status, accessStatus: access.status, lastAccessAt: access.lastAccessAt, daysSinceAccess: access.daysSinceAccess, provenance: inheritedReady ? 'INHERITED_VERIFIED' : course.originalCourseId ? 'RESTORED_NOT_EXEMPT' : 'CREATED_FOR_PERIOD', calculatedAt: source.generatedAt, rulesVersion: catalog.version, ...evaluation });
+        }
       }
     }
   }
@@ -114,4 +185,4 @@ function buildSnapshot(rawSource, catalog, options = {}) {
   const critical = qualityIssues.some((issue) => issue.severity === 'CRITICAL');
   return { id: snapshotId, generatedAt: source.generatedAt, source: source.source, rulesVersion: catalog.version, rulesStatus: catalog.status, qualityStatus: critical ? 'BLOCKED' : qualityIssues.length ? 'WARNING' : 'VALID', publishAllowed: !critical && Boolean(options.rulesApproved) && source.source !== 'demo', isDemo: source.source === 'demo', qualityIssues, rows };
 }
-module.exports = { buildSnapshot, calculateAccess, expectedQuantity, loadCatalog, reconcileObservedTiming };
+module.exports = { buildSnapshot, calculateAccess, expectedQuantity, loadCatalog, manualDeliveryKey, reconcileObservedTiming, saoPauloDate };

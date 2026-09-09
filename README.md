@@ -6,6 +6,7 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 - Visões separadas para NED, coordenação e alta gestão.
 - Consulta direta ao Moodle SQL Server com usuário somente leitura.
+- Controle individual de UA e videoaula pelo NED: data de envio da UA e data de gravação do vídeo.
 - Regra específica para disciplinas restauradas: estrutura herdada pronta fica regular; acesso docente continua avaliado.
 - “Conclusão de atividade alterada” e visualização contam como interação, nunca como prova isolada de entrega.
 - Fotografias imutáveis no PostgreSQL, controle de qualidade e trilha de auditoria.
@@ -40,9 +41,15 @@ npm run dev
 | Dimensão | Prova principal | Não comprova |
 |---|---|---|
 | Estrutura | Estado atual, visibilidade, quantidade e prazo oficial | Abrir atividade ou alterar conclusão |
+| UA | Data em que o docente encaminhou cada unidade ao NED | Data de publicação no Moodle |
+| Videoaula | Data em que o docente gravou cada vídeo | Data de edição do rótulo no Moodle |
 | Acesso | Último acesso no curso e eventos do próprio docente | Alteração feita por outra pessoa |
 | Estrutura herdada | Curso restaurado, pronto antes da atribuição | Apenas existir backup/restauração |
 | Atraso | Prazo do catálogo oficial homologado | Data de entrega configurada para o aluno |
+
+Faixas de acesso: **0–7 dias em dia**, **8–14 dias em atenção** e **15 dias ou mais crítico**.
+
+“Publicado” é informação operacional e não altera o indicador docente. “Não aplicável” exige justificativa, fica registrado na auditoria e não entra no cálculo de entregas aplicáveis.
 
 ## Perfis
 

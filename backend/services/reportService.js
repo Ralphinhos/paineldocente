@@ -7,7 +7,7 @@ function dateTime(value) { return new Intl.DateTimeFormat('pt-BR', { dateStyle: 
 function reportTitle(audience) { return audience === 'executive' ? 'Resumo executivo — acompanhamento docente' : 'Acompanhamento docente — pendências e acessos'; }
 function buildReport(audience, dashboard, recipientName = 'Responsável') {
   const { meta, summary } = dashboard; const exceptions = dashboard.rows.filter((row) => row.severity !== 'OK');
-  const totals = [`${summary.courses} disciplinas monitoradas`, `${summary.monitoredTeachers} docentes`, `${summary.requirements.overdue} requisitos vencidos`, `${summary.access.critical + summary.access.never} acessos críticos`, `${summary.requirements.notVerifiable} itens não verificáveis`];
+  const totals = [`${summary.courses} disciplinas monitoradas`, `${summary.monitoredTeachers} docentes`, `${summary.requirements.overdue} entregas aplicáveis vencidas`, `${summary.access.critical + summary.access.never} acessos críticos`, `${summary.requirements.notVerifiable} dados não verificáveis`, `${summary.requirements.notApplicable} itens não aplicáveis`];
   const subject = `${reportTitle(audience)} | ${new Intl.DateTimeFormat('pt-BR').format(new Date(meta.generatedAt))}`;
   const details = exceptions.slice(0, audience === 'executive' ? 5 : 30).map((row) => ({ course: row.course.shortName, teacher: row.teacher.name, reason: row.primaryReason }));
   const blocker = meta.publishAllowed ? null : 'ENVIO BLOQUEADO: regras ou qualidade dos dados ainda não foram homologadas.';

@@ -68,6 +68,9 @@ activity_instances AS (
   UNION ALL SELECT 'page', id, name FROM dbo.mdl_page
   UNION ALL SELECT 'url', id, name FROM dbo.mdl_url
   UNION ALL SELECT 'resource', id, name FROM dbo.mdl_resource
+  UNION ALL SELECT 'label', id, name FROM dbo.mdl_label
+  UNION ALL SELECT 'h5pactivity', id, name FROM dbo.mdl_h5pactivity
+  UNION ALL SELECT 'lti', id, name FROM dbo.mdl_lti
 ),
 course_activities AS (
   SELECT cm.id AS cm_id, cm.course AS course_id, m.name AS module_name, ai.name AS activity_name, cm.visible

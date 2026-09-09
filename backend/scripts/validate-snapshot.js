@@ -16,7 +16,12 @@ function validateSnapshot(snapshot) {
     accessByAssignment.set(assignment, access);
     if (row.provenance === 'INHERITED_VERIFIED' && row.structureStatus !== 'INHERITED_READY') errors.push(`INHERITED_STATUS_INVALID:${key}`);
     if (snapshot.source === 'moodle' && row.deadlineSource && row.deadlineSource !== 'OFFICIAL_CATALOG') errors.push(`DEADLINE_SOURCE_INVALID:${key}`);
-    if (snapshot.source === 'moodle' && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(row.structureStatus) && row.timingSource !== 'SNAPSHOT_OBSERVED') errors.push(`TIMING_SOURCE_INVALID:${key}`);
+    if (snapshot.source === 'moodle' && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(row.structureStatus) && !['SNAPSHOT_OBSERVED', 'MANUAL_NED'].includes(row.timingSource)) errors.push(`TIMING_SOURCE_INVALID:${key}`);
+    if (row.requirement.manualControl) {
+      if (!row.requirement.baseId || !row.requirement.itemNumber) errors.push(`MANUAL_ITEM_KEY_INVALID:${key}`);
+      if (['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(row.structureStatus) && (!row.manualEvidenceDate || row.timingSource !== 'MANUAL_NED')) errors.push(`MANUAL_EVIDENCE_INVALID:${key}`);
+      if (row.structureStatus === 'NOT_APPLICABLE' && !row.manualJustification?.trim()) errors.push(`NOT_APPLICABLE_REASON_MISSING:${key}`);
+    }
     for (const evidence of row.evidence || []) {
       if (evidence.type === 'COMPLETION_CHANGED' && evidence.supports !== 'ACCESS_ONLY') errors.push(`COMPLETION_MISCLASSIFIED:${key}`);
       if (evidence.type === 'MODULE_VIEWED' && !['ACCESS_ONLY', 'TEACHER_INTERACTION'].includes(evidence.supports)) errors.push(`VIEW_MISCLASSIFIED:${key}`);

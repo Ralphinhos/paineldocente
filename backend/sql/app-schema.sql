@@ -10,6 +10,15 @@ CREATE TABLE IF NOT EXISTS pd_snapshot_rows (
   PRIMARY KEY (snapshot_id,course_id,teacher_id,requirement_id)
 );
 CREATE INDEX IF NOT EXISTS pd_snapshot_rows_course_idx ON pd_snapshot_rows (snapshot_id,course_id);
+CREATE TABLE IF NOT EXISTS pd_manual_deliveries (
+  course_id text NOT NULL, teacher_id text NOT NULL, requirement_id text NOT NULL CHECK (requirement_id IN ('unidades_aprendizagem','videos')),
+  item_number integer NOT NULL CHECK (item_number > 0), disposition text NOT NULL CHECK (disposition IN ('PENDING','DELIVERED','NOT_APPLICABLE')),
+  evidence_date date, published_date date, justification text, updated_by text NOT NULL, updated_at timestamptz NOT NULL,
+  PRIMARY KEY (course_id,teacher_id,requirement_id,item_number),
+  CHECK (disposition <> 'DELIVERED' OR evidence_date IS NOT NULL),
+  CHECK (disposition <> 'NOT_APPLICABLE' OR length(trim(justification)) >= 3)
+);
+CREATE INDEX IF NOT EXISTS pd_manual_deliveries_course_idx ON pd_manual_deliveries (course_id,requirement_id);
 CREATE TABLE IF NOT EXISTS pd_report_runs (
   id uuid PRIMARY KEY, snapshot_id uuid NOT NULL REFERENCES pd_snapshots(id) ON DELETE RESTRICT,
   audience text NOT NULL, status text NOT NULL, idempotency_key text NOT NULL UNIQUE,

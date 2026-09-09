@@ -23,23 +23,33 @@ O navegador nunca consulta o Moodle nem escolhe sua própria permissão. A API r
 | Nginx | Interface, cabeçalhos e proxy interno | Injeta segredo compartilhado apenas para a API |
 | API | Sessão, CSRF, RBAC, filtros e relatórios | Autoridade sobre perfil, escopo e destinatários |
 | Worker | Consulta Moodle e gera fotografias | Credencial SQL somente leitura |
-| PostgreSQL | Fotografias, envios e auditoria | Não fica exposto na rede do servidor |
+| PostgreSQL | Fotografias, entregas manuais, envios e auditoria | Não fica exposto na rede do servidor |
 | SMTP | Entrega do relatório homologado | Desativado por padrão |
 
 ## Modelo de verdade
 
 1. Worker consulta cursos na categoria raiz e subcategorias.
 2. Docentes são obtidos pelas atribuições do papel configurado.
-3. Atividades são classificadas conforme catálogo versionado.
-4. Estado atual define se a estrutura está pronta.
-5. Prazo vem exclusivamente do catálogo oficial.
-6. Fotografia pronta antes do prazo comprova entrega no prazo.
-7. Fotografia pendente após o prazo, seguida de pronta, comprova atraso.
-8. Logs acrescentam interação; nunca definem a data de entrega.
-9. Uma fotografia recebe ID único e não é alterada.
-10. Dashboard e e-mail leem a mesma fotografia.
+3. Atividades do Moodle são classificadas conforme catálogo versionado.
+4. Cada UA e videoaula é controlada manualmente pelo NED.
+5. UA usa a data de envio do docente; videoaula usa a data de gravação.
+6. Data de publicação é operacional e não altera o indicador docente.
+7. Prazo vem exclusivamente do catálogo oficial.
+8. Registros e fotografias classificam entrega no prazo ou com atraso.
+9. Logs acrescentam interação; nunca definem a data de UA ou videoaula.
+10. Uma fotografia recebe ID único e não é alterada.
+11. Dashboard e e-mail leem a mesma fotografia.
 
-Chave de resultado: `snapshot_id + course_id + teacher_id + requirement_id`.
+Chave de resultado: `snapshot_id + course_id + teacher_id + requirement_key`. Para UA e vídeo, a chave do requisito inclui o número do item.
+
+## Controle manual de UA e videoaula
+
+- Somente o NED pode alterar registros; auditor pode apenas consultar.
+- Cada item possui disciplina, docente responsável, número, data do docente e publicação opcional.
+- Rótulos, H5P e LTI podem comprovar presença da estrutura restaurada, mas suas datas no Moodle não substituem o registro manual.
+- `NOT_APPLICABLE` exige justificativa e não entra no denominador de entregas aplicáveis.
+- Estrutura herdada permanece dispensada; somente o acesso docente continua avaliado.
+- Toda alteração registra usuário, horário, itens alterados e nova fotografia.
 
 ## Disciplina restaurada
 
@@ -57,7 +67,7 @@ Isso isenta a entrega da estrutura. O acesso do docente continua independente e 
 
 | Evento | Uso |
 |---|---|
-| `course_module_updated` | Apoia autoria/data; estado atual ainda decide |
+| `course_module_updated` | Apoia interação e mudança; não define sozinho a data da entrega |
 | `course_module_completion_updated` | Interação/acesso; nunca prova entrega |
 | `course_module_viewed` | Interação/acesso; nunca prova entrega |
 | Evento desconhecido | Contexto; não altera situação |
@@ -73,6 +83,7 @@ Isso isenta a entrega da estrutura. O acesso do docente continua independente e 
 - E-mail com idempotência por fotografia, público e destinatário.
 - Dados demonstrativos não podem ser enviados.
 - Falha crítica de qualidade bloqueia publicação.
+- Alteração manual usa origem exata, CSRF, papel NED e validação de item contra a fotografia atual.
 - Contêineres sem privilégios, com sistema de arquivos somente leitura onde possível.
 
 ## Privacidade
@@ -81,7 +92,7 @@ O sistema usa nome, e-mail institucional e atividade de acesso. Antes da produç
 
 ## Limites do piloto
 
-- Prazos oficiais ainda não preenchidos.
+- Prazos oficiais, inclusive os de UA e videoaula, ainda não foram preenchidos.
 - Regras ainda marcadas como piloto.
 - Mapeamento dos campos personalizados do Moodle depende de conferência no banco real.
 - Metadados OIDC e escopos reais dependem da TI.

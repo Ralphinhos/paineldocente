@@ -49,13 +49,19 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
       if (fieldWorkload && namedWorkload && fieldWorkload !== namedWorkload) sourceIssues.push({ code: 'WORKLOAD_CONFLICT', message: `${row.course_shortname}: carga horária do campo conflita com o nome.`, severity: 'CRITICAL', courseId });
       if (!modality) sourceIssues.push({ code: 'MODALITY_UNMAPPED', message: `${row.course_shortname}: modalidade não reconhecida.`, severity: 'CRITICAL', courseId });
       if (!workload) sourceIssues.push({ code: 'WORKLOAD_UNMAPPED', message: `${row.course_shortname}: carga horária não reconhecida.`, severity: 'CRITICAL', courseId });
-      course = { id: courseId, name: row.course_name, shortName: row.course_shortname, period, modality: modality || 'NAO_MAPEADA', workloadHours: workload || 1, startsAt, endsAt, originalCourseId: row.originalcourseid ? String(row.originalcourseid) : null, restoredAt: row.originalcourseid ? fromUnix(row.course_created_at) : null, teachers: new Map(), groups: new Map() }; courses.set(courseId, course);
+      const requirementDeadlines = {};
+      for (const requirementId of ['unidades_aprendizagem', 'videos']) {
+        const value = officialDeadline(deadlineCatalog, period, modality, courseId, requirementId);
+        if (value) requirementDeadlines[requirementId] = value;
+      }
+      course = { id: courseId, name: row.course_name, shortName: row.course_shortname, period, modality: modality || 'NAO_MAPEADA', workloadHours: workload || 1, startsAt, endsAt, originalCourseId: row.originalcourseid ? String(row.originalcourseid) : null, restoredAt: row.originalcourseid ? fromUnix(row.course_created_at) : null, requirementDeadlines, teachers: new Map(), groups: new Map() }; courses.set(courseId, course);
     }
     if (!course.teachers.has(teacherId)) course.teachers.set(teacherId, { id: teacherId, name: row.teacher_name, email: row.teacher_email || null, assignedAt: fromUnix(row.assigned_at), lastAccessAt: fromUnix(row.last_access_at), accessEvents: [] });
     const teacher = course.teachers.get(teacherId);
     if (!row.cm_id) continue;
     const requirementId = classifyRequirement(row.activity_name, course.modality); if (!requirementId) continue;
-    const group = course.groups.get(requirementId) || { id: `${courseId}:${requirementId}`, requirementId, label: row.activity_name, observedQuantity: 0, visible: false, configuredAt: null, configurationTimeSource: null, deadlineAt: officialDeadline(deadlineCatalog, course.period, course.modality, courseId, requirementId), deadlineSource: null, mappingConfidence: 'EXACT', events: [], moduleIds: new Set() };
+    const configuredDeadline = officialDeadline(deadlineCatalog, course.period, course.modality, courseId, requirementId);
+    const group = course.groups.get(requirementId) || { id: `${courseId}:${requirementId}`, requirementId, label: row.activity_name, observedQuantity: 0, visible: false, configuredAt: null, configurationTimeSource: null, deadlineAt: Array.isArray(configuredDeadline) ? configuredDeadline[0] || null : configuredDeadline, deadlineSource: null, mappingConfidence: 'EXACT', events: [], moduleIds: new Set() };
     if (group.deadlineAt) group.deadlineSource = 'OFFICIAL_CATALOG';
     const moduleId = String(row.cm_id); if (!group.moduleIds.has(moduleId)) { group.observedQuantity += row.activity_visible ? 1 : 0; group.moduleIds.add(moduleId); }
     group.visible = group.observedQuantity > 0;
