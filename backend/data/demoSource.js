@@ -1,4 +1,38 @@
 function shift(date, days) { return new Date(date.getTime() + days * 86400000).toISOString(); }
+function dateOnly(date, days) { return shift(date, days).slice(0, 10); }
+function manualRecord(at, courseId, teacherId, requirementId, itemNumber, options = {}) {
+  const disposition = options.disposition || 'DELIVERED';
+  return {
+    courseId,
+    teacherId,
+    requirementId,
+    itemNumber,
+    disposition,
+    evidenceDate: disposition === 'DELIVERED' ? dateOnly(at, options.evidenceDays ?? -10) : null,
+    publishedDate: options.publishedDays === undefined ? null : dateOnly(at, options.publishedDays),
+    justification: disposition === 'NOT_APPLICABLE' ? options.justification || 'Responsabilidade atribuída ao outro docente da disciplina.' : null,
+    updatedBy: 'Equipe NED — Demonstração',
+    updatedAt: at.toISOString(),
+  };
+}
+function addRange(target, at, courseId, teacherId, requirementId, quantity, options = {}) {
+  for (let itemNumber = 1; itemNumber <= quantity; itemNumber += 1) target.push(manualRecord(at, courseId, teacherId, requirementId, itemNumber, options));
+}
+function createDemoManualDeliveries(at, phase) {
+  const records = [];
+  addRange(records, at, '1101', '501', 'unidades_aprendizagem', 3, { evidenceDays: -10 });
+  if (phase >= 2) records.push(manualRecord(at, '1101', '501', 'unidades_aprendizagem', 4, { evidenceDays: -4 }));
+  addRange(records, at, '1101', '501', 'videos', 4, { evidenceDays: -10, publishedDays: -2 });
+  addRange(records, at, '1103', '503', 'unidades_aprendizagem', 4, { evidenceDays: -10 });
+  addRange(records, at, '1103', '503', 'videos', 4, { evidenceDays: -9, publishedDays: -3 });
+  addRange(records, at, '1104', '504', 'unidades_aprendizagem', 8, { evidenceDays: -10 });
+  addRange(records, at, '1104', '504', 'videos', 8, { disposition: 'NOT_APPLICABLE' });
+  addRange(records, at, '1104', '505', 'unidades_aprendizagem', 8, { disposition: 'NOT_APPLICABLE' });
+  addRange(records, at, '1104', '505', 'videos', 8, { evidenceDays: -9, publishedDays: -1 });
+  addRange(records, at, '1105', '506', 'unidades_aprendizagem', 4, { evidenceDays: -10 });
+  addRange(records, at, '1105', '506', 'videos', 4, { evidenceDays: -10, publishedDays: -2 });
+  return records;
+}
 function activity(asOf, id, requirementId, label, options = {}) {
   const deadlineDays = options.deadlineDays ?? -7; const configuredDays = options.configuredDays ?? -10;
   const configuredAt = options.configuredAt === null ? null : shift(asOf, configuredDays);
@@ -6,7 +40,7 @@ function activity(asOf, id, requirementId, label, options = {}) {
 }
 function createDemoSource(input = new Date(), phase = 3) {
   const at = new Date(input); const dates = { startsAt: shift(at, -45), endsAt: shift(at, 45) }; const alfaReady = phase >= 2; const deltaReady = phase >= 3;
-  return { source: 'demo', generatedAt: at.toISOString(), sourceIssues: [], courses: [
+  const source = { source: 'demo', generatedAt: at.toISOString(), sourceIssues: [], courses: [
     { id: '1101', name: 'Gestão de Projetos — Demonstração', shortName: 'GP-EAD-40 (demo)', period: '2026/2', modality: 'GRADUACAO_EAD', workloadHours: 40, ...dates, originalCourseId: null, restoredAt: null,
       teachers: [{ id: '501', name: 'Docente Alfa (demo)', email: 'docente.alfa@example.invalid', assignedAt: shift(at, -42), lastAccessAt: shift(at, -1), accessEvents: [] }],
       activities: [
@@ -17,7 +51,7 @@ function createDemoSource(input = new Date(), phase = 3) {
         activity(at, '2105', 'avaliacao_final', 'Avaliação final', { actorId: '501', deadlineDays: 5, configuredAt: null, visible: false, noEvent: true }),
       ] },
     { id: '1102', name: 'Sistemas de Informação — Demonstração', shortName: 'SI-MOD-40 (demo)', period: '2026/2', modality: 'MODULAR', workloadHours: 40, ...dates, originalCourseId: '902', restoredAt: shift(at, -50),
-      teachers: [{ id: '502', name: 'Docente Beta (demo)', email: 'docente.beta@example.invalid', assignedAt: shift(at, -43), lastAccessAt: shift(at, -9), accessEvents: [] }],
+      teachers: [{ id: '502', name: 'Docente Beta (demo)', email: 'docente.beta@example.invalid', assignedAt: shift(at, -43), lastAccessAt: shift(at, -16), accessEvents: [] }],
       activities: [activity(at, '2201', 'unidades_aprendizagem', 'Unidades herdadas', { observedQuantity: 4, actorId: '900', configuredDays: -60 }), activity(at, '2202', 'videos', 'Videoaulas herdadas', { observedQuantity: 4, actorId: '900', configuredDays: -60 }), activity(at, '2203', 'forum_avaliativo', 'Fórum herdado', { actorId: '900', configuredDays: -60 }), activity(at, '2204', 'desafio', 'Desafio herdado', { actorId: '900', configuredDays: -60 }), activity(at, '2205', 'avaliacao_final', 'Avaliação herdada', { actorId: '900', configuredDays: -60 })] },
     { id: '1103', name: 'Direito Digital — Demonstração', shortName: 'DD-SEM-40 (demo)', period: '2026/2', modality: 'SEMESTRAL', workloadHours: 40, ...dates, originalCourseId: null, restoredAt: null,
       teachers: [{ id: '503', name: 'Docente Gama (demo)', email: 'docente.gama@example.invalid', assignedAt: shift(at, -40), lastAccessAt: null, accessEvents: [] }],
@@ -29,5 +63,7 @@ function createDemoSource(input = new Date(), phase = 3) {
       teachers: [{ id: '506', name: 'Docente Zeta (demo)', email: 'docente.zeta@example.invalid', assignedAt: shift(at, -41), lastAccessAt: shift(at, 0), accessEvents: [] }],
       activities: [activity(at, '2501', 'unidades_aprendizagem', 'Unidades', { observedQuantity: 4, actorId: '506' }), activity(at, '2502', 'videos', 'Videoaulas', { observedQuantity: 4, actorId: '506' }), activity(at, '2503', 'forum_diagnostico', 'Fórum', { actorId: '506' }), activity(at, '2504', 'desafio', 'Desafio', { actorId: '506' }), activity(at, '2505', 'avaliacao_final', 'Avaliação final', { actorId: '506' })] },
   ] };
+  source.manualDeliveries = createDemoManualDeliveries(at, phase);
+  return source;
 }
-module.exports = { createDemoSource };
+module.exports = { createDemoManualDeliveries, createDemoSource };

@@ -4,7 +4,7 @@
 
 - V1 Moodle:=SELECT-only; browser!query Moodle
 - V2 browser!authority(status|scope|recipients); server:=authority
-- V3 row_key:=(snapshot_id,course_id,teacher_id,requirement_id)
+- V3 row_key:=(snapshot_id,course_id,teacher_id,requirement_key)
 - V4 result=>{rule_version,reason,evidence,calculated_at}
 - V5 quality.CRITICAL=>publish=false,email=false
 - V6 INHERITED_READY=>structure=met; teacher_delivery=exempt; access=assessed
@@ -13,6 +13,9 @@
 - V9 report:=immutable_snapshot
 - V10 email.default:=PREVIEW_ONLY; recipients:=server_config
 - V11 moodle.log!define delivery_time; snapshot_ready:=timing proof
+- V12 UA|video:=manual/item; UA.date:=teacher_sent; video.date:=teacher_recorded
+- V13 published_date:=operational_only; !teacher_KPI
+- V14 NOT_APPLICABLE=>justification+actor+timestamp; excluded_KPI
 
 ## roles
 
@@ -30,8 +33,8 @@
 
 ## status
 
-- structure:=PENDING|DELIVERED_LATE|DELIVERED_ON_TIME|INHERITED_READY|NOT_VERIFIABLE
-- access:=CURRENT(0..3d)|ATTENTION(4..6d)|CRITICAL(>=7d)|NEVER|OUTSIDE_WINDOW
+- structure:=PENDING|DELIVERED_LATE|DELIVERED_ON_TIME|INHERITED_READY|NOT_APPLICABLE|NOT_VERIFIABLE
+- access:=CURRENT(0..7d)|ATTENTION(8..14d)|CRITICAL(>=15d)|NEVER|OUTSIDE_WINDOW
 - provenance:=INHERITED_VERIFIED|RESTORED_NOT_EXEMPT|CREATED_FOR_PERIOD
 
 ## evidence
@@ -44,6 +47,8 @@
 - historical timing unknown=>NOT_VERIFIABLE
 - ready_snapshot<=deadline=>DELIVERED_ON_TIME
 - pending_snapshot>=deadline + later_ready=>DELIVERED_LATE
+- manual UA|video evidence_date vs official_deadline=>on_time|late
+- manual pending + deadline passed=>PENDING.overdue
 
 ## quality gates
 
@@ -54,6 +59,9 @@
 
 - completion_changed + incomplete Tarefa=>PENDING
 - viewed + incomplete Tarefa=>PENDING
+- UA sent date|video recorded date=>manual evidence; Moodle label edit!delivery
+- published_date change!status
+- NOT_APPLICABLE without reason=>reject
 - updated_log + ready_current + no_snapshot=>NOT_VERIFIABLE
 - inherited complete before teacher assignment=>INHERITED_READY + independent access
 - coordinator A!receive coordinator B courses
