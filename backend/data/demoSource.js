@@ -7,10 +7,13 @@ function manualRecord(at, courseId, teacherId, requirementId, itemNumber, option
     teacherId,
     requirementId,
     itemNumber,
+    revision: options.revision || 1,
     disposition,
     evidenceDate: disposition === 'DELIVERED' ? dateOnly(at, options.evidenceDays ?? -10) : null,
     publishedDate: options.publishedDays === undefined ? null : dateOnly(at, options.publishedDays),
     justification: disposition === 'NOT_APPLICABLE' ? options.justification || 'Responsabilidade atribuída ao outro docente da disciplina.' : null,
+    replacementReason: options.replacementReason || null,
+    revisionDeadlineDate: options.revisionDeadlineDate || null,
     updatedBy: 'Equipe NED — Demonstração',
     updatedAt: at.toISOString(),
   };
@@ -20,16 +23,15 @@ function addRange(target, at, courseId, teacherId, requirementId, quantity, opti
 }
 function createDemoManualDeliveries(at, phase) {
   const records = [];
-  addRange(records, at, '1101', '501', 'unidades_aprendizagem', 3, { evidenceDays: -10 });
-  if (phase >= 2) records.push(manualRecord(at, '1101', '501', 'unidades_aprendizagem', 4, { evidenceDays: -4 }));
+  if (phase >= 2) records.push(manualRecord(at, '1101', '501', 'unidades_aprendizagem', 1, { evidenceDays: -4 }));
   addRange(records, at, '1101', '501', 'videos', 4, { evidenceDays: -10, publishedDays: -2 });
-  addRange(records, at, '1103', '503', 'unidades_aprendizagem', 4, { evidenceDays: -10 });
+  records.push(manualRecord(at, '1103', '503', 'unidades_aprendizagem', 1, { evidenceDays: -10 }));
   addRange(records, at, '1103', '503', 'videos', 4, { evidenceDays: -9, publishedDays: -3 });
-  addRange(records, at, '1104', '504', 'unidades_aprendizagem', 8, { evidenceDays: -10 });
+  records.push(manualRecord(at, '1104', '504', 'unidades_aprendizagem', 1, { evidenceDays: -10 }));
   addRange(records, at, '1104', '504', 'videos', 8, { disposition: 'NOT_APPLICABLE' });
-  addRange(records, at, '1104', '505', 'unidades_aprendizagem', 8, { disposition: 'NOT_APPLICABLE' });
+  records.push(manualRecord(at, '1104', '505', 'unidades_aprendizagem', 1, { disposition: 'NOT_APPLICABLE' }));
   addRange(records, at, '1104', '505', 'videos', 8, { evidenceDays: -9, publishedDays: -1 });
-  addRange(records, at, '1105', '506', 'unidades_aprendizagem', 4, { evidenceDays: -10 });
+  records.push(manualRecord(at, '1105', '506', 'unidades_aprendizagem', 1, { evidenceDays: -10 }));
   addRange(records, at, '1105', '506', 'videos', 4, { evidenceDays: -10, publishedDays: -2 });
   return records;
 }

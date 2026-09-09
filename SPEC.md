@@ -13,9 +13,11 @@
 - V9 report:=immutable_snapshot
 - V10 email.default:=PREVIEW_ONLY; recipients:=server_config
 - V11 moodle.log!define delivery_time; snapshot_ready:=timing proof
-- V12 UA|video:=manual/item; UA.date:=teacher_sent; video.date:=teacher_recorded
+- V12 UA:=manual/package/course; video:=manual/item; video.qty:=workload_h/10
 - V13 published_date:=operational_only; !teacher_KPI
 - V14 NOT_APPLICABLE=>justification+actor+timestamp; excluded_KPI
+- V15 material_revision=>append_only+reason+own_deadline+actor+timestamp; current:=max(revision)
+- V16 unchanged_inherited=>exempt; revision_requested=>affected_item.reopened
 
 ## roles
 
@@ -41,13 +43,14 @@
 
 - truth.structure:=current module state + approved requirement/deadline catalog
 - log.course_module_updated:=interaction support; !delivery_time
-- log.course_module_completion_updated:=access/interation only; !delivery
+- log.course_module_completion_updated:=access/interaction only; !delivery
 - log.*course_module_viewed:=interaction only; !delivery
 - truth.access:=user_lastaccess + viewed|updated|completion_changed by teacher
 - historical timing unknown=>NOT_VERIFIABLE
 - ready_snapshot<=deadline=>DELIVERED_ON_TIME
 - pending_snapshot>=deadline + later_ready=>DELIVERED_LATE
-- manual UA|video evidence_date vs official_deadline=>on_time|late
+- manual UA|video evidence_date vs active_revision_deadline=>on_time|late
+- revision>1 without reason|deadline=>NOT_VERIFIABLE
 - manual pending + deadline passed=>PENDING.overdue
 
 ## quality gates
@@ -60,6 +63,9 @@
 - completion_changed + incomplete Tarefa=>PENDING
 - viewed + incomplete Tarefa=>PENDING
 - UA sent date|video recorded date=>manual evidence; Moodle label edit!delivery
+- UA rows/course/teacher:=1; video rows/course/teacher:=workload_h/10
+- date correction=>same revision; material replacement=>new revision+old preserved
+- inherited + replacement=>new revision PENDING; untouched requirements stay INHERITED_READY
 - published_date change!status
 - NOT_APPLICABLE without reason=>reject
 - updated_log + ready_current + no_snapshot=>NOT_VERIFIABLE

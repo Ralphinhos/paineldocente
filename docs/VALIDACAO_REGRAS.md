@@ -11,11 +11,10 @@ NED confirma por escrito:
 | Acesso em dia | 0 a 7 dias |
 | Atenção | 8 a 14 dias |
 | Crítico | 15 dias ou mais |
-| Graduação EaD 40h/80h | 4/8 unidades e 4/8 videoaulas |
-| Modular 40h/80h | 4/8 unidades e 4/8 videoaulas |
-| Semestral 40h/80h | 4/8 unidades e 4/8 videoaulas |
+| Todas as modalidades | 1 pacote de UAs por disciplina |
+| Todas as modalidades | 1 videoaula para cada 10h de carga horária |
 | Estrutura herdada | Pronta antes da atribuição; acesso continua avaliado |
-| Unidade de aprendizagem | Controle individual pela data de envio do docente |
+| Unidade de aprendizagem | Pacote único pela data de envio do docente |
 | Videoaula | Controle individual pela data de gravação do docente |
 | Publicação | Informação operacional, fora do indicador docente |
 | Não aplicável | Exige justificativa e não entra no cálculo de entregas aplicáveis |
@@ -49,10 +48,10 @@ Não use o prazo de envio do aluno como prazo de construção do professor. Pree
 
 Use ISO 8601 com fuso. NED assina a origem de cada data.
 
-Quando cada UA ou vídeo tiver um prazo diferente, use uma lista na ordem dos itens:
+Quando cada vídeo tiver um prazo diferente, use uma lista na ordem dos itens. O pacote de UAs usa uma única data:
 
 ```json
-"unidades_aprendizagem": [
+"videos": [
   "2026-08-01T02:59:59.000Z",
   "2026-08-08T02:59:59.000Z"
 ]
@@ -120,12 +119,23 @@ A ligação usa `contextinstanceid` do log, que representa o módulo do curso. `
 
 ### UA e videoaula
 
-1. Registre separadamente a data de envio de uma UA e a data de gravação de um vídeo.
-2. Esperado: cada item recebe sua própria situação conforme o prazo oficial.
-3. Altere apenas a data de publicação.
-4. Esperado: a situação docente permanece igual.
-5. Marque um item como não aplicável sem justificativa.
-6. Esperado: gravação rejeitada.
+1. Confirme um único pacote de UAs e `carga horária ÷ 10` videoaulas.
+2. Registre a data de envio do pacote e a data de gravação de um vídeo.
+3. Esperado: cada item recebe sua própria situação conforme o prazo oficial.
+4. Altere apenas a data de publicação.
+5. Esperado: a situação docente permanece igual.
+6. Marque um item como não aplicável sem justificativa.
+7. Esperado: gravação rejeitada.
+
+### Troca de material e regravação
+
+1. Em item entregue ou herdado, abra nova versão com motivo e novo prazo.
+2. Esperado: versão anterior permanece no histórico.
+3. Esperado: nova versão fica pendente e usa exclusivamente o novo prazo.
+4. Regrave todas as videoaulas de uma disciplina.
+5. Esperado: todos os vídeos recebem nova versão; pacote de UAs permanece inalterado.
+6. Corrija apenas uma data na versão ativa.
+7. Esperado: nenhuma nova versão é criada.
 
 ## Validação automatizada
 
@@ -149,6 +159,7 @@ O validador detecta:
 - acesso inconsistente entre requisitos;
 - conclusão tratada indevidamente como entrega;
 - estado herdado incoerente;
+- nova versão sem motivo ou prazo próprio;
 - prazo Moodle sem origem oficial;
 - liberação indevida de demonstração ou base bloqueada.
 

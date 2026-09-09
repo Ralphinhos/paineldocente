@@ -12,9 +12,19 @@ class MemoryStore {
   async listManualDeliveries() { return structuredClone(this.manualDeliveries); }
   async upsertManualDeliveries(records) {
     for (const record of records) {
-      const index = this.manualDeliveries.findIndex((item) => item.courseId === record.courseId && item.teacherId === record.teacherId && item.requirementId === record.requirementId && item.itemNumber === record.itemNumber);
-      if (index >= 0) this.manualDeliveries[index] = structuredClone(record); else this.manualDeliveries.push(structuredClone(record));
+      const revision = Number(record.revision) || 1;
+      const normalized = { ...record, revision };
+      const index = this.manualDeliveries.findIndex((item) => item.courseId === record.courseId && item.teacherId === record.teacherId && item.requirementId === record.requirementId && item.itemNumber === record.itemNumber && (Number(item.revision) || 1) === revision);
+      if (index >= 0) this.manualDeliveries[index] = structuredClone(normalized); else this.manualDeliveries.push(structuredClone(normalized));
     }
+    return structuredClone(records);
+  }
+  async appendManualDeliveryRevisions(records) {
+    for (const record of records) {
+      const exists = this.manualDeliveries.some((item) => item.courseId === record.courseId && item.teacherId === record.teacherId && item.requirementId === record.requirementId && item.itemNumber === record.itemNumber && (Number(item.revision) || 1) === record.revision);
+      if (exists) throw Object.assign(new Error('A versão já foi criada por outra operação.'), { code: 'MATERIAL_REVISION_CONFLICT', status: 409 });
+    }
+    this.manualDeliveries.push(...structuredClone(records));
     return structuredClone(records);
   }
   async findReportRun(key) { return this.reportRuns.find((run) => run.idempotencyKey === key) || null; }
@@ -25,7 +35,7 @@ class MemoryStore {
 }
 function rowToSnapshot(meta, rows) { return { id: meta.id, generatedAt: new Date(meta.generated_at).toISOString(), source: meta.source, rulesVersion: meta.rules_version, rulesStatus: meta.rules_status, qualityStatus: meta.quality_status, publishAllowed: meta.publish_allowed, isDemo: meta.is_demo, qualityIssues: meta.quality_issues, rows: rows.map((row) => row.payload) }; }
 function databaseDate(value) { if (!value) return null; return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10); }
-function rowToManualDelivery(row) { return { courseId: row.course_id, teacherId: row.teacher_id, requirementId: row.requirement_id, itemNumber: row.item_number, disposition: row.disposition, evidenceDate: databaseDate(row.evidence_date), publishedDate: databaseDate(row.published_date), justification: row.justification || null, updatedBy: row.updated_by, updatedAt: new Date(row.updated_at).toISOString() }; }
+function rowToManualDelivery(row) { return { courseId: row.course_id, teacherId: row.teacher_id, requirementId: row.requirement_id, itemNumber: row.item_number, revision: row.revision || 1, disposition: row.disposition, evidenceDate: databaseDate(row.evidence_date), publishedDate: databaseDate(row.published_date), justification: row.justification || null, replacementReason: row.replacement_reason || null, revisionDeadlineDate: databaseDate(row.revision_deadline_date), updatedBy: row.updated_by, updatedAt: new Date(row.updated_at).toISOString() }; }
 class PostgresStore {
   constructor(connectionString) { this.pool = new Pool({ connectionString, max: 8, idleTimeoutMillis: 30000 }); }
   async init() { await this.pool.query(fs.readFileSync(path.join(__dirname, '..', 'sql', 'app-schema.sql'), 'utf8')); }
@@ -36,12 +46,24 @@ class PostgresStore {
   }
   async latestSnapshot() { const meta = await this.pool.query('SELECT * FROM pd_snapshots ORDER BY generated_at DESC LIMIT 1'); if (!meta.rowCount) return null; const rows = await this.pool.query('SELECT payload FROM pd_snapshot_rows WHERE snapshot_id=$1', [meta.rows[0].id]); return rowToSnapshot(meta.rows[0], rows.rows); }
   async listSnapshots(limit = 12) { const metas = await this.pool.query('SELECT * FROM pd_snapshots ORDER BY generated_at DESC LIMIT $1', [Math.max(1, Math.min(Number(limit) || 12, 52))]); const snapshots = []; for (const meta of metas.rows) { const rows = await this.pool.query('SELECT payload FROM pd_snapshot_rows WHERE snapshot_id=$1', [meta.id]); snapshots.push(rowToSnapshot(meta, rows.rows)); } return snapshots; }
-  async listManualDeliveries() { const result = await this.pool.query('SELECT * FROM pd_manual_deliveries ORDER BY course_id,teacher_id,requirement_id,item_number'); return result.rows.map(rowToManualDelivery); }
+  async listManualDeliveries() { const result = await this.pool.query('SELECT * FROM pd_manual_deliveries ORDER BY course_id,teacher_id,requirement_id,item_number,revision'); return result.rows.map(rowToManualDelivery); }
   async upsertManualDeliveries(records) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      for (const record of records) await client.query(`INSERT INTO pd_manual_deliveries (course_id,teacher_id,requirement_id,item_number,disposition,evidence_date,published_date,justification,updated_by,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (course_id,teacher_id,requirement_id,item_number) DO UPDATE SET disposition=EXCLUDED.disposition,evidence_date=EXCLUDED.evidence_date,published_date=EXCLUDED.published_date,justification=EXCLUDED.justification,updated_by=EXCLUDED.updated_by,updated_at=EXCLUDED.updated_at`, [record.courseId, record.teacherId, record.requirementId, record.itemNumber, record.disposition, record.evidenceDate, record.publishedDate, record.justification, record.updatedBy, record.updatedAt]);
+      for (const record of records) await client.query(`INSERT INTO pd_manual_deliveries (course_id,teacher_id,requirement_id,item_number,revision,disposition,evidence_date,published_date,justification,replacement_reason,revision_deadline_date,updated_by,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (course_id,teacher_id,requirement_id,item_number,revision) DO UPDATE SET disposition=EXCLUDED.disposition,evidence_date=EXCLUDED.evidence_date,published_date=EXCLUDED.published_date,justification=EXCLUDED.justification,replacement_reason=EXCLUDED.replacement_reason,revision_deadline_date=EXCLUDED.revision_deadline_date,updated_by=EXCLUDED.updated_by,updated_at=EXCLUDED.updated_at`, [record.courseId, record.teacherId, record.requirementId, record.itemNumber, record.revision || 1, record.disposition, record.evidenceDate, record.publishedDate, record.justification, record.replacementReason || null, record.revisionDeadlineDate || null, record.updatedBy, record.updatedAt]);
+      await client.query('COMMIT');
+      return records;
+    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+  }
+  async appendManualDeliveryRevisions(records) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const record of records) {
+        const result = await client.query(`INSERT INTO pd_manual_deliveries (course_id,teacher_id,requirement_id,item_number,revision,disposition,evidence_date,published_date,justification,replacement_reason,revision_deadline_date,updated_by,updated_at) VALUES ($1,$2,$3,$4,$5,'PENDING',NULL,NULL,NULL,$6,$7,$8,$9) ON CONFLICT DO NOTHING`, [record.courseId, record.teacherId, record.requirementId, record.itemNumber, record.revision, record.replacementReason, record.revisionDeadlineDate, record.updatedBy, record.updatedAt]);
+        if (result.rowCount !== 1) throw Object.assign(new Error('A versão já foi criada por outra operação.'), { code: 'MATERIAL_REVISION_CONFLICT', status: 409 });
+      }
       await client.query('COMMIT');
       return records;
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }

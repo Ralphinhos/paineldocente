@@ -6,7 +6,7 @@ export type StructureStatus = "PENDING" | "DELIVERED_LATE" | "DELIVERED_ON_TIME"
 export type AccessStatus = "CURRENT" | "ATTENTION" | "CRITICAL" | "NEVER" | "OUTSIDE_WINDOW";
 export type Severity = "CRITICAL" | "ATTENTION" | "OK";
 export interface Evidence { type: string; occurredAt: string; supports: string; note: string }
-export interface Requirement { id: string; baseId: string; label: string; manualControl: boolean; itemNumber: number | null; evidenceType: "SENT_BY_TEACHER" | "RECORDED_BY_TEACHER" | null; status: StructureStatus; reasonCode: string; reason: string; overdue: boolean; deadlineAt: string | null; deadlineSource: string | null; configuredAt: string | null; timingSource: "DEMO_TRUSTED" | "SNAPSHOT_OBSERVED" | "MANUAL_NED" | null; expectedQuantity: number | null; observedQuantity: number; evidence: Evidence[]; manualEvidenceDate?: string | null; publishedDate?: string | null; manualJustification?: string | null; manualUpdatedBy?: string | null; manualUpdatedAt?: string | null }
+export interface Requirement { id: string; baseId: string; label: string; manualControl: boolean; itemNumber: number | null; evidenceType: "SENT_BY_TEACHER" | "RECORDED_BY_TEACHER" | null; status: StructureStatus; reasonCode: string; reason: string; overdue: boolean; deadlineAt: string | null; deadlineSource: string | null; configuredAt: string | null; timingSource: "DEMO_TRUSTED" | "SNAPSHOT_OBSERVED" | "MANUAL_NED" | null; expectedQuantity: number | null; observedQuantity: number; evidence: Evidence[]; manualEvidenceDate?: string | null; publishedDate?: string | null; manualJustification?: string | null; manualUpdatedBy?: string | null; manualUpdatedAt?: string | null; manualVersion?: number; manualReplacementReason?: string | null; manualRevisionDeadlineDate?: string | null }
 export interface AssignmentRow {
   id: string;
   course: { id: string; name: string; shortName: string; period: string; modality: string; modalityLabel: string; workloadHours: number; startsAt: string; endsAt: string };
@@ -28,6 +28,16 @@ export interface DashboardData {
 export interface DashboardFilters { period: string; modality: string; courseId: string; status: string; query: string; page: number }
 export interface ReportPreview { audience: "coordinators" | "executive"; reports: Array<{ recipient: { name: string; email: string } | null; subject: string; text: string; html: string; blocker: string | null }> }
 export type ManualDeliveryDisposition = "PENDING" | "DELIVERED" | "NOT_APPLICABLE";
+export interface ManualDeliveryHistory {
+  version: number;
+  disposition: ManualDeliveryDisposition | "INHERITED_READY";
+  evidenceDate: string | null;
+  publishedDate: string | null;
+  replacementReason: string | null;
+  revisionDeadlineDate: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
 export interface ManualDeliveryItem {
   id: string;
   course: AssignmentRow["course"];
@@ -42,7 +52,12 @@ export interface ManualDeliveryItem {
   justification: string | null;
   updatedBy: string | null;
   updatedAt: string | null;
+  version: number;
+  replacementReason: string | null;
+  revisionDeadlineDate: string | null;
+  history: ManualDeliveryHistory[];
   editable: boolean;
+  canCreateRevision: boolean;
 }
 export interface ManualDeliveryResponse {
   meta: { snapshotId: string; generatedAt: string };
