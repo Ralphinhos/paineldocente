@@ -1,7 +1,7 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, History, RefreshCw, Save, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, RefreshCw, Save, Search } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, apiRequest, toQueryString } from "@/api/client";
-import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { DelayLabel } from "@/components/dashboard/DelayLabel";
 import { useAuth } from "@/contexts/auth";
 import type { ManualDeliveryDisposition, ManualDeliveryItem, ManualDeliveryResponse } from "@/types/dashboard";
 
@@ -25,9 +25,9 @@ function initialDraft(item: ManualDeliveryItem): Draft {
   return { courseId: item.course.id, teacherId: item.teacher.id, requirementId: item.requirement.baseId as Draft["requirementId"], itemNumber: item.requirement.itemNumber || 1, revision: item.version, disposition: item.disposition, evidenceDate: item.evidenceDate, publishedDate: item.publishedDate, justification: item.justification };
 }
 
-export function ManualDeliveryPanel({ onUpdated }: { onUpdated: () => Promise<void> }) {
+export function ManualDeliveryPanel({ active, onDirtyChange, onUpdated }: { active: boolean; onDirtyChange: (dirty: boolean) => void; onUpdated: () => Promise<void> }) {
   const { csrfToken } = useAuth();
-  const [open, setOpen] = useState(false);
+
   const [filters, setFilters] = useState<ManualFilters>(EMPTY_FILTERS);
   const [data, setData] = useState<ManualDeliveryResponse | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -38,6 +38,7 @@ export function ManualDeliveryPanel({ onUpdated }: { onUpdated: () => Promise<vo
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dirtyCount = Object.keys(drafts).length;
+  useEffect(() => { onDirtyChange(Boolean(dirtyCount || revisionDraft || saving)); }, [dirtyCount, revisionDraft, saving, onDirtyChange]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true); setError(null);
@@ -48,7 +49,7 @@ export function ManualDeliveryPanel({ onUpdated }: { onUpdated: () => Promise<vo
       if ((caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "Não foi possível carregar o controle manual.");
     } finally { if (!signal?.aborted) setLoading(false); }
   }, [filters]);
-  useEffect(() => { if (!open) return; const controller = new AbortController(); const timeout = window.setTimeout(() => void load(controller.signal), filters.query ? 250 : 0); return () => { window.clearTimeout(timeout); controller.abort(); }; }, [open, load, filters.query]);
+  useEffect(() => { if (!active) return; const controller = new AbortController(); const timeout = window.setTimeout(() => void load(controller.signal), filters.query ? 250 : 0); return () => { window.clearTimeout(timeout); controller.abort(); }; }, [active, load, filters.query]);
 
   const current = useMemo(() => new Map((data?.items || []).map((item) => [item.id, drafts[item.id] || initialDraft(item)])), [data, drafts]);
   const patchDraft = (item: ManualDeliveryItem, changes: Partial<Draft>) => {
@@ -60,10 +61,6 @@ export function ManualDeliveryPanel({ onUpdated }: { onUpdated: () => Promise<vo
   const patchFilter = (key: keyof ManualFilters, value: string | number) => {
     if (dirtyCount || revisionDraft) return;
     setFilters((existing) => ({ ...existing, [key]: value, page: key === "page" ? Number(value) : 1 }));
-  };
-  const toggle = () => {
-    if (open && (dirtyCount || revisionDraft)) { setError("Salve ou descarte as alterações antes de fechar o controle."); return; }
-    setOpen((value) => !value);
   };
   const createRevision = async (item: ManualDeliveryItem) => {
     if (!data || !revisionDraft || revisionDraft.itemId !== item.id) return;
@@ -93,13 +90,9 @@ export function ManualDeliveryPanel({ onUpdated }: { onUpdated: () => Promise<vo
     } finally { setSaving(false); }
   };
 
-  return <section className={`manual-section${open ? " is-open" : ""}`}>
-    <div className="manual-summary">
-      <div><span className="eyebrow"><ClipboardCheck size={14} />Controle do NED</span><h2>Pacote de UAs e videoaulas</h2><p>Um pacote de UAs por disciplina. Videoaulas: uma para cada 10h de carga horária.</p></div>
-      <button className="secondary-button" type="button" onClick={toggle} aria-expanded={open}><ChevronDown size={17} />{open ? "Fechar controle" : "Abrir controle"}</button>
-    </div>
-    {open && <div className="manual-workspace">
-      <div className="manual-note"><strong>Correção ≠ nova versão.</strong><span>Edite a data para corrigir um registro. Use “Nova versão” quando houver troca de UAs ou regravação; motivo, prazo e histórico serão preservados.</span></div>
+  return <section className="manual-section is-open">
+    <div className="manual-summary"><div><h2>Pacote de UAs e videoaulas</h2></div><details className="manual-help"><summary>Como registrar?</summary><p>UA: data de envio do pacote. Vídeo: data da gravação. Publicação é apenas operacional.</p><p>Corrija datas no registro. Para substituir material, use “Trocar pacote” ou “Regravar”; informe motivo e novo prazo.</p></details></div>
+    <div className="manual-workspace">
       <div className="manual-filters">
         <label className="search-field"><Search size={17} aria-hidden="true" /><span className="sr-only">Buscar</span><input disabled={Boolean(dirtyCount || revisionDraft)} value={filters.query} onChange={(event) => patchFilter("query", event.target.value)} placeholder="Buscar docente, disciplina ou item" /></label>
         <label><span>Período</span><select disabled={Boolean(dirtyCount || revisionDraft)} value={filters.period} onChange={(event) => patchFilter("period", event.target.value)}><option value="">Todos</option>{data?.filters.periods.map((period) => <option key={period}>{period}</option>)}</select></label>
@@ -117,13 +110,13 @@ export function ManualDeliveryPanel({ onUpdated }: { onUpdated: () => Promise<vo
           return <Fragment key={item.id}>
             <tr className={drafts[item.id] ? "manual-row-dirty" : ""}>
               <td data-label="Disciplina e docente"><strong>{item.course.shortName}</strong><small>{item.teacher.name}</small></td>
-              <td data-label="Item"><strong>{item.requirement.label}</strong><small>{evidenceLabel} · Versão {item.version}</small>{item.replacementReason && <small className="version-reason">{item.replacementReason}</small>}</td>
+              <td data-label="Item"><strong>{item.requirement.label}</strong><small>{evidenceLabel} · Versão {item.version}</small></td>
               <td data-label="Prazo"><time>{displayDate(item.deadlineAt)}</time>{item.version > 1 && <small>Novo prazo da versão</small>}</td>
               <td data-label="Registro">{item.editable ? <select aria-label={`Registro de ${item.requirement.label}`} value={draft.disposition} onChange={(event) => patchDraft(item, { disposition: event.target.value as ManualDeliveryDisposition })}><option value="PENDING">Pendente</option><option value="DELIVERED">Entregue</option><option value="NOT_APPLICABLE">Não aplicável</option></select> : <span className="locked-value">Dispensado</span>}</td>
               <td data-label="Data do docente">{item.editable && draft.disposition === "DELIVERED" ? <input aria-label={`${evidenceLabel} de ${item.requirement.label}`} type="date" value={draft.evidenceDate || ""} onChange={(event) => patchDraft(item, { evidenceDate: event.target.value || null })} /> : item.editable && draft.disposition === "NOT_APPLICABLE" ? <input aria-label={`Justificativa de ${item.requirement.label}`} type="text" maxLength={500} value={draft.justification || ""} onChange={(event) => patchDraft(item, { justification: event.target.value })} placeholder="Justificativa obrigatória" /> : <span className="empty-value">—</span>}</td>
               <td data-label="Publicação">{item.editable && draft.disposition !== "NOT_APPLICABLE" ? <input aria-label={`Data de publicação de ${item.requirement.label}`} type="date" value={draft.publishedDate || ""} onChange={(event) => patchDraft(item, { publishedDate: event.target.value || null })} /> : <span className="empty-value">—</span>}</td>
               <td data-label="Situação">
-                <StatusBadge status={item.status} />{item.updatedBy && <small>Por {item.updatedBy}</small>}
+                <DelayLabel item={item} />
                 <div className="row-actions">
                   {item.canCreateRevision && <button type="button" disabled={Boolean(dirtyCount || saving || revisionDraft)} onClick={() => { setExpandedHistory(null); setError(null); setRevisionDraft({ itemId: item.id, reason: "", deadlineDate: "", allVideos: false }); }}><RefreshCw size={14} />{item.requirement.baseId === "videos" ? "Regravar" : "Trocar pacote"}</button>}
                   {item.history.length > 1 && <button type="button" onClick={() => setExpandedHistory(showingHistory ? null : item.id)}><History size={14} />Histórico ({item.history.length})</button>}
@@ -147,6 +140,6 @@ export function ManualDeliveryPanel({ onUpdated }: { onUpdated: () => Promise<vo
         {data.items.length === 0 && <div className="empty-state"><strong>Nenhum item encontrado</strong><span>Altere os filtros para continuar.</span></div>}
         <div className="manual-footer"><nav className="pagination" aria-label="Paginação do controle manual"><button type="button" disabled={filters.page <= 1 || Boolean(dirtyCount || revisionDraft)} onClick={() => patchFilter("page", filters.page - 1)}><ChevronLeft size={16} />Anterior</button><span>Página {data.pagination.page} de {data.pagination.pages} · {data.pagination.total} itens</span><button type="button" disabled={filters.page >= data.pagination.pages || Boolean(dirtyCount || revisionDraft)} onClick={() => patchFilter("page", filters.page + 1)}>Próxima<ChevronRight size={16} /></button></nav><div className="manual-actions">{Boolean(dirtyCount) && <button className="secondary-button" type="button" disabled={saving} onClick={() => { setDrafts({}); setError(null); }}>Descartar</button>}<button className="primary-button" type="button" disabled={!dirtyCount || saving || Boolean(revisionDraft)} onClick={() => void save()}><Save size={16} />{saving ? "Salvando…" : dirtyCount ? `Salvar ${dirtyCount} alteração${dirtyCount === 1 ? "" : "ões"}` : "Sem alterações"}</button></div></div>
       </>}
-    </div>}
+    </div>
   </section>;
 }

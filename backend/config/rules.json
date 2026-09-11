@@ -1,8 +1,14 @@
 {
-  "version": "2026.2-piloto.2",
+  "version": "2026.2-piloto.3",
   "status": "PILOT",
   "description": "Catálogo inicial sujeito à homologação formal do NED antes de qualquer envio.",
   "accessThresholds": { "currentMaxDays": 7, "attentionMaxDays": 14 },
+  "ranking": {
+    "version": "50-20-30-v1",
+    "weights": { "onTime": 50, "delay": 20, "access": 30 },
+    "delayBands": [{ "maxDays": 0, "points": 20 }, { "maxDays": 3, "points": 15 }, { "maxDays": 7, "points": 10 }, { "maxDays": 14, "points": 5 }],
+    "accessPoints": { "CURRENT": 30, "ATTENTION": 15, "CRITICAL": 0, "NEVER": 0 }
+  },
   "modalities": {
     "GRADUACAO_EAD": {
       "label": "Graduação EaD",
@@ -34,7 +40,7 @@
         { "id": "desafio", "label": "Desafio", "required": true, "quantity": 1 },
         { "id": "avaliacao_bimestral_1", "label": "Avaliação bimestral 1", "required": true, "quantity": 1 },
         { "id": "avaliacao_bimestral_2", "label": "Avaliação bimestral 2", "required": true, "quantity": 1 },
-        { "id": "substitutiva", "label": "Avaliação substitutiva", "required": true, "quantity": 1 }
+        { "id": "substitutiva", "label": "Avaliação substitutiva", "required": false, "quantity": 1 }
       ]
     }
   }

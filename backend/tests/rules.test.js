@@ -69,7 +69,12 @@ test('entrega manual no mesmo dia do prazo fica em dia', () => {
 });
 test('não aplicável sai do total e estrutura compartilhada não duplica', () => {
   const rows = snapshot().rows.filter((item) => item.course.id === '1104'); const result = summarize(rows);
-  assert.equal(result.requirements.notApplicable, 9); assert.equal(result.requirements.total, 12);
+  // Dispensar o segundo docente não dispensa o item exigido da disciplina.
+  assert.equal(result.requirements.notApplicable, 0); assert.equal(result.requirements.total, 12);
+  const owned = rows.find((item) => item.requirement.id === 'unidades_aprendizagem:1' && item.requirement.responsibility === 'ASSIGNED');
+  owned.structureStatus = 'NOT_APPLICABLE';
+  const exempt = summarize(rows);
+  assert.equal(exempt.requirements.notApplicable, 1); assert.equal(exempt.requirements.total, 11);
   const breakdown = modalityBreakdown(rows); assert.deepEqual(breakdown.map((item) => item.total), [1]);
 });
 test('nova versão substitui a atual, usa prazo próprio e preserva a anterior na origem', () => {

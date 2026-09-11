@@ -71,6 +71,9 @@ function manualItem(row, records = []) {
     requirement: row.requirement,
     status: row.structureStatus,
     overdue: row.overdue,
+    daysLate: row.daysLate ?? null,
+    observedLateDays: row.observedLateDays ?? null,
+    delayPrecision: row.delayPrecision || 'UNAVAILABLE',
     deadlineAt: row.deadlineAt,
     disposition: row.manualDisposition || 'PENDING',
     evidenceDate: row.manualEvidenceDate || null,
@@ -93,7 +96,7 @@ function listManualItems(snapshot, query, records = []) {
     const key = manualDeliveryKey(record.courseId, record.teacherId, record.requirementId, record.itemNumber);
     history.set(key, [...(history.get(key) || []), record]);
   }
-  const all = snapshot.rows.filter((row) => row.requirement.manualControl).map((row) => manualItem(row, history.get(manualDeliveryKey(row.course.id, row.teacher.id, row.requirement.baseId, row.requirement.itemNumber)) || []));
+  const all = snapshot.rows.filter((row) => row.requirement.manualControl && row.requirement.responsibility !== 'OTHER_TEACHER').map((row) => manualItem(row, history.get(manualDeliveryKey(row.course.id, row.teacher.id, row.requirement.baseId, row.requirement.itemNumber)) || []));
   const options = {
     periods: [...new Set(all.map((item) => item.course.period))].sort(),
     courses: [...new Map(all.map((item) => [item.course.id, { value: item.course.id, label: item.course.shortName }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
@@ -140,6 +143,7 @@ function operationsRoutes({ auth, store, snapshotService }) {
       seen.add(key);
       const row = allowed.get(key);
       if (!row) throw new HttpError(400, 'MANUAL_DELIVERY_UNKNOWN', 'Item manual não pertence à fotografia atual.');
+      if (row.requirement.responsibility === 'OTHER_TEACHER') throw new HttpError(409, 'DELIVERY_OWNER_MISMATCH', 'Este item tem outro docente responsável.');
       if (row.structureStatus === 'INHERITED_READY') throw new HttpError(409, 'INHERITED_ITEM_LOCKED', 'Estrutura herdada não exige registro de entrega do docente.');
       if (delivery.revision !== (Number(row.manualVersion) || 1)) throw new HttpError(409, 'MATERIAL_REVISION_STALE', 'Outra versão deste material já está ativa. Recarregue o controle manual.');
       const today = saoPauloDate(new Date());
@@ -174,6 +178,7 @@ function operationsRoutes({ auth, store, snapshotService }) {
       && row.requirement.baseId === parsed.data.requirementId);
     const targets = parsed.data.scope === 'ALL_VIDEOS' ? matching : matching.filter((row) => row.requirement.itemNumber === parsed.data.itemNumber);
     if (!targets.length) throw new HttpError(400, 'MANUAL_DELIVERY_UNKNOWN', 'Item manual não pertence à fotografia atual.');
+    if (targets.some((row) => row.requirement.responsibility === 'OTHER_TEACHER')) throw new HttpError(409, 'DELIVERY_OWNER_MISMATCH', 'Um ou mais itens têm outro docente responsável.');
     if (targets.some((row) => row.reasonCode === 'WORKLOAD_RULE_MISSING')) throw new HttpError(409, 'WORKLOAD_RULE_MISSING', 'Corrija a carga horária antes de criar uma nova versão.');
     const updatedAt = new Date().toISOString();
     const stored = await store.listManualDeliveries();

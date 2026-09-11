@@ -97,3 +97,13 @@ test('estrutura herdada pode ser reaberta quando houver troca de material', asyn
   assert.equal(versioned.version, 2); assert.equal(versioned.status, 'PENDING'); assert.equal(versioned.editable, true); assert.equal(versioned.history.at(-1).disposition, 'INHERITED_READY');
   await runtime.close();
 });
+test('controle manual não duplica itens atribuídos nem permite registrar para outro docente', async () => {
+  const { runtime, agent, csrf } = await login('ned');
+  const current = await agent.get('/api/operations/manual-deliveries?courseId=1104&pageSize=50').expect(200);
+  assert.equal(current.body.items.filter((item) => item.requirement.baseId === 'unidades_aprendizagem').length, 1);
+  assert.ok(current.body.items.every((item) => item.requirement.responsibility === 'ASSIGNED'));
+  const snapshot = await runtime.services.store.latestSnapshot();
+  const other = snapshot.rows.find((row) => row.requirement.manualControl && row.requirement.responsibility === 'OTHER_TEACHER');
+  await agent.post('/api/operations/manual-deliveries').set('Origin', env.APP_ORIGIN).set('x-csrf-token', csrf).send({ snapshotId: snapshot.id, deliveries: [{ courseId: other.course.id, teacherId: other.teacher.id, requirementId: other.requirement.baseId, itemNumber: other.requirement.itemNumber, disposition: 'PENDING' }] }).expect(409).expect((response) => assert.equal(response.body.error.code, 'DELIVERY_OWNER_MISMATCH'));
+  await runtime.close();
+});

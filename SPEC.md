@@ -18,6 +18,33 @@
 - V14 NOT_APPLICABLE=>justification+actor+timestamp; excluded_KPI
 - V15 material_revision=>append_only+reason+own_deadline+actor+timestamp; current:=max(revision)
 - V16 unchanged_inherited=>exempt; revision_requested=>affected_item.reopened
+- V17 substitutiva=>excluded(requirements|KPI|ranking|report)
+- V18 delay:=calendar_days(America/Sao_Paulo); pending@collection; delivered@evidence
+- V19 observed_ready_date=>upper_bound; !exact_delay; unknown=>no_composite_score
+- V20 delivery_owner:=catalog>sole_teacher>unique_manual_owner; ambiguous=>unconfirmed
+- V21 course_item counted_once; other_teacher=>!delivery_score,!manual_edit
+
+## ranking
+
+- snapshot.policy:=versioned; old_snapshot!recomputed
+- base:=assigned+required+deadline_day_passed; exclude(NA|inherited|substitutiva)
+- punctuality:=mean_course(on_time/due)*50
+- delay:=mean_course_with_late(mean_late_item_days); bands(0:20,>0..3:15,>3..7:10,>7..14:5,>14:0)
+- access:=mean_active_course(0..7:30,8..14:15,15+|never:0)
+- score:=punctuality+delay+access; require(all_components+complete_evidence)
+- access_only:=separate_scale(0..100); !composite_competition
+- priority:=score_ASC; regularity:=score_DESC; current_incidents remain_visible
+- scope_filters=>KPI+ranking+list; status_filter=>list_only; pagination!ranking_base
+- summary.avg_delay:=completed_exact_only; ranking.delay includes_overdue_pending
+
+## workspace
+
+- NED:=tracking|manual_materials|quality_reports; dirty_manual=>save_or_discard_before_switch
+- executive:=four_metrics+ranking+current_incidents+weekly_trend
+- details:=on_demand; dialog:=native_modal+keyboard; report:=preview+HTML_download
+- report.scope:=all_rows; executive.incidents:=top5+remaining_count
+- report.batch:=pinned_snapshot; preview_changed=>409; demo!send
+- trend:=latest_per_week+same_rules+same_source+scope; points<2=>empty_state
 
 ## roles
 
