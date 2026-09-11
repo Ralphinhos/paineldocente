@@ -1,4 +1,4 @@
-const test = require('node:test'); const assert = require('node:assert/strict'); const path = require('node:path'); const { createDemoSource } = require('../data/demoSource'); const { buildSnapshot, calculateAccess, loadCatalog, saoPauloDate } = require('../core/rules'); const { groupAssignments, modalityBreakdown, summarize, weeklySnapshots } = require('../services/dashboardService');
+const test = require('node:test'); const assert = require('node:assert/strict'); const path = require('node:path'); const { createDemoSource } = require('../data/demoSource'); const { buildSnapshot, calculateAccess, expectedQuantity, loadCatalog, saoPauloDate } = require('../core/rules'); const { groupAssignments, modalityBreakdown, summarize, weeklySnapshots } = require('../services/dashboardService');
 const catalog = loadCatalog(path.join(__dirname, '..', 'config', 'rules.json'));
 const snapshot = () => { const raw = createDemoSource(new Date('2026-09-03T12:00:00.000Z'), 3); return buildSnapshot(raw, catalog, { rulesApproved: false, manualDeliveries: raw.manualDeliveries }); };
 test('conclusão alterada não comprova entrega de Tarefa', () => { const row = snapshot().rows.find((x) => x.course.id === '1101' && x.requirement.id === 'desafio'); assert.equal(row.structureStatus, 'PENDING'); assert.equal(row.reasonCode, 'REQUIREMENT_OVERDUE'); assert.ok(row.evidence.some((e) => e.type === 'COMPLETION_CHANGED' && e.supports === 'ACCESS_ONLY')); });
@@ -40,12 +40,17 @@ test('faixas de acesso respeitam 0–7, 8–14 e 15+ dias', () => {
   const accessAt = (days) => calculateAccess({ lastAccessAt: new Date(now.getTime() - days * 86400000).toISOString(), accessEvents: [] }, course, now, catalog.accessThresholds).status;
   assert.equal(accessAt(7), 'CURRENT'); assert.equal(accessAt(8), 'ATTENTION'); assert.equal(accessAt(14), 'ATTENTION'); assert.equal(accessAt(15), 'CRITICAL');
 });
-test('UA e videoaula usam registros individuais do NED', () => {
+test('UA usa pacote único e videoaula usa registro individual do NED', () => {
   const result = snapshot();
-  const ua4 = result.rows.find((item) => item.course.id === '1101' && item.requirement.id === 'unidades_aprendizagem:4');
+  const uas = result.rows.filter((item) => item.course.id === '1101' && item.requirement.baseId === 'unidades_aprendizagem');
+  const ua = uas[0];
   const video1 = result.rows.find((item) => item.course.id === '1101' && item.requirement.id === 'videos:1');
-  assert.equal(ua4.structureStatus, 'DELIVERED_LATE'); assert.equal(ua4.timingSource, 'MANUAL_NED'); assert.equal(ua4.evidence[0].type, 'UA_SENT_BY_TEACHER');
+  assert.equal(uas.length, 1); assert.equal(ua.requirement.label, 'Pacote de UAs'); assert.equal(ua.structureStatus, 'DELIVERED_LATE'); assert.equal(ua.timingSource, 'MANUAL_NED'); assert.equal(ua.evidence[0].type, 'UA_SENT_BY_TEACHER');
   assert.equal(video1.structureStatus, 'DELIVERED_ON_TIME'); assert.equal(video1.evidence[0].type, 'VIDEO_RECORDED_BY_TEACHER');
+});
+test('videoaulas seguem uma unidade para cada 10h em todas as modalidades', () => {
+  const requirement = catalog.modalities.MODULAR.requirements.find((item) => item.id === 'videos');
+  assert.equal(expectedQuantity(requirement, 20), 2); assert.equal(expectedQuantity(requirement, 40), 4); assert.equal(expectedQuantity(requirement, 60), 6); assert.equal(expectedQuantity(requirement, 80), 8); assert.equal(expectedQuantity(requirement, 45), null);
 });
 test('publicação não altera a situação docente', () => {
   const raw = createDemoSource(new Date('2026-09-03T12:00:00.000Z'), 3);
@@ -64,8 +69,20 @@ test('entrega manual no mesmo dia do prazo fica em dia', () => {
 });
 test('não aplicável sai do total e estrutura compartilhada não duplica', () => {
   const rows = snapshot().rows.filter((item) => item.course.id === '1104'); const result = summarize(rows);
-  assert.equal(result.requirements.notApplicable, 16); assert.equal(result.requirements.total, 19);
+  // Dispensar o segundo docente não dispensa o item exigido da disciplina.
+  assert.equal(result.requirements.notApplicable, 0); assert.equal(result.requirements.total, 12);
+  const owned = rows.find((item) => item.requirement.id === 'unidades_aprendizagem:1' && item.requirement.responsibility === 'ASSIGNED');
+  owned.structureStatus = 'NOT_APPLICABLE';
+  const exempt = summarize(rows);
+  assert.equal(exempt.requirements.notApplicable, 1); assert.equal(exempt.requirements.total, 11);
   const breakdown = modalityBreakdown(rows); assert.deepEqual(breakdown.map((item) => item.total), [1]);
+});
+test('nova versão substitui a atual, usa prazo próprio e preserva a anterior na origem', () => {
+  const raw = createDemoSource(new Date('2026-09-03T12:00:00.000Z'), 3);
+  const previous = raw.manualDeliveries.find((item) => item.courseId === '1101' && item.teacherId === '501' && item.requirementId === 'videos' && item.itemNumber === 1);
+  raw.manualDeliveries.push({ ...previous, revision: 2, disposition: 'PENDING', evidenceDate: null, publishedDate: null, replacementReason: 'Atualização do conteúdo.', revisionDeadlineDate: '2026-09-20' });
+  const row = buildSnapshot(raw, catalog, { rulesApproved: true, manualDeliveries: raw.manualDeliveries }).rows.find((item) => item.course.id === '1101' && item.requirement.id === 'videos:1');
+  assert.equal(row.manualVersion, 2); assert.equal(row.structureStatus, 'PENDING'); assert.equal(row.deadlineSource, 'MANUAL_REVISION'); assert.equal(row.deadlineAt, '2026-09-20T12:00:00.000Z'); assert.equal(raw.manualDeliveries.filter((item) => item.courseId === '1101' && item.requirementId === 'videos' && item.itemNumber === 1).length, 2);
 });
 test('atraso concluído e dado não verificável não viram exceção docente atual', () => {
   const base = snapshot().rows.find((item) => item.course.id === '1105');

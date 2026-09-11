@@ -31,21 +31,26 @@ O navegador nunca consulta o Moodle nem escolhe sua própria permissão. A API r
 1. Worker consulta cursos na categoria raiz e subcategorias.
 2. Docentes são obtidos pelas atribuições do papel configurado.
 3. Atividades do Moodle são classificadas conforme catálogo versionado.
-4. Cada UA e videoaula é controlada manualmente pelo NED.
-5. UA usa a data de envio do docente; videoaula usa a data de gravação.
+4. Cada disciplina possui um pacote de UAs e uma videoaula para cada 10h de carga horária.
+5. Pacote de UAs usa a data de envio do docente; videoaula usa a data de gravação.
 6. Data de publicação é operacional e não altera o indicador docente.
-7. Prazo vem exclusivamente do catálogo oficial.
+7. Prazo inicial vem do catálogo oficial; nova versão recebe prazo próprio informado pelo NED.
 8. Registros e fotografias classificam entrega no prazo ou com atraso.
 9. Logs acrescentam interação; nunca definem a data de UA ou videoaula.
 10. Uma fotografia recebe ID único e não é alterada.
 11. Dashboard e e-mail leem a mesma fotografia.
 
-Chave de resultado: `snapshot_id + course_id + teacher_id + requirement_key`. Para UA e vídeo, a chave do requisito inclui o número do item.
+Chave de resultado: `snapshot_id + course_id + teacher_id + requirement_key`. Pacote de UAs usa item 1; vídeos incluem o número do item.
 
 ## Controle manual de UA e videoaula
 
 - Somente o NED pode alterar registros; auditor pode apenas consultar.
-- Cada item possui disciplina, docente responsável, número, data do docente e publicação opcional.
+- Pacote de UAs possui um registro por disciplina e docente responsável.
+- Videoaulas usam `carga horária ÷ 10`: 20h = 2, 40h = 4, 60h = 6 e 80h = 8.
+- Cada item possui data do docente e publicação opcional.
+- Correção de data altera a versão vigente; troca de material ou regravação cria nova versão.
+- Nova versão exige motivo e novo prazo. Versões anteriores não são apagadas.
+- Regravação pode atingir um vídeo ou todas as videoaulas da disciplina.
 - Rótulos, H5P e LTI podem comprovar presença da estrutura restaurada, mas suas datas no Moodle não substituem o registro manual.
 - `NOT_APPLICABLE` exige justificativa e não entra no denominador de entregas aplicáveis.
 - Estrutura herdada permanece dispensada; somente o acesso docente continua avaliado.
@@ -92,7 +97,7 @@ O sistema usa nome, e-mail institucional e atividade de acesso. Antes da produç
 
 ## Limites do piloto
 
-- Prazos oficiais, inclusive os de UA e videoaula, ainda não foram preenchidos.
+- Prazos iniciais oficiais, inclusive os de UA e videoaula, ainda não foram preenchidos.
 - Regras ainda marcadas como piloto.
 - Mapeamento dos campos personalizados do Moodle depende de conferência no banco real.
 - Metadados OIDC e escopos reais dependem da TI.

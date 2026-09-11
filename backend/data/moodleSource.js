@@ -54,7 +54,7 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
         const value = officialDeadline(deadlineCatalog, period, modality, courseId, requirementId);
         if (value) requirementDeadlines[requirementId] = value;
       }
-      course = { id: courseId, name: row.course_name, shortName: row.course_shortname, period, modality: modality || 'NAO_MAPEADA', workloadHours: workload || 1, startsAt, endsAt, originalCourseId: row.originalcourseid ? String(row.originalcourseid) : null, restoredAt: row.originalcourseid ? fromUnix(row.course_created_at) : null, requirementDeadlines, teachers: new Map(), groups: new Map() }; courses.set(courseId, course);
+      course = { id: courseId, name: row.course_name, shortName: row.course_shortname, period, modality: modality || 'NAO_MAPEADA', workloadHours: workload || 1, startsAt, endsAt, originalCourseId: row.originalcourseid ? String(row.originalcourseid) : null, restoredAt: row.originalcourseid ? fromUnix(row.course_created_at) : null, requirementDeadlines, requirementOwners: deadlineCatalog?.periods?.[period]?.[modality]?.responsibleTeachers?.[courseId] || {}, teachers: new Map(), groups: new Map() }; courses.set(courseId, course);
     }
     if (!course.teachers.has(teacherId)) course.teachers.set(teacherId, { id: teacherId, name: row.teacher_name, email: row.teacher_email || null, assignedAt: fromUnix(row.assigned_at), lastAccessAt: fromUnix(row.last_access_at), accessEvents: [] });
     const teacher = course.teachers.get(teacherId);

@@ -7,10 +7,13 @@ function manualRecord(at, courseId, teacherId, requirementId, itemNumber, option
     teacherId,
     requirementId,
     itemNumber,
+    revision: options.revision || 1,
     disposition,
     evidenceDate: disposition === 'DELIVERED' ? dateOnly(at, options.evidenceDays ?? -10) : null,
     publishedDate: options.publishedDays === undefined ? null : dateOnly(at, options.publishedDays),
     justification: disposition === 'NOT_APPLICABLE' ? options.justification || 'Responsabilidade atribuída ao outro docente da disciplina.' : null,
+    replacementReason: options.replacementReason || null,
+    revisionDeadlineDate: options.revisionDeadlineDate || null,
     updatedBy: 'Equipe NED — Demonstração',
     updatedAt: at.toISOString(),
   };
@@ -20,16 +23,15 @@ function addRange(target, at, courseId, teacherId, requirementId, quantity, opti
 }
 function createDemoManualDeliveries(at, phase) {
   const records = [];
-  addRange(records, at, '1101', '501', 'unidades_aprendizagem', 3, { evidenceDays: -10 });
-  if (phase >= 2) records.push(manualRecord(at, '1101', '501', 'unidades_aprendizagem', 4, { evidenceDays: -4 }));
+  if (phase >= 2) records.push(manualRecord(at, '1101', '501', 'unidades_aprendizagem', 1, { evidenceDays: -4 }));
   addRange(records, at, '1101', '501', 'videos', 4, { evidenceDays: -10, publishedDays: -2 });
-  addRange(records, at, '1103', '503', 'unidades_aprendizagem', 4, { evidenceDays: -10 });
+  records.push(manualRecord(at, '1103', '503', 'unidades_aprendizagem', 1, { evidenceDays: -10 }));
   addRange(records, at, '1103', '503', 'videos', 4, { evidenceDays: -9, publishedDays: -3 });
-  addRange(records, at, '1104', '504', 'unidades_aprendizagem', 8, { evidenceDays: -10 });
+  records.push(manualRecord(at, '1104', '504', 'unidades_aprendizagem', 1, { evidenceDays: -10 }));
   addRange(records, at, '1104', '504', 'videos', 8, { disposition: 'NOT_APPLICABLE' });
-  addRange(records, at, '1104', '505', 'unidades_aprendizagem', 8, { disposition: 'NOT_APPLICABLE' });
+  records.push(manualRecord(at, '1104', '505', 'unidades_aprendizagem', 1, { disposition: 'NOT_APPLICABLE' }));
   addRange(records, at, '1104', '505', 'videos', 8, { evidenceDays: -9, publishedDays: -1 });
-  addRange(records, at, '1105', '506', 'unidades_aprendizagem', 4, { evidenceDays: -10 });
+  records.push(manualRecord(at, '1105', '506', 'unidades_aprendizagem', 1, { evidenceDays: -10 }));
   addRange(records, at, '1105', '506', 'videos', 4, { evidenceDays: -10, publishedDays: -2 });
   return records;
 }
@@ -56,7 +58,7 @@ function createDemoSource(input = new Date(), phase = 3) {
     { id: '1103', name: 'Direito Digital — Demonstração', shortName: 'DD-SEM-40 (demo)', period: '2026/2', modality: 'SEMESTRAL', workloadHours: 40, ...dates, originalCourseId: null, restoredAt: null,
       teachers: [{ id: '503', name: 'Docente Gama (demo)', email: 'docente.gama@example.invalid', assignedAt: shift(at, -40), lastAccessAt: null, accessEvents: [] }],
       activities: [activity(at, '2301', 'unidades_aprendizagem', 'Unidades', { observedQuantity: 4, actorId: '503' }), activity(at, '2302', 'videos', 'Videoaulas', { observedQuantity: 4, actorId: '503' }), activity(at, '2303', 'forum', 'Fórum', { actorId: '503' }), activity(at, '2304', 'desafio', 'Desafio', { actorId: '503', deadlineAt: null }), activity(at, '2305', 'avaliacao_bimestral_1', 'Avaliação bimestral 1', { actorId: '503' }), activity(at, '2306', 'avaliacao_bimestral_2', 'Avaliação bimestral 2', { actorId: '503', configuredAt: null, visible: false, deadlineDays: 8, noEvent: true }), activity(at, '2307', 'substitutiva', 'Substitutiva', { actorId: '503', configuredAt: null, visible: false, deadlineDays: 18, noEvent: true })] },
-    { id: '1104', name: 'Metodologias Ativas — Demonstração', shortName: 'MA-MOD-80 (demo)', period: '2026/2', modality: 'MODULAR', workloadHours: 80, ...dates, originalCourseId: null, restoredAt: null,
+    { id: '1104', name: 'Metodologias Ativas — Demonstração', shortName: 'MA-MOD-80 (demo)', requirementOwners: { unidades_aprendizagem: '504', videos: '505', forum_avaliativo: '504', desafio: '505', avaliacao_final: '504' }, period: '2026/2', modality: 'MODULAR', workloadHours: 80, ...dates, originalCourseId: null, restoredAt: null,
       teachers: [{ id: '504', name: 'Docente Delta (demo)', email: 'docente.delta@example.invalid', assignedAt: shift(at, -39), lastAccessAt: shift(at, -5), accessEvents: [] }, { id: '505', name: 'Docente Épsilon (demo)', email: 'docente.epsilon@example.invalid', assignedAt: shift(at, -39), lastAccessAt: shift(at, -2), accessEvents: [] }],
       activities: [activity(at, '2401', 'unidades_aprendizagem', 'Unidades', { observedQuantity: deltaReady ? 8 : 6, actorId: '504' }), activity(at, '2402', 'videos', 'Videoaulas', { observedQuantity: 8, actorId: '505' }), activity(at, '2403', 'forum_avaliativo', 'Fórum', { actorId: '504' }), activity(at, '2404', 'desafio', 'Desafio', { actorId: '505' }), activity(at, '2405', 'avaliacao_final', 'Avaliação final', { actorId: '504', configuredDays: -2, deadlineDays: -6 })] },
     { id: '1105', name: 'Educação Contemporânea — Demonstração', shortName: 'EC-EAD-40 (demo)', period: '2026/2', modality: 'GRADUACAO_EAD', workloadHours: 40, ...dates, originalCourseId: null, restoredAt: null,

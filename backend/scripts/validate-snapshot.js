@@ -14,13 +14,15 @@ function validateSnapshot(snapshot) {
     const access = JSON.stringify([row.accessStatus, row.lastAccessAt, row.daysSinceAccess]);
     if (accessByAssignment.has(assignment) && accessByAssignment.get(assignment) !== access) errors.push(`ACCESS_INCONSISTENT:${assignment}`);
     accessByAssignment.set(assignment, access);
-    if (row.provenance === 'INHERITED_VERIFIED' && row.structureStatus !== 'INHERITED_READY') errors.push(`INHERITED_STATUS_INVALID:${key}`);
-    if (snapshot.source === 'moodle' && row.deadlineSource && row.deadlineSource !== 'OFFICIAL_CATALOG') errors.push(`DEADLINE_SOURCE_INVALID:${key}`);
+    const activeRevision = row.requirement.manualControl && (Number(row.manualVersion) || 1) > 1;
+    if (row.provenance === 'INHERITED_VERIFIED' && row.structureStatus !== 'INHERITED_READY' && !activeRevision) errors.push(`INHERITED_STATUS_INVALID:${key}`);
+    if (snapshot.source === 'moodle' && row.deadlineSource && row.deadlineSource !== 'OFFICIAL_CATALOG' && !(activeRevision && row.deadlineSource === 'MANUAL_REVISION')) errors.push(`DEADLINE_SOURCE_INVALID:${key}`);
     if (snapshot.source === 'moodle' && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(row.structureStatus) && !['SNAPSHOT_OBSERVED', 'MANUAL_NED'].includes(row.timingSource)) errors.push(`TIMING_SOURCE_INVALID:${key}`);
     if (row.requirement.manualControl) {
       if (!row.requirement.baseId || !row.requirement.itemNumber) errors.push(`MANUAL_ITEM_KEY_INVALID:${key}`);
       if (['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(row.structureStatus) && (!row.manualEvidenceDate || row.timingSource !== 'MANUAL_NED')) errors.push(`MANUAL_EVIDENCE_INVALID:${key}`);
       if (row.structureStatus === 'NOT_APPLICABLE' && !row.manualJustification?.trim()) errors.push(`NOT_APPLICABLE_REASON_MISSING:${key}`);
+      if (activeRevision && (!row.manualReplacementReason?.trim() || !row.manualRevisionDeadlineDate)) errors.push(`MATERIAL_REVISION_INVALID:${key}`);
     }
     for (const evidence of row.evidence || []) {
       if (evidence.type === 'COMPLETION_CHANGED' && evidence.supports !== 'ACCESS_ONLY') errors.push(`COMPLETION_MISCLASSIFIED:${key}`);
