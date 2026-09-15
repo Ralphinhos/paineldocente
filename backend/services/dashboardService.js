@@ -1,8 +1,17 @@
 const { HttpError } = require('../core/http');
-const { delayFacts, delayLabel, saoPauloDate } = require('../core/timing');
+const { calendarDays, delayFacts, delayLabel, saoPauloDate } = require('../core/timing');
 const { teacherRanking } = require('../core/ranking');
 const ORDER = { CRITICAL: 0, ATTENTION: 1, OK: 2 };
 const STRUCTURE_ORDER = { NOT_VERIFIABLE: 0, PENDING_OVERDUE: 1, PENDING: 2, DELIVERED_LATE: 3, DELIVERED_ON_TIME: 4, INHERITED_READY: 5, NOT_APPLICABLE: 6 };
+const REQUIREMENT_GROUPS = {
+  UA: { label: 'Unidades de aprendizagem', matches: (id) => id === 'unidades_aprendizagem' },
+  VIDEO: { label: 'Videoaulas', matches: (id) => id === 'videos' },
+  FORUM: { label: 'Fóruns', matches: (id) => id.includes('forum') },
+  ASSESSMENT: { label: 'Avaliações', matches: (id) => id.includes('avaliacao') || id.includes('quiz') },
+  ACTIVITY: { label: 'Desafios e atividades', matches: (id) => id.includes('desafio') || id.includes('tarefa') || id.includes('atividade') },
+  OTHER: { label: 'Outros itens', matches: () => true },
+};
+function requirementGroup(baseId) { return Object.entries(REQUIREMENT_GROUPS).find(([, group]) => group.matches(String(baseId || '')))?.[0] || 'OTHER'; }
 function allowedRows(snapshot, user) { if (user.role !== 'coordinator') return snapshot.rows; const scope = new Set(user.courseIds.map(String)); return snapshot.rows.filter((row) => scope.has(row.course.id)); }
 function distinctStructureRows(rows) {
   const structures = new Map();
@@ -43,13 +52,51 @@ function filterRows(rows, filters) {
   const query = String(filters.query || '').trim().toLocaleLowerCase('pt-BR');
   return rows.filter((row) => !(filters.period && row.course.period !== filters.period) && !(filters.modality && row.course.modality !== filters.modality) && !(filters.courseId && row.course.id !== String(filters.courseId)) && !(filters.teacherId && row.teacher.id !== String(filters.teacherId)) && !(query && !`${row.course.name} ${row.course.shortName} ${row.teacher.name}`.toLocaleLowerCase('pt-BR').includes(query)));
 }
-function matchesStatus(assignment, filter) {
-  const statuses = String(filter || '').split(',').filter(Boolean);
-  return !statuses.length || statuses.includes(assignment.accessStatus) || assignment.requirements.some((item) => statuses.includes(item.status) || statuses.includes('OVERDUE') && item.status === 'PENDING' && item.overdue);
+function matchesStatus(assignment, filters) {
+  const statuses = String(filters.status || '').split(',').filter(Boolean);
+  const group = filters.requirementGroup;
+  if (!statuses.length && !group) return true;
+  if (!group && statuses.includes(assignment.accessStatus)) return true;
+  return assignment.requirements.some((item) => item.responsibility !== 'OTHER_TEACHER' && (!group || requirementGroup(item.baseId) === group) && (statuses.includes(item.status) || statuses.includes('OVERDUE') && item.status === 'PENDING' && item.overdue));
+}
+function projectAssignment(assignment, filters) {
+  if (!filters.requirementGroup) return assignment;
+  const requirements = assignment.requirements.filter((item) => item.responsibility !== 'OTHER_TEACHER' && requirementGroup(item.baseId) === filters.requirementGroup);
+  const pending = requirements.filter((item) => item.status === 'PENDING' && item.overdue).sort((a, b) => (b.daysLate || 0) - (a.daysLate || 0));
+  const first = pending[0] || requirements[0];
+  return {
+    ...assignment,
+    requirements,
+    issueCount: pending.length,
+    dataQualityCount: requirements.filter((item) => item.status === 'NOT_VERIFIABLE').length,
+    maxDaysLate: Math.max(0, ...requirements.map((item) => item.daysLate || 0)),
+    primaryReason: first ? `${first.responsibility === 'UNCONFIRMED' ? 'Responsável a definir · ' : ''}${first.label} · ${delayLabel(first)}` : assignment.primaryReason,
+  };
 }
 function scopedIssues(snapshot, user) { if (user.role !== 'coordinator') return snapshot.qualityIssues; const scope = new Set(user.courseIds.map(String)); return snapshot.qualityIssues.filter((issue) => !issue.courseId || scope.has(String(issue.courseId))); }
 function filterOptions(rows) { const unique = (values) => [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR')); return { periods: unique(rows.map((row) => row.course.period)), modalities: unique(rows.map((row) => row.course.modality)).map((value) => ({ value, label: rows.find((row) => row.course.modality === value).course.modalityLabel })), courses: [...new Map(rows.map((row) => [row.course.id, { value: row.course.id, label: row.course.shortName }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')) }; }
 function modalityBreakdown(rows) { const courses = new Map(); for (const assignment of groupAssignments(rows)) { const item = courses.get(assignment.course.id) || { modality: assignment.course.modality, label: assignment.course.modalityLabel, issue: false }; item.issue ||= assignment.severity !== 'OK'; courses.set(assignment.course.id, item); } const map = new Map(); for (const course of courses.values()) { const group = map.get(course.modality) || { modality: course.modality, label: course.label, total: 0, issues: 0 }; group.total += 1; if (course.issue) group.issues += 1; map.set(course.modality, group); } return [...map.values()].map((item) => ({ ...item, compliant: item.total - item.issues })); }
+function executiveVisuals(rows, asOf) {
+  const assignments = groupAssignments(rows);
+  const active = assignments.filter((item) => item.accessStatus !== 'OUTSIDE_WINDOW');
+  const accessValues = [
+    { key: 'CURRENT', label: 'Em dia', count: active.filter((item) => item.accessStatus === 'CURRENT').length, detail: '0–7 dias' },
+    { key: 'ATTENTION', label: 'Atenção', count: active.filter((item) => item.accessStatus === 'ATTENTION').length, detail: '8–14 dias' },
+    { key: 'CRITICAL', label: 'Crítico', count: active.filter((item) => ['CRITICAL', 'NEVER'].includes(item.accessStatus)).length, detail: `${active.filter((item) => item.accessStatus === 'NEVER').length} sem registro` },
+  ];
+  const access = accessValues.map((item) => ({ ...item, percent: active.length ? Math.round(item.count / active.length * 1000) / 10 : 0 }));
+  const structureRows = distinctStructureRows(rows);
+  const unverified = structureRows.filter((row) => row.structureStatus === 'NOT_VERIFIABLE').length;
+  const due = structureRows.filter((row) => row.deadlineAt && calendarDays(asOf, row.deadlineAt) > 0 && !['NOT_APPLICABLE', 'INHERITED_READY', 'NOT_VERIFIABLE'].includes(row.structureStatus));
+  const grouped = new Map();
+  for (const row of due) {
+    const key = requirementGroup(row.requirement.baseId); const definition = REQUIREMENT_GROUPS[key];
+    const item = grouped.get(key) || { key, label: definition.label, due: 0, overdue: 0 };
+    item.due += 1; if (row.structureStatus === 'PENDING' && row.overdue) item.overdue += 1; grouped.set(key, item);
+  }
+  const overdueByType = [...grouped.values()].map((item) => ({ ...item, percent: item.due ? Math.round(item.overdue / item.due * 1000) / 10 : 0 })).sort((a, b) => b.overdue - a.overdue || b.due - a.due || a.label.localeCompare(b.label, 'pt-BR'));
+  return { access: { total: active.length, items: access }, overdue: { totalDue: due.length, totalOverdue: due.filter((row) => row.structureStatus === 'PENDING' && row.overdue).length, unverified, items: overdueByType } };
+}
 function weeklySnapshots(history) {
   const seen = new Set(); const selected = [];
   for (const snapshot of [...history].sort((a, b) => new Date(b.generatedAt) - new Date(a.generatedAt))) {
@@ -69,7 +116,7 @@ class DashboardService {
     const scoped = allowedRows(snapshot, user);
     const filtered = filterRows(scoped, filters);
     const allAssignments = groupAssignments(filtered);
-    const assignments = allAssignments.filter((row) => matchesStatus(row, filters.status)).sort((a, b) => ORDER[a.severity] - ORDER[b.severity] || b.maxDaysLate - a.maxDaysLate || (b.daysSinceAccess ?? -1) - (a.daysSinceAccess ?? -1) || a.course.shortName.localeCompare(b.course.shortName, 'pt-BR'));
+    const assignments = allAssignments.filter((row) => matchesStatus(row, filters)).map((row) => projectAssignment(row, filters)).sort((a, b) => ORDER[a.severity] - ORDER[b.severity] || b.maxDaysLate - a.maxDaysLate || (b.daysSinceAccess ?? -1) - (a.daysSinceAccess ?? -1) || a.course.shortName.localeCompare(b.course.shortName, 'pt-BR'));
     const pageSize = Math.max(5, Math.min(Number(filters.pageSize) || 20, 50));
     const pages = Math.max(1, Math.ceil(assignments.length / pageSize));
     const page = Math.min(pages, Math.max(1, Number(filters.page) || 1));
@@ -82,10 +129,10 @@ class DashboardService {
     const ranking = teacherRanking(allAssignments, snapshot.generatedAt, snapshot.rows[0]?.rankingPolicy);
     return {
       meta: { snapshotId: snapshot.id, generatedAt: snapshot.generatedAt, source: snapshot.source, isDemo: snapshot.isDemo, rulesVersion: snapshot.rulesVersion, rulesStatus: snapshot.rulesStatus, qualityStatus: issues.some((issue) => issue.severity === 'CRITICAL') ? 'BLOCKED' : snapshot.qualityStatus, publishAllowed: snapshot.publishAllowed, stale: ageMinutes > this.snapshotIntervalMinutes * 2, qualityIssues: issues },
-      summary: summarize(filtered), ranking, trend, modalityBreakdown: modalityBreakdown(filtered),
+      summary: summarize(filtered), ranking, visuals: executiveVisuals(filtered, snapshot.generatedAt), trend, modalityBreakdown: modalityBreakdown(filtered),
       rows: options.allRows ? assignments : assignments.slice((page - 1) * pageSize, page * pageSize),
       filters: filterOptions(scoped), pagination: { page, pageSize, total: assignments.length, pages },
     };
   }
 }
-module.exports = { DashboardService, allowedRows, distinctStructureRows, groupAssignments, modalityBreakdown, summarize, weeklySnapshots };
+module.exports = { DashboardService, allowedRows, distinctStructureRows, executiveVisuals, groupAssignments, modalityBreakdown, projectAssignment, requirementGroup, summarize, weeklySnapshots };
