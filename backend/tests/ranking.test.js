@@ -87,8 +87,25 @@ test('ranking respeita escopo, período e base inteira; não depende de página 
   const first = await service.getDashboard(user, { pageSize: 5 });
   const filtered = await service.getDashboard(user, { pageSize: 50, status: 'DELIVERED_LATE' });
   assert.deepEqual(first.ranking, filtered.ranking);
+  assert.deepEqual(first.visuals, filtered.visuals);
   assert.deepEqual(first.ranking.teachers.map((entry) => entry.teacher.id).sort(), ['501', '502']);
   assert.equal((await service.getDashboard(user, { period: '2099/1' })).ranking.teachers.length, 0);
+});
+test('gráficos executivos usam bases explícitas e o clique por tipo retorna só itens relacionados', async () => {
+  const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
+  await store.saveSnapshot(buildSnapshot(raw, catalog, { rulesApproved: true, manualDeliveries: raw.manualDeliveries }));
+  const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
+  const user = { role: 'executive' };
+  const overview = await service.getDashboard(user, { pageSize: 50 });
+  assert.equal(overview.visuals.access.items.reduce((sum, item) => sum + item.count, 0), overview.visuals.access.total);
+  assert.equal(overview.visuals.overdue.items.reduce((sum, item) => sum + item.due, 0), overview.visuals.overdue.totalDue);
+  assert.equal(overview.visuals.overdue.items.reduce((sum, item) => sum + item.overdue, 0), overview.visuals.overdue.totalOverdue);
+  assert.equal(overview.visuals.overdue.unverified, overview.summary.requirements.notVerifiable);
+  const activities = await service.getDashboard(user, { pageSize: 50, status: 'OVERDUE', requirementGroup: 'ACTIVITY' });
+  assert.deepEqual(activities.visuals, overview.visuals);
+  assert.ok(activities.rows.length > 0);
+  assert.ok(activities.rows.every((row) => row.requirements.length > 0 && row.requirements.every((item) => /(desafio|tarefa|atividade)/.test(item.baseId) && item.responsibility !== 'OTHER_TEACHER')));
+  assert.ok(activities.rows.every((row) => row.requirements.some((item) => item.status === 'PENDING' && item.overdue)));
 });
 test('substitutiva sai de todas as linhas; evolução nunca mistura versões', async () => {
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));

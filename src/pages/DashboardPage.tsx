@@ -7,13 +7,14 @@ import { DataGuardBanner } from '@/components/dashboard/DataGuardBanner';
 import { EvidenceDrawer } from '@/components/dashboard/EvidenceDrawer';
 import { ExceptionTable } from '@/components/dashboard/ExceptionTable';
 import { ExecutiveOverview } from '@/components/dashboard/ExecutiveOverview';
+import type { ExecutiveVisualSelection } from '@/components/dashboard/ExecutiveCharts';
 import { TeacherRanking } from '@/components/dashboard/TeacherRanking';
 import { ManualDeliveryPanel } from '@/components/dashboard/ManualDeliveryPanel';
 import { ReportPreviewDialog } from '@/components/dashboard/ReportPreviewDialog';
 import { SummaryBar } from '@/components/dashboard/SummaryBar';
 import { useAuth } from '@/contexts/auth';
 import type { AssignmentRow, DashboardData, DashboardFilters as FilterState, RankingEntry } from '@/types/dashboard';
-const EMPTY_FILTERS: FilterState = { period: '', modality: '', courseId: '', status: '', query: '', page: 1 };
+const EMPTY_FILTERS: FilterState = { period: '', modality: '', courseId: '', status: '', requirementGroup: '', query: '', page: 1 };
 function formatGeneratedAt(value: string) { return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value)); }
 export function DashboardPage() {
   const { user, csrfToken } = useAuth();
@@ -21,6 +22,7 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [selected, setSelected] = useState<AssignmentRow | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<string | null>(null);
+  const [selectedVisual, setSelectedVisual] = useState<string | null>(null);
   const [section, setSection] = useState('tracking');
   const [manualDirty, setManualDirty] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -37,8 +39,13 @@ export function DashboardPage() {
   const refresh = async () => { setRefreshing(true); setError(null); try { await apiRequest('/api/operations/snapshots', { method: 'POST', csrfToken }); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Falha ao atualizar os dados.'); } finally { setRefreshing(false); } };
   const executive = user?.role === 'executive';
   const ned = user?.role === 'ned_admin';
-  const chooseTeacher = (entry: RankingEntry) => { setSelectedTeacher(entry.teacher.name); setFilters((current) => ({ ...current, teacherId: entry.teacher.id, status: '', page: 1 })); };
-  const patchFilters = (next: FilterState) => { if (!next.teacherId) setSelectedTeacher(null); setFilters(next); };
+  const chooseTeacher = (entry: RankingEntry) => { setSelectedVisual(null); setSelectedTeacher(entry.teacher.name); setFilters((current) => ({ ...current, teacherId: entry.teacher.id, status: '', requirementGroup: '', page: 1 })); };
+  const chooseVisual = (selection: ExecutiveVisualSelection) => { setSelectedTeacher(null); setSelectedVisual(selection.label); setFilters((current) => ({ ...current, teacherId: '', status: selection.status, requirementGroup: selection.requirementGroup || '', page: 1 })); };
+  const patchFilters = (next: FilterState) => {
+    if (!next.teacherId) setSelectedTeacher(null);
+    if (next.status !== filters.status || next.requirementGroup !== filters.requirementGroup) setSelectedVisual(null);
+    setFilters(next);
+  };
   return <AppShell>
     <div className="page-header"><div><h1>{executive ? 'Acompanhamento executivo' : user?.role === 'coordinator' ? 'Minhas disciplinas' : 'Acompanhamento docente'}</h1>{data && <p>Atualizado em {formatGeneratedAt(data.meta.generatedAt)}{loading ? ' · Atualizando…' : ''}</p>}</div><div className="header-actions">{ned && <button className="secondary-button" type="button" disabled={refreshing || manualDirty} onClick={() => void refresh()}><RefreshCw size={17} className={refreshing ? 'spin' : ''} />{refreshing ? 'Atualizando…' : 'Atualizar dados'}</button>}<button className="primary-button" type="button" disabled={!data || manualDirty} onClick={() => setReportOpen(true)}><FileText size={17} />Relatório semanal</button></div></div>
     {error && <div className="page-error" role="alert"><ShieldAlert size={19} /><span>{error}</span><button type="button" onClick={() => void load()}>Tentar novamente</button></div>}
@@ -48,8 +55,9 @@ export function DashboardPage() {
       <div hidden={ned && section !== 'tracking'} aria-busy={loading}>
         <DashboardFilters value={filters} options={data.filters} onChange={patchFilters} />
         {selectedTeacher && <div className="selected-teacher"><span>Docente: <strong>{selectedTeacher}</strong></span><button className="link-button" type="button" onClick={() => { setSelectedTeacher(null); setFilters((current) => ({ ...current, teacherId: '', page: 1 })); }}><X size={16} />Voltar a todos</button></div>}
+        {selectedVisual && <div className="selected-teacher"><span>Detalhe: <strong>{selectedVisual}</strong></span><button className="link-button" type="button" onClick={() => { setSelectedVisual(null); setFilters((current) => ({ ...current, status: '', requirementGroup: '', page: 1 })); }}><X size={16} />Voltar aos gráficos</button></div>}
         <SummaryBar summary={data.summary} />
-        {executive && !selectedTeacher ? <ExecutiveOverview data={data} onOpen={setSelected} onTeacher={chooseTeacher} /> : <>
+        {executive && !selectedTeacher && !selectedVisual ? <ExecutiveOverview data={data} onOpen={setSelected} onTeacher={chooseTeacher} onVisual={chooseVisual} /> : <>
           {!selectedTeacher && <details className="coordinator-ranking"><summary>Ranking docente · 50 / 20 / 30</summary><TeacherRanking data={data.ranking} onSelect={chooseTeacher} /></details>}
           <ExceptionTable data={data} filters={filters} onFilters={patchFilters} onOpen={setSelected} />
         </>}

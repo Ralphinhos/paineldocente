@@ -5,6 +5,7 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 ## O que está pronto
 
 - Visões separadas para NED, coordenação e alta gestão.
+- Alta gestão com gráficos de faixas de acesso e entregas vencidas por tipo; cada faixa abre os casos relacionados.
 - NED organizado em Acompanhamento, UA e videoaulas, Qualidade e envios.
 - Ranking de regularidade com pesos 50/20/30 e cálculo consultável por docente.
 - Atrasos em dias por atividade, diferenciando duração comprovada e limite observado.
@@ -34,7 +35,7 @@ docker compose -f compose.demo.yml down
 
 Na nova versão, confira:
 
-1. **Alta gestão:** ranking → Prioridade, Melhor regularidade e Acessos. Abra “Ver cálculo” e clique no docente para conferir as disciplinas.
+1. **Alta gestão:** clique numa faixa de acesso ou barra de entrega vencida para abrir os casos. No ranking, alterne Prioridade, Melhor regularidade e Acessos; as cores mostram os pesos 50/20/30.
 2. **NED → Acompanhamento:** abra “Detalhes” de uma pendência e confira prazo e dias de atraso.
 3. **NED → UA e videoaulas:** registre envio ou gravação; salve antes de trocar de aba. Publicação não altera a nota. Regravação continua em “Nova versão”.
 4. **Relatório semanal:** alterne público, confira a prévia e use “Baixar HTML”. A demonstração mantém o envio bloqueado.

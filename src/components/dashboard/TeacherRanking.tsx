@@ -21,10 +21,16 @@ export function TeacherRanking({ data, onSelect }: { data: RankingData; onSelect
     <div className="ranking-list">
       {shown.map((entry, index) => {
         const score = view === 'access' ? entry.accessScore : entry.score;
+        const contribution = `Prazo ${number(entry.components.onTime)}/50 · Atraso ${number(entry.components.delay)}/20 · Acesso ${number(entry.components.access)}/30`;
         return <div className="ranking-row" key={entry.teacher.id}>
           <span className="rank-position">{index + 1}</span>
           <div className="rank-main"><button className="rank-name" type="button" onClick={() => onSelect(entry)}>{entry.teacher.name}<ArrowUpRight size={15} /></button>
-            <div className="rank-track" aria-hidden="true"><span className={view === 'priority' ? 'rank-priority' : view === 'access' ? 'rank-access' : 'rank-regular'} style={{ width: `${score || 0}%` }} /></div>
+            {view === 'access' ? <div className="rank-track" role="img" aria-label={`Pontuação de acesso: ${number(score)} de 100`}><span className="rank-access" style={{ width: `${score || 0}%` }} /></div> : <div className="rank-track" role="img" aria-label={contribution}>
+              <span className="rank-on-time" style={{ width: `${entry.components.onTime || 0}%` }} />
+              <span className="rank-delay" style={{ width: `${entry.components.delay || 0}%` }} />
+              <span className="rank-access-component" style={{ width: `${entry.components.access || 0}%` }} />
+            </div>}
+            {view !== 'access' && <small className="rank-contribution">{contribution}</small>}
             <small>{view === 'access' ? `${entry.accessCritical} acessos críticos · ${entry.activeCourses} disciplinas ativas${entry.never ? ` · ${entry.never} sem registro` : ''}` : `${entry.overdue} pendências vencidas · maior atraso ${entry.maxDaysLate} dias · ${entry.accessCritical} acessos críticos`}</small>
           </div>
           <div className="rank-score"><strong>{number(score)}<small>/100</small></strong><span>{view === 'access' ? 'Acesso' : 'Nota geral'}</span></div>

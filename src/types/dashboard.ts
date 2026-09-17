@@ -32,6 +32,10 @@ export interface QualityIssue { code: string; message: string; severity: "INFO" 
 export interface DashboardData {
   meta: { snapshotId: string; generatedAt: string; source: "demo" | "moodle"; isDemo: boolean; rulesVersion: string; rulesStatus: string; qualityStatus: "VALID" | "WARNING" | "BLOCKED"; publishAllowed: boolean; stale: boolean; qualityIssues: QualityIssue[] };
   ranking: RankingData;
+  visuals: {
+    access: { total: number; items: Array<{ key: "CURRENT" | "ATTENTION" | "CRITICAL"; label: string; count: number; detail: string; percent: number }> };
+    overdue: { totalDue: number; totalOverdue: number; unverified: number; items: Array<{ key: string; label: string; due: number; overdue: number; percent: number }> };
+  };
   summary: { averageDaysLate: number | null; measuredLateItems: number; unmeasuredLateItems: number; monitoredTeachers: number; courses: number; requirements: { total: number; pending: number; overdue: number; deliveredLate: number; deliveredOnTime: number; inheritedReady: number; notApplicable: number; notVerifiable: number }; access: { current: number; attention: number; critical: number; never: number; outsideWindow: number } };
   trend: Array<{ generatedAt: string; critical: number; attention: number }>;
   modalityBreakdown: Array<{ modality: string; label: string; total: number; issues: number; compliant: number }>;
@@ -39,7 +43,7 @@ export interface DashboardData {
   filters: { periods: string[]; modalities: Array<{ value: string; label: string }>; courses: Array<{ value: string; label: string }> };
   pagination: { page: number; pageSize: number; total: number; pages: number };
 }
-export interface DashboardFilters { teacherId?: string; period: string; modality: string; courseId: string; status: string; query: string; page: number }
+export interface DashboardFilters { teacherId?: string; requirementGroup?: string; period: string; modality: string; courseId: string; status: string; query: string; page: number }
 export interface ReportPreview { audience: "coordinators" | "executive"; reports: Array<{ snapshotId: string; publishAllowed: boolean; recipient: { name: string; email: string } | null; subject: string; text: string; html: string; blocker: string | null }> }
 export type ManualDeliveryDisposition = "PENDING" | "DELIVERED" | "NOT_APPLICABLE";
 export interface ManualDeliveryHistory {
