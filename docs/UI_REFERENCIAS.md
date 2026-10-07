@@ -2,21 +2,28 @@
 
 A interface acompanha o trabalho semanal do NED: conferir a tabela, registrar o material manual e preparar os relatórios. A base visual são as planilhas e os e-mails institucionais enviados pelo usuário: cabeçalho azul, nomes completos de disciplinas, datas e situações legíveis.
 
-## Estrutura
+## Estrutura · Visual 2.0
 
-| Público | Tela inicial | Detalhes sob demanda |
+O HTML fornecido define a composição: filtros visíveis, quatro indicadores coloridos, panorama geral, quatro gráficos Top 10, evolução, atividades com atraso e tabela de todos os docentes. O ranking ponderado é um oitavo gráfico. Explicações e fórmulas ficam nos detalhes.
+
+A planilha define o controle operacional: uma atividade por linha, docente e disciplina repetidos quando necessário, datas civis brasileiras, atraso numérico e células de situação coloridas. Não há expansão obrigatória para encontrar o prazo. Bimestres são identificados pelo requisito real; pacote de UAs permanece único e cada vídeo mantém sua linha.
+
+| Público | Tela inicial | Outras áreas |
 |---|---|---|
-| NED | Conferência por disciplina | Atividades, evidências, ranking e critérios |
-| NED — material | Pacote de UAs e cada videoaula | Publicação opcional, justificativa e versões anteriores |
-| NED — relatórios | Público, destinatário e texto do e-mail | HTML, qualidade e identificação da coleta |
-| Coordenação | Disciplinas autorizadas | Atividades e relatório detalhado |
-| Alta gestão | Três indicadores, dois gráficos e Top 5 | Casos relacionados, cálculo e histórico |
+| NED | Panorama com oito gráficos e tabela de desempenho | Planilha, controle manual, relatórios e e-mails |
+| Coordenação | Panorama das disciplinas autorizadas | Planilha e relatório detalhado |
+| Alta gestão | Panorama, ranking e evolução | Planilha para investigar os casos |
+| Auditoria | Panorama autorizado, somente leitura | Planilha e evidências |
 
-O atraso aparece em dias. Entregas com data exata podem mostrar antecipação; uma data apenas observada na coleta não vira data exata de entrega. Pendências sem prazo conhecido ficam a validar. Material replicado e conferido aparece como pronto no prazo, preservando sua classificação separada no cálculo já aprovado.
+Percentual de atrasos inclui entregas tardias e pendências vencidas, com a mesma base de prazos encerrados do ranking. Percentuais têm peso igual por disciplina. Não se reutilizam as médias de semanas nem a antiga faixa de quatro dias do HTML: acesso usa o maior intervalo nas disciplinas ativas e as faixas aprovadas 0–7 / 8–14 / 15+. Sem registro nunca é convertido em zero; base incompleta fica sem nota geral ou percentual comparável.
 
-As abas suportam setas, Home e End; os diálogos usam o elemento nativo dialog. Há foco visível, link para pular o cabeçalho, alvos de interação de 44px e preferência de movimento reduzido. Em telas pequenas, as tabelas rolam horizontalmente para manter as colunas comparáveis.
+O panorama alinha duas áreas de barras: percentual e dias em escalas separadas. Top 10 mantém barras começando em zero; evolução usa datas reais e três séries, sendo entregas tardias um subconjunto das entregues. O gráfico de atividades distingue pendências vencidas de entregas concluídas com atraso, sem duplicar material compartilhado entre docentes.
 
-Durante uma edição manual, salve ou descarte antes de trocar de área ou sair. Edição fica bloqueada durante carregamento/gravação; um erro de coleta desatualizada oferece descarte e recarga. O botão Atualizar dados também recarrega a lista manual.
+A tabela de desempenho é a alternativa numérica aos gráficos. As barras e os docentes abrem filtros reais na planilha, incluindo a atividade e o bimestre corretos. A nota não muda ao filtrar apenas a situação das atividades.
+
+As abas suportam setas, Home e End; diálogos usam dialog nativo. Há foco visível, alvos de 44px e preferência de movimento reduzido. O grid de gráficos passa de duas colunas para uma em 800px. Indicadores passam para duas colunas e filtros se reorganizam. Tabelas e gráficos extensos rolam horizontalmente, preservando colunas e valores; a disciplina e o cabeçalho ficam fixos.
+
+Durante uma edição manual, salve ou descarte antes de trocar de área ou sair. O controle mantém bloqueios de concorrência, justificativa, novas versões e histórico. Atualizar dados também recarrega a lista manual.
 
 ## Skiper UI — Skiper40 / CssLink
 
@@ -54,6 +61,8 @@ Licença original preservada:
 
 ## Limites e teste local
 
-Esta alteração reorganiza o produto existente. A prévia e os downloads usam o HTML/texto do backend; não simulam um XLSX. A integração de e-mail continua sujeita às travas existentes, com envio bloqueado no modo demonstração. Os pesos 50/20/30, as faixas de acesso, as versões de materiais e a exclusão da substitutiva foram preservados.
+A prévia e os downloads usam o HTML/texto do backend. XLSX por coordenação, cadastro de destinatários/cópias na interface e exceções manuais de atividades Moodle ainda dependem de próxima etapa. A integração de e-mail mantém as travas existentes e está bloqueada no modo demonstração. Foram preservados pesos, faixas de acesso, versões de materiais e exclusão da substitutiva.
 
-A verificação automatizada cobre tipos, lint, build, segurança/escopo, regras e apresentação de datas/situações. O navegador remoto deste ambiente bloqueou o endereço localhost:8080 (ERR_BLOCKED_BY_CLIENT); portanto, a inspeção visual e a navegação completa no navegador devem ser conferidas localmente com os passos do README.
+A verificação automatizada cobre tipos, lint, build, segurança/escopo, regras, apresentação de datas e situação, bases dos gráficos, ausência de registro, responsabilidade compartilhada e filtros dos dois bimestres. A prévia interativa usa os componentes da aplicação com coletas fictícias e sem persistir alterações.
+
+O navegador remoto deste ambiente bloqueou tanto localhost quanto arquivos locais por política de acesso. A apresentação visual no navegador e os cliques devem ser conferidos no computador de teste com `npm run demo`; há identificação Visual 2.0 no título e no rodapé para distinguir a versão nova.

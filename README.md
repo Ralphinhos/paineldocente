@@ -4,9 +4,9 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 ## O que está pronto
 
-- Visões separadas para NED, coordenação e alta gestão.
-- Alta gestão com gráficos de faixas de acesso e entregas vencidas por tipo; cada faixa abre os casos relacionados.
-- NED organizado em Conferência, UA e vídeos e Relatórios.
+- Panorama inicial para todos os perfis, com os sete gráficos do HTML de referência e o ranking ponderado.
+- Planilha com uma linha por atividade: docente, disciplina, carga horária, bimestre, prazo, entrega, dias de atraso e acesso.
+- NED organizado em Panorama, Planilha de controle, UA e videoaulas e Relatórios e e-mails.
 - Ranking de regularidade com pesos 50/20/30 e cálculo consultável por docente.
 - Atrasos em dias por atividade, diferenciando duração comprovada e limite observado.
 - Avaliação substitutiva fora dos indicadores e relatórios.
@@ -21,42 +21,40 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 > Produção inicia com envio de e-mail bloqueado. Só libere após homologar regras, prazos, amostra Moodle e destinatários.
 
-## Teste rápido
+## Teste rápido · Visual 2.0
+
+Encerre os terminais do teste anterior com Ctrl+C. Na pasta do projeto, instale e rode:
+
+```bash
+npm ci
+npm --prefix backend ci
+npm run demo
+```
+
+Abra [http://localhost:8080](http://localhost:8080). A tela de entrada deve mostrar **NED · Visual 2.0**. Escolha **Equipe NED** ou **Alta gestão**; ambos abrem o Panorama. Para parar os dois serviços, Ctrl+C no mesmo terminal.
+
+Este comando usa dados fictícios em memória, escuta apenas no computador local e mantém e-mails desabilitados. As portas 3001 e 8080 devem estar livres: se o teste anterior estiver aberto, o comando falha e pede que ele seja encerrado. Ele não abre silenciosamente outra porta nem encerra processos de terceiros.
+
+Confira estas quatro áreas:
+
+1. **Panorama:** quatro estados de entrega; panorama dos docentes; Top 10 de atrasos, entregas no prazo, ausências e acessos recentes; evolução semanal; atividades com atraso; ranking 50/20/30. A tabela inferior mostra todos os docentes e permite ordenar os valores. Clique no docente ou na atividade para consultar a planilha correspondente.
+2. **Planilha de controle:** cada atividade aparece diretamente na linha, com datas, bimestre quando aplicável e atraso em dias. Use a lupa para abrir as evidências. A coluna Disciplina e o cabeçalho ficam fixos durante a rolagem. O filtro de situação seleciona as atividades, sem alterar a base do ranking.
+3. **UA e videoaulas (NED):** registre a data de envio do pacote ou de gravação de cada vídeo. Salve ou descarte antes de trocar de área. Regravação e troca de pacote preservam o histórico; publicação continua opcional.
+4. **Relatórios e e-mails (NED):** escolha público e destinatário; confira o texto ou o HTML. Copie o texto ou baixe o relatório. A demonstração bloqueia envio externo.
+
+Os gráficos e a nota usam toda a base autorizada pelos filtros de período, modalidade, disciplina e docente, independentemente da página e da situação da planilha. Percentuais docentes consideram apenas prazos encerrados, com peso igual por disciplina. Base incompleta aparece sem percentual comparável e sem nota geral. Acesso mostra o maior intervalo entre disciplinas ativas; ausência de registro fica identificada e não vira zero.
+
+A evolução mostra a última coleta de cada semana com a mesma versão de regras e a mesma fonte. Com uma única semana, mostra um ponto real; nenhuma curva é inventada. Entregas com atraso estão incluídas no total entregue e aparecem também como série separada. Material replicado e conferido entra no total entregue, mantendo o tratamento já aprovado no ranking.
+
+As listas oferecem a disciplina do Moodle. Curso acadêmico, campus e módulo não são inventados: dependem de mapeamento adicional na integração. As avaliações semestrais mantêm os dois bimestres separados.
+
+Se preferir Docker:
 
 ```bash
 docker compose -f compose.demo.yml up --build
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) e escolha um dos três perfis fictícios. Para parar:
-
-```bash
-docker compose -f compose.demo.yml down
-```
-
-Na nova versão, confira:
-
-1. **Alta gestão:** veja dois gráficos e o Top 5 docente. Clique numa faixa ou barra para consultar os casos; “Voltar ao resumo” desfaz essa seleção. Os cálculos e o histórico ficam nos detalhes.
-2. **NED → Conferência:** clique em “Atividades” para conferir prazo, data da entrega e dias de atraso. “Ver evidências” abre a origem dos dados. O filtro separa pendências no prazo e em atraso.
-3. **NED → UA e vídeos:** registre o envio do pacote ou a gravação de cada vídeo. Salve ou descarte antes de sair da aba. Publicação é opcional e não altera a nota. “Regravar” e “Trocar pacote” preservam as versões anteriores.
-4. **NED → Relatórios:** escolha público e destinatário; confira o texto ou HTML. Copie o texto ou baixe o HTML. O botão de envio informa que enviará para todos os destinatários daquele público; a demonstração mantém o envio bloqueado.
-
-O filtro “Situação da lista” altera somente a lista de ocorrências; a nota e os indicadores usam a base completa dos filtros de período, modalidade, disciplina e docente. A evolução aparece após duas semanas de coletas com a mesma versão de regras. Coletas antigas continuam preservadas; clique em **Atualizar dados** no NED para aplicar a nova versão às próximas coletas.
-
-Sem Docker, abra **dois terminais** na pasta do projeto. No primeiro:
-
-```bash
-npm ci
-npm --prefix backend ci
-npm --prefix backend start
-```
-
-No segundo:
-
-```bash
-npm run dev
-```
-
-Esta reorganização usa abas inspiradas no Cult UI e links adaptados do Skiper40, com atribuição no rodapé. Não adiciona pacotes de animação. Detalhes e licenças em [Referências da interface](docs/UI_REFERENCIAS.md).
+A direção visual segue **Análise Docente - Acessos e Atrasos** e a aba **Base** das planilhas fornecidas. As abas mantêm a inspiração Cult UI e os links adaptados do Skiper40, com atribuição no rodapé. Não foram adicionadas bibliotecas de animação. Detalhes e licenças em [Referências da interface](docs/UI_REFERENCIAS.md).
 
 A prévia usa o relatório HTML/texto existente. Exportação de XLSX por coordenação, edição de destinatários/cópias pela interface e revisão manual de exceções Moodle ainda exigem uma próxima etapa; não há botões simulando essas funções.
 

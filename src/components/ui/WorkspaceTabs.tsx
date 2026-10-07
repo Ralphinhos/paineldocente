@@ -1,5 +1,7 @@
 import type { KeyboardEvent } from 'react';
-interface Tab { id: string; label: string; count?: number }
+import { BarChart3, Table2, SquarePen, Mail } from 'lucide-react';
+interface Tab { id: string; label: string; count?: number; icon?: 'chart' | 'table' | 'edit' | 'mail' }
+const icons = { chart: BarChart3, table: Table2, edit: SquarePen, mail: Mail };
 interface Props { id: string; label: string; tabs: Tab[]; value: string; onChange: (value: string) => void; locked?: boolean; compact?: boolean }
 // Adapted from Cult UI's direction-aware tabs. See docs/UI_REFERENCIAS.md.
 export function WorkspaceTabs({ id, label, tabs, value, onChange, locked = false, compact = false }: Props) {
@@ -16,8 +18,11 @@ export function WorkspaceTabs({ id, label, tabs, value, onChange, locked = false
     event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next].focus();
   };
   return <div className={'workspace-tabs' + (compact ? ' tabs-compact' : '')} role="tablist" aria-label={label}>
-    {tabs.map((tab, index) => <button key={tab.id} id={id + '-tab-' + tab.id} type="button" role="tab" aria-selected={value === tab.id} aria-controls={id + '-panel-' + tab.id} tabIndex={value === tab.id ? 0 : -1} disabled={locked && value !== tab.id} onClick={() => onChange(tab.id)} onKeyDown={(event) => navigate(event, index)}>
-      {tab.label}{tab.count != null && tab.count > 0 && <span className="tab-count">{tab.count}</span>}
-    </button>)}
+    {tabs.map((tab, index) => {
+      const Icon = tab.icon ? icons[tab.icon] : null;
+      return <button key={tab.id} id={id + '-tab-' + tab.id} type="button" role="tab" aria-selected={value === tab.id} aria-controls={id + '-panel-' + tab.id} tabIndex={value === tab.id ? 0 : -1} disabled={locked && value !== tab.id} onClick={() => onChange(tab.id)} onKeyDown={(event) => navigate(event, index)}>
+        {Icon && <Icon size={17} aria-hidden="true" />}{tab.label}{tab.count != null && tab.count > 0 && <span className="tab-count">{tab.count}</span>}
+      </button>;
+    })}
   </div>;
 }

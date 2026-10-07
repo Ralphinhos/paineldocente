@@ -55,13 +55,14 @@ function filterRows(rows, filters) {
 function matchesStatus(assignment, filters) {
   const statuses = String(filters.status || '').split(',').filter(Boolean);
   const group = filters.requirementGroup;
-  if (!statuses.length && !group) return true;
-  if (!group && statuses.includes(assignment.accessStatus)) return true;
-  return assignment.requirements.some((item) => item.responsibility !== 'OTHER_TEACHER' && (!group || requirementGroup(item.baseId) === group) && (statuses.includes(item.status) || statuses.includes('OVERDUE') && item.status === 'PENDING' && item.overdue || statuses.includes('WITHIN_DEADLINE') && item.status === 'PENDING' && !item.overdue && item.deadlineAt));
+  const requirementId = filters.requirementId;
+  if (!statuses.length && !group && !requirementId) return true;
+  if (!group && !requirementId && statuses.includes(assignment.accessStatus)) return true;
+  return assignment.requirements.some((item) => item.responsibility !== 'OTHER_TEACHER' && (!group || requirementGroup(item.baseId) === group) && (!requirementId || item.baseId === requirementId) && (!statuses.length || statuses.includes(assignment.accessStatus) || statuses.includes(item.status) || statuses.includes('OVERDUE') && item.status === 'PENDING' && item.overdue || statuses.includes('WITHIN_DEADLINE') && item.status === 'PENDING' && !item.overdue && item.deadlineAt));
 }
 function projectAssignment(assignment, filters) {
-  if (!filters.requirementGroup) return assignment;
-  const requirements = assignment.requirements.filter((item) => item.responsibility !== 'OTHER_TEACHER' && requirementGroup(item.baseId) === filters.requirementGroup);
+  if (!filters.requirementGroup && !filters.requirementId) return assignment;
+  const requirements = assignment.requirements.filter((item) => item.responsibility !== 'OTHER_TEACHER' && (!filters.requirementGroup || requirementGroup(item.baseId) === filters.requirementGroup) && (!filters.requirementId || item.baseId === filters.requirementId));
   const pending = requirements.filter((item) => item.status === 'PENDING' && item.overdue).sort((a, b) => (b.daysLate || 0) - (a.daysLate || 0));
   const first = pending[0] || requirements[0];
   return {
@@ -95,7 +96,18 @@ function executiveVisuals(rows, asOf) {
     item.due += 1; if (row.structureStatus === 'PENDING' && row.overdue) item.overdue += 1; grouped.set(key, item);
   }
   const overdueByType = [...grouped.values()].map((item) => ({ ...item, percent: item.due ? Math.round(item.overdue / item.due * 1000) / 10 : 0 })).sort((a, b) => b.overdue - a.overdue || b.due - a.due || a.label.localeCompare(b.label, 'pt-BR'));
-  return { access: { total: active.length, items: access }, overdue: { totalDue: due.length, totalOverdue: due.filter((row) => row.structureStatus === 'PENDING' && row.overdue).length, unverified, items: overdueByType } };
+  const activities = new Map();
+  for (const row of structureRows) {
+    if (['NOT_APPLICABLE', 'INHERITED_READY', 'NOT_VERIFIABLE'].includes(row.structureStatus) || row.requirement.responsibility === 'UNCONFIRMED') continue;
+    const requirementId = row.requirement.baseId;
+    const key = `${row.course.modality}:${requirementId}`;
+    const item = activities.get(key) || { key, requirementId, requirementGroup: requirementGroup(requirementId), label: requirementId === 'videos' ? 'Videoaulas' : row.requirement.label, modality: row.course.modality, modalityLabel: row.course.modalityLabel, total: 0, overdue: 0, deliveredLate: 0 };
+    item.total += 1;
+    if (row.structureStatus === 'PENDING' && row.overdue) item.overdue += 1;
+    if (row.structureStatus === 'DELIVERED_LATE') item.deliveredLate += 1;
+    activities.set(key, item);
+  }
+  return { access: { total: active.length, items: access }, overdue: { totalDue: due.length, totalOverdue: due.filter((row) => row.structureStatus === 'PENDING' && row.overdue).length, unverified, items: overdueByType }, activities: [...activities.values()].sort((a, b) => (b.overdue + b.deliveredLate) - (a.overdue + a.deliveredLate) || a.label.localeCompare(b.label, 'pt-BR')) };
 }
 function weeklySnapshots(history) {
   const seen = new Set(); const selected = [];
@@ -122,8 +134,10 @@ class DashboardService {
     const page = Math.min(pages, Math.max(1, Number(filters.page) || 1));
     const history = weeklySnapshots((await this.store.listSnapshots(52)).filter((item) => item.rulesVersion === snapshot.rulesVersion && item.source === snapshot.source && new Date(item.generatedAt) <= new Date(snapshot.generatedAt)));
     const trend = history.map((item) => {
-      const historical = groupAssignments(filterRows(allowedRows(item, user), filters));
-      return { generatedAt: item.generatedAt, critical: historical.filter((row) => row.severity === 'CRITICAL').length, attention: historical.filter((row) => row.severity === 'ATTENTION').length };
+      const historicalRows = filterRows(allowedRows(item, user), filters);
+      const historical = groupAssignments(historicalRows);
+      const { requirements } = summarize(historicalRows);
+      return { generatedAt: item.generatedAt, critical: historical.filter((row) => row.severity === 'CRITICAL').length, attention: historical.filter((row) => row.severity === 'ATTENTION').length, delivered: requirements.deliveredOnTime + requirements.deliveredLate + requirements.inheritedReady, pending: requirements.pending, deliveredLate: requirements.deliveredLate, overdue: requirements.overdue, notVerifiable: requirements.notVerifiable };
     });
     const issues = scopedIssues(snapshot, user); const ageMinutes = Math.floor((Date.now() - new Date(snapshot.generatedAt)) / 60000);
     const ranking = teacherRanking(allAssignments, snapshot.generatedAt, snapshot.rows[0]?.rankingPolicy);
