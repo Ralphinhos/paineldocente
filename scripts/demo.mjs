@@ -36,7 +36,7 @@ async function main() {
   console.log('\nVisual 2.0 · teste com dados fictícios · e-mails desabilitados.');
   console.log('Abra http://localhost:8080 e escolha Equipe NED ou Alta gestão.');
   console.log('Para encerrar os dois serviços: Ctrl+C.\n');
-  frontend = spawn(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', '8080', '--strictPort'], { cwd: root, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development' } });
+  frontend = spawn(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), '--host', 'localhost', '--port', '8080', '--strictPort'], { cwd: root, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development' } });
   frontend.once('error', (error) => { console.error(error.message); void stop(1); });
   frontend.once('exit', (code) => void stop(code ?? 0));
 }
