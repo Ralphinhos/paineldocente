@@ -99,7 +99,7 @@ function listManualItems(snapshot, query, records = []) {
   const all = snapshot.rows.filter((row) => row.requirement.manualControl && row.requirement.responsibility !== 'OTHER_TEACHER').map((row) => manualItem(row, history.get(manualDeliveryKey(row.course.id, row.teacher.id, row.requirement.baseId, row.requirement.itemNumber)) || []));
   const options = {
     periods: [...new Set(all.map((item) => item.course.period))].sort(),
-    courses: [...new Map(all.map((item) => [item.course.id, { value: item.course.id, label: item.course.shortName }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
+    courses: [...new Map(all.map((item) => [item.course.id, { value: item.course.id, label: item.course.name + (item.course.shortName !== item.course.name ? ' · ' + item.course.shortName : '') }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
   };
   const text = String(query.query || '').trim().toLocaleLowerCase('pt-BR');
   const filtered = all.filter((item) =>

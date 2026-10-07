@@ -4,10 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "demo": "node scripts/demo.mjs",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "check": "npm run lint && npm run typecheck && npm run build && npm --prefix backend test",
+    "check": "npm run lint && npm run typecheck && npm run build && npm run test:ui && npm --prefix backend test",
+    "test:ui": "node --test tests/presentation.test.mjs tests/dashboard-view.test.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview"
@@ -15,8 +17,7 @@
   "dependencies": {
     "lucide-react": "^0.462.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "recharts": "^2.15.4"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

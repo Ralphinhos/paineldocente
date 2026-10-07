@@ -4,9 +4,9 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 ## O que está pronto
 
-- Visões separadas para NED, coordenação e alta gestão.
-- Alta gestão com gráficos de faixas de acesso e entregas vencidas por tipo; cada faixa abre os casos relacionados.
-- NED organizado em Acompanhamento, UA e videoaulas, Qualidade e envios.
+- Panorama inicial com o layout do HTML “Análise Docente - Acessos e Atrasos”: fundo claro, indicadores coloridos, panorama amplo, Top 10 em pares e tabela.
+- Planilha com uma linha por atividade: docente, disciplina, carga horária, bimestre, prazo, entrega, dias de atraso e acesso.
+- NED organizado em Panorama, Planilha de controle, UA e videoaulas e Relatórios e e-mails.
 - Ranking de regularidade com pesos 50/20/30 e cálculo consultável por docente.
 - Atrasos em dias por atividade, diferenciando duração comprovada e limite observado.
 - Avaliação substitutiva fora dos indicadores e relatórios.
@@ -21,35 +21,42 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 > Produção inicia com envio de e-mail bloqueado. Só libere após homologar regras, prazos, amostra Moodle e destinatários.
 
-## Teste rápido
+## Teste rápido · Layout do HTML de Análise Docente
+
+Use Node.js 22. Encerre os terminais do teste anterior com Ctrl+C. Na pasta do projeto, instale e rode:
+
+```bash
+npm ci
+npm --prefix backend ci
+npm run demo
+```
+
+Abra [http://localhost:8080](http://localhost:8080). Escolha **Equipe NED** ou **Alta gestão**. O Panorama deve mostrar o cabeçalho branco **Análise de Risco e Desempenho Docente**, sem a antiga faixa azul escura. Para parar os dois serviços, Ctrl+C no mesmo terminal.
+
+Este comando usa dados fictícios em memória, escuta apenas no computador local e mantém e-mails desabilitados. As portas 3001 e 8080 devem estar livres: se o teste anterior estiver aberto, o comando falha e pede que ele seja encerrado. Ele não abre silenciosamente outra porta nem encerra processos de terceiros.
+
+Confira estas quatro áreas:
+
+1. **Panorama:** quatro indicadores de docentes, entregas no prazo, entregues com atraso e pendências. O panorama combina duas barras por docente (% de atrasos à esquerda; dias sem acesso à direita). Os quatro Top 10 aparecem em duas colunas; evolução e atividades ocupam a largura completa, seguidos pela tabela. **Ranking docente com pesos** abre a nota 50/20/30. Clique no docente ou na atividade para consultar a planilha correspondente.
+2. **Planilha de controle:** cada atividade aparece diretamente na linha, com datas, bimestre quando aplicável e atraso em dias. Use a lupa para abrir as evidências. A coluna Disciplina e o cabeçalho ficam fixos durante a rolagem. O filtro de situação seleciona as atividades, sem alterar a base do ranking.
+3. **UA e videoaulas (NED):** registre a data de envio do pacote ou de gravação de cada vídeo. Salve ou descarte antes de trocar de área. Regravação e troca de pacote preservam o histórico; publicação continua opcional.
+4. **Relatórios e e-mails (NED):** escolha público e destinatário; confira o texto ou o HTML. Copie o texto ou baixe o relatório. A demonstração bloqueia envio externo.
+
+Os gráficos e a nota usam toda a base autorizada pelos filtros de período, modalidade, disciplina e docente, independentemente da página e da situação da planilha. Percentuais docentes consideram apenas prazos encerrados, com peso igual por disciplina. Base incompleta aparece sem percentual comparável e sem nota geral. Acesso mostra o maior intervalo entre disciplinas ativas; ausência de registro fica identificada e não vira zero.
+
+A evolução mostra a última coleta de cada semana com a mesma versão de regras e a mesma fonte. Com uma única semana, mostra um ponto real; nenhuma curva é inventada. Entregas com atraso estão incluídas no total entregue e aparecem também como série separada. Material replicado e conferido entra no total entregue, mantendo o tratamento já aprovado no ranking.
+
+As listas oferecem a disciplina do Moodle. Curso acadêmico, campus e módulo não são inventados: dependem de mapeamento adicional na integração. As avaliações semestrais mantêm os dois bimestres separados.
+
+Se preferir Docker:
 
 ```bash
 docker compose -f compose.demo.yml up --build
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) e escolha um dos três perfis fictícios. Para parar:
+A referência principal de layout é **Análise Docente - Acessos e Atrasos(3).html**. A planilha define as colunas do controle operacional. As abas mantêm a inspiração Cult UI e os links adaptados do Skiper40, com atribuição no rodapé. Os gráficos continuam locais, sem CDN ou nova dependência. Detalhes e licenças em [Referências da interface](docs/UI_REFERENCIAS.md).
 
-```bash
-docker compose -f compose.demo.yml down
-```
-
-Na nova versão, confira:
-
-1. **Alta gestão:** clique numa faixa de acesso ou barra de entrega vencida para abrir os casos. No ranking, alterne Prioridade, Melhor regularidade e Acessos; as cores mostram os pesos 50/20/30.
-2. **NED → Acompanhamento:** abra “Detalhes” de uma pendência e confira prazo e dias de atraso.
-3. **NED → UA e videoaulas:** registre envio ou gravação; salve antes de trocar de aba. Publicação não altera a nota. Regravação continua em “Nova versão”.
-4. **Relatório semanal:** alterne público, confira a prévia e use “Baixar HTML”. A demonstração mantém o envio bloqueado.
-
-O filtro “Situação da lista” altera somente a lista de ocorrências; a nota e os indicadores usam a base completa dos filtros de período, modalidade, disciplina e docente. A evolução aparece após duas semanas de coletas com a mesma versão de regras. Coletas antigas continuam preservadas; clique em **Atualizar dados** no NED para aplicar a nova versão às próximas coletas.
-
-Sem Docker:
-
-```bash
-npm ci
-npm --prefix backend ci
-npm --prefix backend start
-npm run dev
-```
+A prévia usa o relatório HTML/texto existente. Exportação de XLSX por coordenação, edição de destinatários/cópias pela interface e revisão manual de exceções Moodle ainda exigem uma próxima etapa; não há botões simulando essas funções.
 
 ## Como o painel decide
 
@@ -88,11 +95,14 @@ npm --prefix backend audit --omit=dev
 npm --prefix backend run validate:data -- --fresh
 ```
 
+Resultados da conferência da interface e limites de homologação em [Validação da interface](docs/VALIDACAO_INTERFACE.md).
+
 ## Documentos
 
 - [Implantação no servidor interno](GUIA_DEPLOY.md)
 - [Arquitetura e segurança](docs/ARQUITETURA.md)
 - [Homologação das regras e dados](docs/VALIDACAO_REGRAS.md)
+- [Referências da interface](docs/UI_REFERENCIAS.md)
 - [Especificação técnica compacta](SPEC.md)
 
 ## Estado de homologação

@@ -6,6 +6,7 @@ const { buildSnapshot } = require('../core/rules');
 const { DashboardService, groupAssignments, summarize } = require('../services/dashboardService');
 const { buildReport, ReportService } = require('../services/reportService');
 const { MemoryStore } = require('../services/store');
+const { distinctStructureRows, executiveVisuals } = require('../services/dashboardService');
 const { createDemoSource } = require('../data/demoSource');
 const catalog = require('../config/rules.json');
 const at = '2026-09-11T12:00:00Z';
@@ -91,6 +92,27 @@ test('ranking respeita escopo, período e base inteira; não depende de página 
   assert.deepEqual(first.ranking.teachers.map((entry) => entry.teacher.id).sort(), ['501', '502']);
   assert.equal((await service.getDashboard(user, { period: '2099/1' })).ranking.teachers.length, 0);
 });
+test('filtro pendente no prazo exige prazo conhecido, preserva escopo e não muda indicadores', async () => {
+  const raw = createDemoSource(new Date(at));
+  const snapshot = buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries });
+  const assignments = groupAssignments(snapshot.rows);
+  const future = assignments.find((row) => row.requirements.some((requirement) => requirement.status === 'PENDING' && !requirement.overdue && requirement.deadlineAt));
+  assert.ok(future, 'a amostra deve conter uma pendência no prazo');
+  const store = new MemoryStore(); await store.saveSnapshot(snapshot);
+  const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
+  const user = { role: 'coordinator', courseIds: [future.course.id] };
+  const overview = await service.getDashboard(user, { pageSize: 50 });
+  const within = await service.getDashboard(user, { pageSize: 50, status: 'WITHIN_DEADLINE' });
+  assert.ok(within.rows.length);
+  assert.ok(within.rows.every((row) => row.course.id === future.course.id && row.requirements.some((requirement) => requirement.responsibility !== 'OTHER_TEACHER' && requirement.status === 'PENDING' && !requirement.overdue && requirement.deadlineAt)));
+  assert.deepEqual(within.summary, overview.summary);
+  assert.deepEqual(within.ranking, overview.ranking);
+  const pending = snapshot.rows.filter((row) => row.structureStatus === 'PENDING');
+  for (const row of pending) { row.deadlineAt = null; row.overdue = false; }
+  const unknownStore = new MemoryStore(); await unknownStore.saveSnapshot(snapshot);
+  const unknownService = new DashboardService({ store: unknownStore, snapshotIntervalMinutes: 60 });
+  assert.equal((await unknownService.getDashboard(user, { status: 'WITHIN_DEADLINE' })).rows.length, 0);
+});
 test('gráficos executivos usam bases explícitas e o clique por tipo retorna só itens relacionados', async () => {
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
   await store.saveSnapshot(buildSnapshot(raw, catalog, { rulesApproved: true, manualDeliveries: raw.manualDeliveries }));
@@ -168,4 +190,43 @@ test('HTML do relatório escapa nomes e mantém somente entregas do responsável
   assert.ok(!report.html.includes('<script>')); assert.ok(!report.html.includes('<img'));
   assert.ok(report.html.includes('&lt;script&gt;bad&lt;/script&gt;'));
   assert.ok(!report.details[0].reason.includes('Item de outro docente'));
+});
+test('atividades dos gráficos deduplicam material compartilhado e excluem outro responsável', () => {
+  const raw = createDemoSource(new Date(at));
+  const snapshot = buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries });
+  const structures = distinctStructureRows(snapshot.rows).filter((row) => !['NOT_APPLICABLE', 'INHERITED_READY', 'NOT_VERIFIABLE'].includes(row.structureStatus) && row.requirement.responsibility === 'ASSIGNED');
+  const graphics = executiveVisuals(snapshot.rows, at).activities;
+  assert.equal(graphics.reduce((sum, item) => sum + item.total, 0), structures.length);
+  assert.equal(graphics.reduce((sum, item) => sum + item.overdue, 0), structures.filter((row) => row.structureStatus === 'PENDING' && row.overdue).length);
+  assert.equal(graphics.reduce((sum, item) => sum + item.deliveredLate, 0), structures.filter((row) => row.structureStatus === 'DELIVERED_LATE').length);
+  const owned = snapshot.rows.find((row) => row.course.id === '1104' && row.requirement.baseId === 'videos' && row.requirement.responsibility === 'ASSIGNED');
+  const other = snapshot.rows.find((row) => row.course.id === '1104' && row.requirement.id === owned.requirement.id && row.requirement.responsibility === 'OTHER_TEACHER');
+  owned.structureStatus = 'DELIVERED_ON_TIME';
+  other.structureStatus = 'DELIVERED_LATE';
+  assert.equal(executiveVisuals([owned, other], at).activities[0].deliveredLate, 0);
+});
+test('clique de atividade filtra o bimestre correto e mantém a base dos gráficos e do ranking', async () => {
+  const raw = createDemoSource(new Date(at)); const store = new MemoryStore();
+  await store.saveSnapshot(buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries }));
+  const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
+  const user = { role: 'coordinator', courseIds: ['1103'] };
+  const full = await service.getDashboard(user);
+  const first = await service.getDashboard(user, { requirementGroup: 'ASSESSMENT', requirementId: 'avaliacao_bimestral_1' });
+  assert.ok(first.rows.length);
+  assert.ok(first.rows.every((row) => row.requirements.length > 0 && row.requirements.every((item) => item.baseId === 'avaliacao_bimestral_1')));
+  assert.deepEqual(first.visuals, full.visuals);
+  assert.deepEqual(first.ranking, full.ranking);
+  assert.deepEqual(first.trend, full.trend);
+  assert.equal((await service.getDashboard(user, { requirementId: 'inexistente' })).rows.length, 0);
+});
+test('evolução usa contagens da coleta, inclui atrasadas no total entregue e mantém pendências separadas', async () => {
+  const raw = createDemoSource(new Date(at)); const store = new MemoryStore();
+  await store.saveSnapshot(buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries }));
+  const data = await new DashboardService({ store, snapshotIntervalMinutes: 60 }).getDashboard({ role: 'executive' });
+  const latest = data.trend[0]; const req = data.summary.requirements;
+  assert.equal(latest.delivered, req.deliveredOnTime + req.deliveredLate + req.inheritedReady);
+  assert.equal(latest.deliveredLate, req.deliveredLate);
+  assert.equal(latest.pending, req.pending);
+  assert.equal(latest.notVerifiable, req.notVerifiable);
+  assert.ok(latest.delivered >= latest.deliveredLate);
 });
