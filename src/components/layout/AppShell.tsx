@@ -10,10 +10,10 @@ export function AppShell({ children, hasUnsavedChanges = false }: { children: Re
   return <div className="app-shell">
     <UnderlinedLink className="skip-link" href="#conteudo">Ir para o conteúdo</UnderlinedLink>
     <header className="topbar">
-      <div className="brand-lockup"><img src="/logo_branca.png" alt="UNIFENAS" /><span className="brand-divider" aria-hidden="true" /><div><strong>Controle docente</strong><small>Núcleo de Educação a Distância</small></div></div>
-      <div className="topbar-actions">{authMode === 'demo' && <span className="demo-pill">Demonstração</span>}<div className="user-summary"><strong>{ROLE_LABELS[user.role]}</strong><small>{user.name}</small></div><button className="icon-button icon-button-dark" type="button" disabled={hasUnsavedChanges} title={hasUnsavedChanges ? 'Salve ou descarte as alterações antes de sair' : 'Sair'} onClick={() => void logout()} aria-label="Sair"><LogOut size={18} /></button></div>
+      <div className="brand-lockup"><strong>UNIFENAS · NED</strong></div>
+      <div className="topbar-actions">{authMode === 'demo' && <span className="demo-pill">Demonstração</span>}<div className="user-summary"><strong>{ROLE_LABELS[user.role]}</strong><small>{user.name}</small></div><button className="icon-button" type="button" disabled={hasUnsavedChanges} title={hasUnsavedChanges ? 'Salve ou descarte as alterações antes de sair' : 'Sair'} onClick={() => void logout()} aria-label="Sair"><LogOut size={18} /></button></div>
     </header>
     <main id="conteudo" className="page-wrap" tabIndex={-1}>{children}</main>
-    <footer className="app-footer"><span>UNIFENAS · NED · Visual 2.0</span><span className="interface-credit">Interface: <UnderlinedLink href="https://skiper-ui.com/" target="_blank" rel="noreferrer">Skiper UI</UnderlinedLink> · <UnderlinedLink href="https://github.com/nolly-studio/cult-ui" target="_blank" rel="noreferrer">Cult UI</UnderlinedLink></span></footer>
+    <footer className="app-footer"><span>UNIFENAS · Núcleo de Educação a Distância</span><span className="interface-credit">Interface: <UnderlinedLink href="https://skiper-ui.com/" target="_blank" rel="noreferrer">Skiper UI</UnderlinedLink> · <UnderlinedLink href="https://github.com/nolly-studio/cult-ui" target="_blank" rel="noreferrer">Cult UI</UnderlinedLink></span></footer>
   </div>;
 }

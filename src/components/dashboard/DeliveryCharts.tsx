@@ -17,7 +17,7 @@ export function DeliveryCharts({ data, onSelect }: { data: DashboardData; onSele
   const largest = Math.max(1, ...activities.map((item) => item.overdue + item.deliveredLate));
   return <>
     <section className="chart-panel chart-wide" aria-labelledby="evolution-title">
-      <header className="chart-heading"><div><h2 id="evolution-title">Evolução das entregas</h2><p>Última coleta de cada semana · quantidade de atividades</p></div><span className="chart-count">{points.length} semana{points.length === 1 ? '' : 's'}</span></header>
+      <header className="chart-heading"><div><h2 id="evolution-title">Evolução do andamento</h2><p>Por data de relatório · quantidade de atividades</p></div><span className="chart-count">{points.length} semana{points.length === 1 ? '' : 's'}</span></header>
       <div className="chart-legend">{series.map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.label}</span>)}</div>
       {points.length ? <div className="chart-scroll"><svg className="trend-plot" viewBox={'0 0 ' + width + ' ' + height} role="img" aria-label="Evolução semanal das entregas. Os valores exatos estão na tabela de dados deste gráfico.">
         {[0, 1, 2, 3, 4].map((tick) => <g key={tick} aria-hidden="true"><line x1={left} x2={width - right} y1={y(maximum * tick / 4)} y2={y(maximum * tick / 4)} className="plot-grid" /><text x={left - 10} y={y(maximum * tick / 4) + 4} textAnchor="end" className="axis-tick">{maximum * tick / 4}</text></g>)}
@@ -27,8 +27,8 @@ export function DeliveryCharts({ data, onSelect }: { data: DashboardData; onSele
       <div className="chart-footnote"><span>{points.length === 1 ? 'Primeira semana registrada. As próximas coletas formarão a curva.' : 'Entregas com atraso fazem parte do total entregue.'}</span><span>{points.at(-1)?.notVerifiable ? points.at(-1)!.notVerifiable + ' atividades a validar na última coleta' : 'Mesmas regras, modalidade e período'}</span></div>
       <details className="chart-data"><summary>Ver dados do gráfico</summary><div className="table-wrap"><table><thead><tr><th>Coleta</th><th>Entregues</th><th>Pendentes</th><th>Entregues com atraso</th><th>A validar</th></tr></thead><tbody>{points.map((point) => <tr key={point.generatedAt}><td>{formatDate(point.generatedAt)}</td><td>{point.delivered}</td><td>{point.pending}</td><td>{point.deliveredLate}</td><td>{point.notVerifiable}</td></tr>)}</tbody></table></div></details>
     </section>
-    <section className="chart-panel" aria-labelledby="activity-chart-title">
-      <header className="chart-heading"><div><h2 id="activity-chart-title">Top 10 · atividades com atraso</h2><p>Quantidade de itens · agrupados por modalidade</p></div></header>
+    <section className="chart-panel chart-wide" aria-labelledby="activity-chart-title">
+      <header className="chart-heading"><div><h2 id="activity-chart-title">Top 10 atividades com mais atrasos</h2><p>Por modalidade · quantidade de itens</p></div></header>
       <div className="chart-legend"><span><i className="legend-overdue" />Pendente em atraso</span><span><i className="legend-late" />Entregue com atraso</span></div>
       <div className="horizontal-chart">{activities.map((item) => {
         const total = item.overdue + item.deliveredLate;

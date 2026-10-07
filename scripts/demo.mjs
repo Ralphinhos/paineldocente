@@ -33,7 +33,7 @@ async function main() {
   });
   server = createApp(runtime).listen(3001, '127.0.0.1');
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
-  console.log('\nVisual 2.0 · teste com dados fictícios · e-mails desabilitados.');
+  console.log('\nLayout do HTML de Análise Docente · dados fictícios · e-mails desabilitados.');
   console.log('Abra http://localhost:8080 e escolha Equipe NED ou Alta gestão.');
   console.log('Para encerrar os dois serviços: Ctrl+C.\n');
   frontend = spawn(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), '--host', 'localhost', '--port', '8080', '--strictPort'], { cwd: root, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development' } });

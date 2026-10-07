@@ -8,7 +8,7 @@ export function ExecutiveOverview({ data, onTeacher, onVisual }: { data: Dashboa
   return <div className="analytics-grid">
     <TeacherCharts data={data.ranking} onTeacher={onTeacher} />
     <DeliveryCharts data={data} onSelect={onVisual} />
-    <TeacherRanking data={data.ranking} onSelect={onTeacher} />
     <TeacherPerformanceTable data={data.ranking} onSelect={onTeacher} />
+    <details className="secondary-analysis chart-wide"><summary>Ranking docente com pesos</summary><TeacherRanking data={data.ranking} onSelect={onTeacher} /></details>
   </div>;
 }

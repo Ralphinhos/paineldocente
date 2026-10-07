@@ -1,27 +1,29 @@
 # Referências e organização da interface
 
-A interface acompanha o trabalho semanal do NED: conferir a tabela, registrar o material manual e preparar os relatórios. A base visual são as planilhas e os e-mails institucionais enviados pelo usuário: cabeçalho azul, nomes completos de disciplinas, datas e situações legíveis.
+A interface acompanha o trabalho semanal do NED: conferir a tabela, registrar o material manual e preparar os relatórios. O HTML **Análise Docente - Acessos e Atrasos(3).html** é a referência principal de layout: fundo claro, cabeçalho branco, indicadores coloridos e gráficos agrupados na mesma ordem. As planilhas e os e-mails definem o conteúdo operacional.
 
-## Estrutura · Visual 2.0
+## Estrutura · layout do HTML
 
-O HTML fornecido define a composição: filtros visíveis, quatro indicadores coloridos, panorama geral, quatro gráficos Top 10, evolução, atividades com atraso e tabela de todos os docentes. O ranking ponderado é um oitavo gráfico. Explicações e fórmulas ficam nos detalhes.
+O HTML fornecido define a composição: filtros visíveis, quatro indicadores coloridos, panorama geral em largura completa, quatro gráficos Top 10 em duas colunas, evolução e atividades em largura completa, e tabela de todos os docentes. O ranking ponderado fica em uma seção expansível após a tabela. Explicações e fórmulas ficam nos detalhes.
+
+A página usa largura máxima de 1280px, superfícies brancas com raio de 16px e separação de 24px. A conta aparece em uma faixa discreta; o cabeçalho azul escuro foi removido. Os indicadores mostram docentes analisados, entregas no prazo, entregues com atraso e todas as pendências, com discriminação entre vencidas e no prazo. Uma pendência vencida continua em PENDING; não é apresentada como entrega concluída.
 
 A planilha define o controle operacional: uma atividade por linha, docente e disciplina repetidos quando necessário, datas civis brasileiras, atraso numérico e células de situação coloridas. Não há expansão obrigatória para encontrar o prazo. Bimestres são identificados pelo requisito real; pacote de UAs permanece único e cada vídeo mantém sua linha.
 
 | Público | Tela inicial | Outras áreas |
 |---|---|---|
-| NED | Panorama com oito gráficos e tabela de desempenho | Planilha, controle manual, relatórios e e-mails |
+| NED | Panorama com sete gráficos e tabela; ranking ponderado expansível | Planilha, controle manual, relatórios e e-mails |
 | Coordenação | Panorama das disciplinas autorizadas | Planilha e relatório detalhado |
 | Alta gestão | Panorama, ranking e evolução | Planilha para investigar os casos |
 | Auditoria | Panorama autorizado, somente leitura | Planilha e evidências |
 
 Percentual de atrasos inclui entregas tardias e pendências vencidas, com a mesma base de prazos encerrados do ranking. Percentuais têm peso igual por disciplina. Não se reutilizam as médias de semanas nem a antiga faixa de quatro dias do HTML: acesso usa o maior intervalo nas disciplinas ativas e as faixas aprovadas 0–7 / 8–14 / 15+. Sem registro nunca é convertido em zero; base incompleta fica sem nota geral ou percentual comparável.
 
-O panorama alinha duas áreas de barras: percentual e dias em escalas separadas. Top 10 mantém barras começando em zero; evolução usa datas reais e três séries, sendo entregas tardias um subconjunto das entregues. O gráfico de atividades distingue pendências vencidas de entregas concluídas com atraso, sem duplicar material compartilhado entre docentes.
+O panorama usa duas barras lado a lado por docente, como no HTML: vermelho para percentual e azul para dias, com eixos explicitamente separados. A altura das duas séries usa unidades diferentes; a leitura exata está nos rótulos e na tabela. Zero tem rótulo 0; ausência de base tem travessão e não gera barra. Top 10 mantém barras começando em zero; evolução usa datas reais e três séries, sendo entregas tardias um subconjunto das entregues. O gráfico de atividades distingue pendências vencidas de entregas concluídas com atraso, sem duplicar material compartilhado entre docentes.
 
 A tabela de desempenho é a alternativa numérica aos gráficos. As barras e os docentes abrem filtros reais na planilha, incluindo a atividade e o bimestre corretos. A nota não muda ao filtrar apenas a situação das atividades.
 
-As abas suportam setas, Home e End; diálogos usam dialog nativo. Há foco visível, alvos de 44px e preferência de movimento reduzido. O grid de gráficos passa de duas colunas para uma em 800px. Indicadores passam para duas colunas e filtros se reorganizam. Tabelas e gráficos extensos rolam horizontalmente, preservando colunas e valores; a disciplina e o cabeçalho ficam fixos.
+As abas suportam setas, Home e End; diálogos usam dialog nativo. Há foco visível, alvos de 44px e preferência de movimento reduzido. O grid de gráficos passa de duas colunas para uma em 800px. Indicadores passam de quatro para duas colunas em 800px e uma em 600px; filtros se reorganizam em 1000px. Tabelas e gráficos extensos rolam horizontalmente, preservando colunas e valores; a disciplina e o cabeçalho ficam fixos.
 
 Durante uma edição manual, salve ou descarte antes de trocar de área ou sair. O controle mantém bloqueios de concorrência, justificativa, novas versões e histórico. Atualizar dados também recarrega a lista manual.
 
@@ -65,4 +67,4 @@ A prévia e os downloads usam o HTML/texto do backend. XLSX por coordenação, c
 
 A verificação automatizada cobre tipos, lint, build, segurança/escopo, regras, apresentação de datas e situação, bases dos gráficos, ausência de registro, responsabilidade compartilhada e filtros dos dois bimestres. A prévia interativa usa os componentes da aplicação com coletas fictícias e sem persistir alterações.
 
-O navegador remoto deste ambiente bloqueou tanto localhost quanto arquivos locais por política de acesso. A apresentação visual no navegador e os cliques devem ser conferidos no computador de teste com `npm run demo`; há identificação Visual 2.0 no título e no rodapé para distinguir a versão nova.
+O navegador remoto deste ambiente bloqueou tanto localhost quanto arquivos locais por política de acesso. A apresentação visual no navegador e os cliques devem ser conferidos no computador de teste com `npm run demo`. O cabeçalho branco, o panorama com barras agrupadas e o ranking ponderado expansível identificam a nova composição.

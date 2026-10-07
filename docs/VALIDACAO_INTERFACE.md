@@ -1,16 +1,20 @@
-# Conferência da interface — Visual 2.0
+# Conferência da interface — layout do HTML
 
 Conferência técnica de 07/10/2026, com dados fictícios em memória. Ela verifica a apresentação dos dados e as ações da aplicação; não homologa dados reais da UNIFENAS.
+
+Atualização de layout baseada diretamente em Análise Docente - Acessos e Atrasos(3).html: cabeçalho branco, quatro indicadores nas cores da referência, panorama com barras agrupadas, Top 10 em pares, evolução e atividades em largura completa, tabela e ranking ponderado expansível. A faixa antiga azul escura foi removida. Regras e integrações do backend não foram alteradas.
+
+A conferência após essa atualização passou novamente em lint, TypeScript, build e 71 testes. Requisições HTTP e componentes React confirmaram os cliques dos indicadores, incluindo todas as pendências, nomes distintos nos eixos, os dois eixos com unidades e a tabela antes do ranking ponderado. Os textos pequenos dos indicadores têm contraste calculado de pelo menos 4,69:1 nos extremos dos gradientes. A aparência no navegador continua entre as conferências pendentes abaixo.
 
 | Conferência | Resultado |
 |---|---|
 | Lint, TypeScript e build | Passaram em `npm run check` |
 | Apresentação, filtros e regras | 11 testes de interface e 60 de backend passaram |
 | Inicialização real | `scripts/demo.mjs` inicia Vite e API; o link exibido usa localhost e permite login |
-| Indicadores e planilha | As quatro contagens conferem com os itens filtrados; atrasos conferem com datas civis em São Paulo |
+| Indicadores e planilha | Contagens conferem com docentes e itens filtrados; atrasos conferem com datas civis em São Paulo |
 | Filtros | Período, modalidade, docente e cada bimestre retornam a seleção correta; paginação e situação não mudam os gráficos nem o ranking |
 | Perfis | NED e alta gestão recebem o panorama completo; coordenação recebe somente 1101/1102 na demonstração, inclusive nos filtros, gráficos e relatório |
-| Componentes React | Renderização de HTML em Node confirmou oito gráficos, docentes da base autorizada, os dois bimestres identificados e uma linha por atividade |
+| Componentes React | Renderização de HTML em Node confirmou sete gráficos principais e um ranking ponderado expansível, docentes da base autorizada, os dois bimestres identificados e uma linha por atividade |
 | Materiais manuais | Um pacote de UAs; vídeos conforme a carga horária; entrega de teste com atraso de 2 dias; publicação não altera situação nem ranking |
 | Troca de material | Versão 2 de pacote replicado usa prazo próprio, preserva a versão 1 e congela atraso de 1 dia após entregar |
 | Proteções | Coordenação/gestão não alteram o NED; CSRF, data futura, justificativa ausente e coleta desatualizada são rejeitados |
@@ -46,4 +50,4 @@ npm --prefix backend audit --omit=dev --audit-level=high
 npm run demo
 ```
 
-Abra http://localhost:8080 e identifique **Visual 2.0**. Entre nos três perfis e confira o Panorama, o clique para a planilha, as datas e os relatórios. No perfil NED, registre uma data de docente, salve e consulte o histórico após trocar o pacote ou regravar. Esses registros de demonstração ficam em memória e não são enviados por e-mail.
+Abra http://localhost:8080 e identifique o cabeçalho branco **Análise de Risco e Desempenho Docente**. Confira os quatro indicadores, duas barras por docente no panorama, os Top 10 em pares e os gráficos inferiores em largura completa. Abra **Ranking docente com pesos** para ver a nota geral. Entre nos três perfis e confira o clique para a planilha, as datas e os relatórios. No perfil NED, registre uma data de docente, salve e consulte o histórico após trocar o pacote ou regravar. Esses registros de demonstração ficam em memória e não são enviados por e-mail.

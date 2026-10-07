@@ -4,7 +4,7 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 ## O que está pronto
 
-- Panorama inicial para todos os perfis, com os sete gráficos do HTML de referência e o ranking ponderado.
+- Panorama inicial com o layout do HTML “Análise Docente - Acessos e Atrasos”: fundo claro, indicadores coloridos, panorama amplo, Top 10 em pares e tabela.
 - Planilha com uma linha por atividade: docente, disciplina, carga horária, bimestre, prazo, entrega, dias de atraso e acesso.
 - NED organizado em Panorama, Planilha de controle, UA e videoaulas e Relatórios e e-mails.
 - Ranking de regularidade com pesos 50/20/30 e cálculo consultável por docente.
@@ -21,7 +21,7 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 > Produção inicia com envio de e-mail bloqueado. Só libere após homologar regras, prazos, amostra Moodle e destinatários.
 
-## Teste rápido · Visual 2.0
+## Teste rápido · Layout do HTML de Análise Docente
 
 Use Node.js 22. Encerre os terminais do teste anterior com Ctrl+C. Na pasta do projeto, instale e rode:
 
@@ -31,13 +31,13 @@ npm --prefix backend ci
 npm run demo
 ```
 
-Abra [http://localhost:8080](http://localhost:8080). A tela de entrada deve mostrar **NED · Visual 2.0**. Escolha **Equipe NED** ou **Alta gestão**; ambos abrem o Panorama. Para parar os dois serviços, Ctrl+C no mesmo terminal.
+Abra [http://localhost:8080](http://localhost:8080). Escolha **Equipe NED** ou **Alta gestão**. O Panorama deve mostrar o cabeçalho branco **Análise de Risco e Desempenho Docente**, sem a antiga faixa azul escura. Para parar os dois serviços, Ctrl+C no mesmo terminal.
 
 Este comando usa dados fictícios em memória, escuta apenas no computador local e mantém e-mails desabilitados. As portas 3001 e 8080 devem estar livres: se o teste anterior estiver aberto, o comando falha e pede que ele seja encerrado. Ele não abre silenciosamente outra porta nem encerra processos de terceiros.
 
 Confira estas quatro áreas:
 
-1. **Panorama:** quatro estados de entrega; panorama dos docentes; Top 10 de atrasos, entregas no prazo, ausências e acessos recentes; evolução semanal; atividades com atraso; ranking 50/20/30. A tabela inferior mostra todos os docentes e permite ordenar os valores. Clique no docente ou na atividade para consultar a planilha correspondente.
+1. **Panorama:** quatro indicadores de docentes, entregas no prazo, entregues com atraso e pendências. O panorama combina duas barras por docente (% de atrasos à esquerda; dias sem acesso à direita). Os quatro Top 10 aparecem em duas colunas; evolução e atividades ocupam a largura completa, seguidos pela tabela. **Ranking docente com pesos** abre a nota 50/20/30. Clique no docente ou na atividade para consultar a planilha correspondente.
 2. **Planilha de controle:** cada atividade aparece diretamente na linha, com datas, bimestre quando aplicável e atraso em dias. Use a lupa para abrir as evidências. A coluna Disciplina e o cabeçalho ficam fixos durante a rolagem. O filtro de situação seleciona as atividades, sem alterar a base do ranking.
 3. **UA e videoaulas (NED):** registre a data de envio do pacote ou de gravação de cada vídeo. Salve ou descarte antes de trocar de área. Regravação e troca de pacote preservam o histórico; publicação continua opcional.
 4. **Relatórios e e-mails (NED):** escolha público e destinatário; confira o texto ou o HTML. Copie o texto ou baixe o relatório. A demonstração bloqueia envio externo.
@@ -54,7 +54,7 @@ Se preferir Docker:
 docker compose -f compose.demo.yml up --build
 ```
 
-A direção visual segue **Análise Docente - Acessos e Atrasos** e a aba **Base** das planilhas fornecidas. As abas mantêm a inspiração Cult UI e os links adaptados do Skiper40, com atribuição no rodapé. Não foram adicionadas bibliotecas de animação. Detalhes e licenças em [Referências da interface](docs/UI_REFERENCIAS.md).
+A referência principal de layout é **Análise Docente - Acessos e Atrasos(3).html**. A planilha define as colunas do controle operacional. As abas mantêm a inspiração Cult UI e os links adaptados do Skiper40, com atribuição no rodapé. Os gráficos continuam locais, sem CDN ou nova dependência. Detalhes e licenças em [Referências da interface](docs/UI_REFERENCIAS.md).
 
 A prévia usa o relatório HTML/texto existente. Exportação de XLSX por coordenação, edição de destinatários/cópias pela interface e revisão manual de exceções Moodle ainda exigem uma próxima etapa; não há botões simulando essas funções.
 
