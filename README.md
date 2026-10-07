@@ -6,7 +6,7 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 - Visões separadas para NED, coordenação e alta gestão.
 - Alta gestão com gráficos de faixas de acesso e entregas vencidas por tipo; cada faixa abre os casos relacionados.
-- NED organizado em Acompanhamento, UA e videoaulas, Qualidade e envios.
+- NED organizado em Conferência, UA e vídeos e Relatórios.
 - Ranking de regularidade com pesos 50/20/30 e cálculo consultável por docente.
 - Atrasos em dias por atividade, diferenciando duração comprovada e limite observado.
 - Avaliação substitutiva fora dos indicadores e relatórios.
@@ -35,21 +35,30 @@ docker compose -f compose.demo.yml down
 
 Na nova versão, confira:
 
-1. **Alta gestão:** clique numa faixa de acesso ou barra de entrega vencida para abrir os casos. No ranking, alterne Prioridade, Melhor regularidade e Acessos; as cores mostram os pesos 50/20/30.
-2. **NED → Acompanhamento:** abra “Detalhes” de uma pendência e confira prazo e dias de atraso.
-3. **NED → UA e videoaulas:** registre envio ou gravação; salve antes de trocar de aba. Publicação não altera a nota. Regravação continua em “Nova versão”.
-4. **Relatório semanal:** alterne público, confira a prévia e use “Baixar HTML”. A demonstração mantém o envio bloqueado.
+1. **Alta gestão:** veja dois gráficos e o Top 5 docente. Clique numa faixa ou barra para consultar os casos; “Voltar ao resumo” desfaz essa seleção. Os cálculos e o histórico ficam nos detalhes.
+2. **NED → Conferência:** clique em “Atividades” para conferir prazo, data da entrega e dias de atraso. “Ver evidências” abre a origem dos dados. O filtro separa pendências no prazo e em atraso.
+3. **NED → UA e vídeos:** registre o envio do pacote ou a gravação de cada vídeo. Salve ou descarte antes de sair da aba. Publicação é opcional e não altera a nota. “Regravar” e “Trocar pacote” preservam as versões anteriores.
+4. **NED → Relatórios:** escolha público e destinatário; confira o texto ou HTML. Copie o texto ou baixe o HTML. O botão de envio informa que enviará para todos os destinatários daquele público; a demonstração mantém o envio bloqueado.
 
 O filtro “Situação da lista” altera somente a lista de ocorrências; a nota e os indicadores usam a base completa dos filtros de período, modalidade, disciplina e docente. A evolução aparece após duas semanas de coletas com a mesma versão de regras. Coletas antigas continuam preservadas; clique em **Atualizar dados** no NED para aplicar a nova versão às próximas coletas.
 
-Sem Docker:
+Sem Docker, abra **dois terminais** na pasta do projeto. No primeiro:
 
 ```bash
 npm ci
 npm --prefix backend ci
 npm --prefix backend start
+```
+
+No segundo:
+
+```bash
 npm run dev
 ```
+
+Esta reorganização usa abas inspiradas no Cult UI e links adaptados do Skiper40, com atribuição no rodapé. Não adiciona pacotes de animação. Detalhes e licenças em [Referências da interface](docs/UI_REFERENCIAS.md).
+
+A prévia usa o relatório HTML/texto existente. Exportação de XLSX por coordenação, edição de destinatários/cópias pela interface e revisão manual de exceções Moodle ainda exigem uma próxima etapa; não há botões simulando essas funções.
 
 ## Como o painel decide
 
@@ -93,6 +102,7 @@ npm --prefix backend run validate:data -- --fresh
 - [Implantação no servidor interno](GUIA_DEPLOY.md)
 - [Arquitetura e segurança](docs/ARQUITETURA.md)
 - [Homologação das regras e dados](docs/VALIDACAO_REGRAS.md)
+- [Referências da interface](docs/UI_REFERENCIAS.md)
 - [Especificação técnica compacta](SPEC.md)
 
 ## Estado de homologação

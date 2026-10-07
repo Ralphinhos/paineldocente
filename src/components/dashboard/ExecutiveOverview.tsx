@@ -1,16 +1,15 @@
 import { lazy, Suspense } from 'react';
-import { ArrowRight } from 'lucide-react';
 import { ExecutiveCharts, type ExecutiveVisualSelection } from './ExecutiveCharts';
 import { TeacherRanking } from './TeacherRanking';
-import type { AssignmentRow, DashboardData, RankingEntry } from '@/types/dashboard';
+import type { DashboardData, RankingEntry } from '@/types/dashboard';
 const TrendChart = lazy(() => import('./TrendChart'));
-export function ExecutiveOverview({ data, onOpen, onTeacher, onVisual }: { data: DashboardData; onOpen: (row: AssignmentRow) => void; onTeacher: (entry: RankingEntry) => void; onVisual: (selection: ExecutiveVisualSelection) => void }) {
-  const exceptions = data.rows.filter((row) => row.severity !== 'OK').slice(0, 5);
+export function ExecutiveOverview({ data, onTeacher, onVisual }: { data: DashboardData; onTeacher: (entry: RankingEntry) => void; onVisual: (selection: ExecutiveVisualSelection) => void }) {
   return <div className="executive-grid">
     <ExecutiveCharts data={data.visuals} onSelect={onVisual} />
     <TeacherRanking data={data.ranking} onSelect={onTeacher} />
-    <section className="insight-section executive-exceptions"><div className="section-heading compact"><div><h2>Ocorrências atuais</h2><p>Continuam visíveis mesmo com nota média alta.</p></div></div>{exceptions.length ? <div className="priority-list">{exceptions.map((row) => <button type="button" key={row.id} onClick={() => onOpen(row)}><span><strong>{row.teacher.name}</strong><small>{row.course.shortName}</small><span>{row.primaryReason}</span></span><ArrowRight size={17} /></button>)}</div> : <div className="empty-inline">Nenhuma ocorrência atual.</div>}</section>
-    <section className="insight-section trend-section"><div className="section-heading compact"><div><h2>Pendências e acessos por semana</h2><p>Docente × disciplina · mesma versão de regras e filtros.</p></div></div>{data.trend.length > 1 ? <Suspense fallback={<div className="chart-loading">Carregando evolução…</div>}><TrendChart data={data.trend} /></Suspense> : <div className="empty-inline">A comparação aparecerá após duas semanas de coletas com estas regras.</div>}</section>
-    <section className="insight-section modality-section"><div className="section-heading compact"><h2>Disciplinas por modalidade</h2></div><div className="modality-list">{data.modalityBreakdown.map((item) => <div key={item.modality}><div><strong>{item.label}</strong><span>{item.issues} de {item.total} com ocorrência</span></div><div className="progress-track"><span style={{ width: `${item.total ? item.compliant / item.total * 100 : 0}%` }} /></div><b>{item.compliant} regulares</b></div>)}</div></section>
+    <details className="secondary-analysis"><summary>Histórico e modalidades</summary><div className="secondary-analysis-grid">
+      <section className="insight-section"><div className="section-heading"><h2>Acompanhamento por semana</h2></div>{data.trend.length > 1 ? <Suspense fallback={<div className="chart-loading">Carregando histórico…</div>}><TrendChart data={data.trend} /></Suspense> : <p className="empty-inline">O histórico aparece após duas semanas de coletas com as mesmas regras e filtros.</p>}</section>
+      <section className="insight-section"><div className="section-heading"><h2>Disciplinas por modalidade</h2></div><div className="modality-list">{data.modalityBreakdown.map((item) => <div key={item.modality}><strong>{item.label}</strong><span>{item.issues} de {item.total} com ocorrência</span><div className="progress-track"><span style={{ width: (item.total ? item.compliant / item.total * 100 : 0) + '%' }} /></div></div>)}</div></section>
+    </div></details>
   </div>;
 }

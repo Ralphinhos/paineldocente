@@ -57,7 +57,7 @@ function matchesStatus(assignment, filters) {
   const group = filters.requirementGroup;
   if (!statuses.length && !group) return true;
   if (!group && statuses.includes(assignment.accessStatus)) return true;
-  return assignment.requirements.some((item) => item.responsibility !== 'OTHER_TEACHER' && (!group || requirementGroup(item.baseId) === group) && (statuses.includes(item.status) || statuses.includes('OVERDUE') && item.status === 'PENDING' && item.overdue));
+  return assignment.requirements.some((item) => item.responsibility !== 'OTHER_TEACHER' && (!group || requirementGroup(item.baseId) === group) && (statuses.includes(item.status) || statuses.includes('OVERDUE') && item.status === 'PENDING' && item.overdue || statuses.includes('WITHIN_DEADLINE') && item.status === 'PENDING' && !item.overdue && item.deadlineAt));
 }
 function projectAssignment(assignment, filters) {
   if (!filters.requirementGroup) return assignment;
@@ -74,7 +74,7 @@ function projectAssignment(assignment, filters) {
   };
 }
 function scopedIssues(snapshot, user) { if (user.role !== 'coordinator') return snapshot.qualityIssues; const scope = new Set(user.courseIds.map(String)); return snapshot.qualityIssues.filter((issue) => !issue.courseId || scope.has(String(issue.courseId))); }
-function filterOptions(rows) { const unique = (values) => [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR')); return { periods: unique(rows.map((row) => row.course.period)), modalities: unique(rows.map((row) => row.course.modality)).map((value) => ({ value, label: rows.find((row) => row.course.modality === value).course.modalityLabel })), courses: [...new Map(rows.map((row) => [row.course.id, { value: row.course.id, label: row.course.shortName }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')) }; }
+function filterOptions(rows) { const unique = (values) => [...new Set(values)].sort((a, b) => a.localeCompare(b, 'pt-BR')); return { periods: unique(rows.map((row) => row.course.period)), modalities: unique(rows.map((row) => row.course.modality)).map((value) => ({ value, label: rows.find((row) => row.course.modality === value).course.modalityLabel })), courses: [...new Map(rows.map((row) => [row.course.id, { value: row.course.id, label: row.course.name + (row.course.shortName !== row.course.name ? ' · ' + row.course.shortName : '') }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')) }; }
 function modalityBreakdown(rows) { const courses = new Map(); for (const assignment of groupAssignments(rows)) { const item = courses.get(assignment.course.id) || { modality: assignment.course.modality, label: assignment.course.modalityLabel, issue: false }; item.issue ||= assignment.severity !== 'OK'; courses.set(assignment.course.id, item); } const map = new Map(); for (const course of courses.values()) { const group = map.get(course.modality) || { modality: course.modality, label: course.label, total: 0, issues: 0 }; group.total += 1; if (course.issue) group.issues += 1; map.set(course.modality, group); } return [...map.values()].map((item) => ({ ...item, compliant: item.total - item.issues })); }
 function executiveVisuals(rows, asOf) {
   const assignments = groupAssignments(rows);

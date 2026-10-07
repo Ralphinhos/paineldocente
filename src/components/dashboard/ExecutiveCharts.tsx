@@ -10,7 +10,7 @@ export function ExecutiveCharts({ data, onSelect }: { data: DashboardData['visua
   const maxOverdue = Math.max(1, ...data.overdue.items.map((item) => item.overdue));
   return <div className="executive-visual-grid">
     <section className="insight-section visual-card access-visual" aria-labelledby="access-visual-title">
-      <div className="section-heading compact"><div><h2 id="access-visual-title">Como estão os acessos agora?</h2><p>Base: {data.access.total} vínculos ativos de docente × disciplina.</p></div></div>
+      <div className="section-heading"><div><h2 id="access-visual-title">Acessos por faixa</h2><p>{data.access.total} vínculos ativos de docente e disciplina</p></div></div>
       {data.access.total ? <>
         <div className="access-stack" aria-label="Distribuição dos acessos por faixa">
           {data.access.items.filter((item) => item.count > 0).map((item) => <button
@@ -25,7 +25,7 @@ export function ExecutiveCharts({ data, onSelect }: { data: DashboardData['visua
         <div className="access-legend">
           {data.access.items.map((item) => <button type="button" key={item.key} disabled={!item.count} onClick={() => onSelect({ label: `Acesso ${item.label.toLocaleLowerCase('pt-BR')}`, status: accessStatus(item.key) })}>
             <i className={`access-dot access-${item.key.toLowerCase()}`} aria-hidden="true" />
-            <span><strong>{item.label}</strong><small>{item.detail}</small></span>
+            <span><strong>{item.label}</strong><small>{item.key === 'CRITICAL' ? '15+ dias · ' + item.detail : item.detail}</small></span>
             <b>{item.count} <small>({percent(item.percent)}%)</small></b>
             <ArrowUpRight size={15} aria-hidden="true" />
           </button>)}
@@ -34,7 +34,7 @@ export function ExecutiveCharts({ data, onSelect }: { data: DashboardData['visua
     </section>
 
     <section className="insight-section visual-card overdue-visual" aria-labelledby="overdue-visual-title">
-      <div className="section-heading compact"><div><h2 id="overdue-visual-title">Onde estão as entregas vencidas?</h2><p>{data.overdue.totalOverdue} vencidas em {data.overdue.totalDue} itens com prazo encerrado e dado verificável.</p></div></div>
+      <div className="section-heading"><div><h2 id="overdue-visual-title">Pendências por atividade</h2><p>{data.overdue.totalOverdue} pendentes em {data.overdue.totalDue} itens com prazo encerrado e dado verificável</p></div></div>
       {data.overdue.items.length ? <div className="overdue-bars">
         {data.overdue.items.map((item) => <button type="button" key={item.key} disabled={!item.overdue} aria-label={`${item.label}: ${item.overdue} vencidas de ${item.due}, ${percent(item.percent)}%`} onClick={() => onSelect({ label: `Entregas vencidas · ${item.label}`, status: 'OVERDUE', requirementGroup: item.key })}>
           <span className="overdue-row-label"><strong>{item.label}</strong><small>{item.overdue} de {item.due} · {percent(item.percent)}%</small></span>

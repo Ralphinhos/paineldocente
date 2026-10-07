@@ -1,16 +1,14 @@
-import { RotateCcw, Search } from "lucide-react";
-import type { DashboardData, DashboardFilters as FilterState } from "@/types/dashboard";
-
-interface Props { value: FilterState; options: DashboardData["filters"]; onChange: (next: FilterState) => void }
-export function DashboardFilters({ value, options, onChange }: Props) {
-  const patch = (key: keyof FilterState, next: string | number) => onChange({ ...value, [key]: next, requirementGroup: key === "status" ? "" : value.requirementGroup, page: key === "page" ? Number(next) : 1 });
+import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
+import type { DashboardData, DashboardFilters as FilterState } from '@/types/dashboard';
+interface Props { value: FilterState; options: DashboardData['filters']; onChange: (next: FilterState) => void; showStatus?: boolean }
+export function DashboardFilters({ value, options, onChange, showStatus = true }: Props) {
+  const patch = (key: keyof FilterState, next: string) => onChange({ ...value, [key]: next, requirementGroup: key === 'status' ? '' : value.requirementGroup, page: 1 });
   const dirty = Boolean(value.period || value.modality || value.courseId || value.status || value.requirementGroup || value.query || value.teacherId);
-  return <section className="filter-panel" aria-label="Filtros">
-    <label className="search-field"><Search size={17} aria-hidden="true" /><span className="sr-only">Buscar</span><input value={value.query} onChange={(event) => patch("query", event.target.value)} placeholder="Buscar docente ou disciplina" /></label>
-    <label><span>Período</span><select value={value.period} onChange={(event) => patch("period", event.target.value)}><option value="">Todos</option>{options.periods.map((item) => <option key={item}>{item}</option>)}</select></label>
-    <label><span>Modalidade</span><select value={value.modality} onChange={(event) => patch("modality", event.target.value)}><option value="">Todas</option>{options.modalities.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
-    <label><span>Disciplina</span><select value={value.courseId} onChange={(event) => patch("courseId", event.target.value)}><option value="">Todas</option>{options.courses.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
-    <label><span>Situação da lista</span><select value={value.status} onChange={(event) => patch("status", event.target.value)}><option value="">Todas</option><option value="CRITICAL,NEVER">Acesso crítico</option><option value="OVERDUE">Entregas vencidas</option><option value="PENDING">A entregar</option><option value="DELIVERED_LATE">Entregue com atraso</option><option value="NOT_VERIFIABLE">A validar</option><option value="NOT_APPLICABLE">Não aplicável</option><option value="INHERITED_READY">Estrutura herdada</option><option value="CURRENT">Acesso em dia</option></select></label>
-    <button className="clear-button" type="button" disabled={!dirty} onClick={() => onChange({ period: "", modality: "", courseId: "", status: "", requirementGroup: "", query: "", page: 1 })}><RotateCcw size={16} />Limpar</button>
+  return <section className={'filter-panel' + (showStatus ? '' : ' filter-no-status')} aria-label="Filtros do acompanhamento">
+    <label className="search-field"><span>Buscar</span><div><Search size={17} aria-hidden="true" /><input value={value.query} onChange={(event) => patch('query', event.target.value)} placeholder="Docente ou disciplina" /></div></label>
+    <label><span>Disciplina</span><select value={value.courseId} onChange={(event) => patch('courseId', event.target.value)}><option value="">Todas as disciplinas</option>{options.courses.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
+    {showStatus && <label><span>Situação da lista</span><select value={value.status} onChange={(event) => patch('status', event.target.value)}><option value="">Todas as situações</option><option value="OVERDUE">Pendente em atraso</option><option value="WITHIN_DEADLINE">Pendente no prazo</option><option value="DELIVERED_ON_TIME">Entregue no prazo / antecipado</option><option value="DELIVERED_LATE">Entregue com atraso</option><option value="CRITICAL,NEVER">Acesso crítico / sem registro</option><option value="ATTENTION">Acesso em atenção</option><option value="CURRENT">Acesso em dia</option><option value="NOT_VERIFIABLE">Dados a validar</option><option value="INHERITED_READY">Material replicado</option><option value="NOT_APPLICABLE">Não aplicável</option></select></label>}
+    <details className="filter-more"><summary><SlidersHorizontal size={16} aria-hidden="true" />Mais filtros{value.period || value.modality ? ' · ativos' : ''}</summary><div className="extra-filters"><label><span>Período</span><select value={value.period} onChange={(event) => patch('period', event.target.value)}><option value="">Todos</option>{options.periods.map((item) => <option key={item}>{item}</option>)}</select></label><label><span>Modalidade</span><select value={value.modality} onChange={(event) => patch('modality', event.target.value)}><option value="">Todas</option>{options.modalities.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label></div></details>
+    <button className="clear-button" type="button" disabled={!dirty} onClick={() => onChange({ period: '', modality: '', courseId: '', status: '', requirementGroup: '', query: '', page: 1 })}><RotateCcw size={15} />Limpar</button>
   </section>;
 }

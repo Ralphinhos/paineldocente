@@ -91,6 +91,27 @@ test('ranking respeita escopo, período e base inteira; não depende de página 
   assert.deepEqual(first.ranking.teachers.map((entry) => entry.teacher.id).sort(), ['501', '502']);
   assert.equal((await service.getDashboard(user, { period: '2099/1' })).ranking.teachers.length, 0);
 });
+test('filtro pendente no prazo exige prazo conhecido, preserva escopo e não muda indicadores', async () => {
+  const raw = createDemoSource(new Date(at));
+  const snapshot = buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries });
+  const assignments = groupAssignments(snapshot.rows);
+  const future = assignments.find((row) => row.requirements.some((requirement) => requirement.status === 'PENDING' && !requirement.overdue && requirement.deadlineAt));
+  assert.ok(future, 'a amostra deve conter uma pendência no prazo');
+  const store = new MemoryStore(); await store.saveSnapshot(snapshot);
+  const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
+  const user = { role: 'coordinator', courseIds: [future.course.id] };
+  const overview = await service.getDashboard(user, { pageSize: 50 });
+  const within = await service.getDashboard(user, { pageSize: 50, status: 'WITHIN_DEADLINE' });
+  assert.ok(within.rows.length);
+  assert.ok(within.rows.every((row) => row.course.id === future.course.id && row.requirements.some((requirement) => requirement.responsibility !== 'OTHER_TEACHER' && requirement.status === 'PENDING' && !requirement.overdue && requirement.deadlineAt)));
+  assert.deepEqual(within.summary, overview.summary);
+  assert.deepEqual(within.ranking, overview.ranking);
+  const pending = snapshot.rows.filter((row) => row.structureStatus === 'PENDING');
+  for (const row of pending) { row.deadlineAt = null; row.overdue = false; }
+  const unknownStore = new MemoryStore(); await unknownStore.saveSnapshot(snapshot);
+  const unknownService = new DashboardService({ store: unknownStore, snapshotIntervalMinutes: 60 });
+  assert.equal((await unknownService.getDashboard(user, { status: 'WITHIN_DEADLINE' })).rows.length, 0);
+});
 test('gráficos executivos usam bases explícitas e o clique por tipo retorna só itens relacionados', async () => {
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
   await store.saveSnapshot(buildSnapshot(raw, catalog, { rulesApproved: true, manualDeliveries: raw.manualDeliveries }));
