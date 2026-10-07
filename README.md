@@ -23,7 +23,7 @@ Painel interno para acompanhar estrutura das disciplinas, acessos docentes e rel
 
 ## Teste rápido · Visual 2.0
 
-Encerre os terminais do teste anterior com Ctrl+C. Na pasta do projeto, instale e rode:
+Use Node.js 22. Encerre os terminais do teste anterior com Ctrl+C. Na pasta do projeto, instale e rode:
 
 ```bash
 npm ci
@@ -94,6 +94,8 @@ npm audit --omit=dev
 npm --prefix backend audit --omit=dev
 npm --prefix backend run validate:data -- --fresh
 ```
+
+Resultados da conferência da interface e limites de homologação em [Validação da interface](docs/VALIDACAO_INTERFACE.md).
 
 ## Documentos
 
