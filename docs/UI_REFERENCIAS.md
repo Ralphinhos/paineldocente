@@ -20,8 +20,10 @@ Durante uma edição manual, salve ou descarte antes de trocar de área ou sair.
 
 ## Skiper UI — Skiper40 / CssLink
 
-Referência: https://skiper-ui.com/v1/skiper40  
-Registro consultado: https://skiper-ui.com/r/skiper40.json  
+Referência: https://skiper-ui.com/v1/skiper40
+
+Registro consultado: https://skiper-ui.com/r/skiper40.json
+
 Autor creditado pelo projeto: Gurvinder Singh / 02gxuri.
 
 O efeito de sublinhado do link foi adaptado em UnderlinedLink e no CSS, com âncora HTML nativa. Foi removida a dependência de Next.js. A versão gratuita do componente informa exigência de atribuição; o rodapé do aplicativo credita Skiper UI.
@@ -30,8 +32,10 @@ O comando npx shadcn add @skiper-ui/skiper40 não foi executado: a adaptação a
 
 ## Cult UI — direction-aware tabs
 
-Referência: https://github.com/nolly-studio/cult-ui  
-Arquivo de referência: apps/www/registry/default/ui/direction-aware-tabs.tsx  
+Referência: https://github.com/nolly-studio/cult-ui
+
+Arquivo de referência: apps/www/registry/default/ui/direction-aware-tabs.tsx
+
 Versão consultada: 67a66c6ac1cd240914ba688a907611b3437a7a2b.
 
 A organização em abas e a seleção visual inspiraram WorkspaceTabs. A implementação usa botões nativos, estados React e CSS, com navegação por teclado e controles/painéis ARIA. Efeitos de blur e molas não foram incorporados.
