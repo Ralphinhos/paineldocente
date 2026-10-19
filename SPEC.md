@@ -7,6 +7,9 @@
 - P3 scope_filters:=teacher_id|period|modality|Moodle_course; affect(summary|chart|list)
 - P4 status_filter|pagination=>list_only; default:=access.issues + deliveries.overdue
 - P5 regular:=summary+show_all; unknown!=regular
+- P6 identity:=Análise Docente - Acessos e Atrasos(3).html; 4 colored_KPIs+2 column_charts/tab+white_table
+- P7 chart_axis:=zero_based+integer_ticks+visible_units; unknown!=zero
+- P8 access.panorama:=all_scoped_authorized_teachers; !list_pagination
 
 ## invariants
 

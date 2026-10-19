@@ -63,7 +63,12 @@ function buildMonitoring(rows, asOf) {
     teacherBars.set(row.teacher.id, bar);
   }
   return {
-    access: { summary: access, rows: accessRows, chart: accessRows.filter((row) => ['CRITICAL', 'ATTENTION'].includes(row.status)).slice(0, 10) },
+    access: {
+      summary: access, rows: accessRows,
+      chart: accessRows.filter((row) => ['CRITICAL', 'ATTENTION'].includes(row.status)).slice(0, 10),
+      panorama: [...accessRows].sort((a, b) => (b.daysSinceAccess ?? -1) - (a.daysSinceAccess ?? -1) || a.teacher.name.localeCompare(b.teacher.name, 'pt-BR'))
+        .map(({ teacher, status, daysSinceAccess }) => ({ teacher, status, daysSinceAccess })),
+    },
     deliveries: { summary: deliveries, rows: deliveryRows, chart: [...teacherBars.values()].sort((a, b) => b.maxDaysLate - a.maxDaysLate || b.overdue - a.overdue || a.teacher.name.localeCompare(b.teacher.name, 'pt-BR')).slice(0, 10) },
   };
 }

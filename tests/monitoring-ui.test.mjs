@@ -14,7 +14,7 @@ const noop = () => {};
 before(async () => {
   runtime = await createRuntime({ NODE_ENV: 'test', DATA_SOURCE: 'demo', AUTH_MODE: 'demo', EMAIL_SEND_ENABLED: 'false' });
   vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
-  modules = await Promise.all(['AccessOverview', 'DeliveryOverview', 'MonitoringFilters', 'DeliveryDetails'].map((name) => vite.ssrLoadModule(`/src/components/dashboard/${name}.tsx`)));
+  modules = await Promise.all(['AccessOverview', 'DeliveryOverview', 'MonitoringFilters', 'DeliveryDetails', 'MonitoringChart'].map((name) => vite.ssrLoadModule(`/src/components/dashboard/${name}.tsx`)));
 });
 after(async () => { await vite?.close(); await runtime?.close(); });
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
@@ -53,4 +53,21 @@ test('resolvidas e antecipadas possuem rótulos corretos; nomes externos são es
   const details = render(modules[3].DeliveryDetails, { row, onClose: noop });
   assert.match(details, /Entregue antecipadamente/); assert.ok(!details.includes('<img'));
   assert.match(details, /&lt;img/);
+});
+
+test('gráfico distingue acesso medido de zero dias de ausência de data', () => {
+  const html = render(modules[4].MonitoringChart, {
+    title: 'Acessos', description: 'Último acesso ao ambiente', unit: 'dias sem acessar',
+    disabled: false, onSelect: noop, empty: 'Sem docentes', footnote: 'Dados da coleta',
+    bars: [
+      { id: 'hoje', label: 'Docente Hoje', value: 0, detail: 'Em dia', tone: 'green' },
+      { id: 'sem-data', label: 'Docente sem data', value: null, detail: 'Dados a conferir', tone: 'slate' },
+      { id: 'sem-registro', label: 'Docente sem registro', value: null, unavailableLabel: 'Sem registro', detail: 'Sem acesso registrado', tone: 'purple' },
+    ],
+  });
+  assert.match(html, /Docente Hoje: 0 dias sem acessar/);
+  assert.match(html, /Docente sem data: A validar/);
+  assert.match(html, /Docente sem registro: Sem registro/);
+  assert.ok(!/Docente sem (?:data|registro): 0/.test(html));
+  assert.ok(!html.includes('NaN'));
 });

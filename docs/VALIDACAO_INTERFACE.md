@@ -1,17 +1,20 @@
 # Conferência — Acessos e Entregas do NED
 
-Conferência técnica de 19/10/2026, com dados fictícios. A interface passou a ter duas abas principais e foco nas ocorrências. O filtro de docente vale para ambas. O painel e as notificações usam o mesmo cálculo de ocorrências.
+Conferência técnica de 19/10/2026, com dados fictícios. A interface tem duas abas principais e foco nas ocorrências. A identidade visual foi refeita a partir do HTML: quatro cartões coloridos e dois gráficos de colunas por aba, com eixos, valores, nomes e unidades. O filtro de docente vale para ambas. O painel e as notificações usam o mesmo cálculo de ocorrências.
 
 ## Evidências locais
 
 | Etapa | Resultado |
 |---|---|
 | Lint, TypeScript e build | `npm run check` passou |
-| Testes | 14 testes de interface e 74 de backend, todos aprovados |
+| Testes | 17 testes de interface e 75 de backend, todos aprovados |
 | Acesso global | Faixas 0–7 / 8–14 / 15+, dias civis, um registro por ID docente; acesso de 2 dias ao ambiente não vira 16 dias por uma disciplina |
 | Ausência de dados | Campo ausente, data futura e conflito exigem revisão; zero conhecido é sem registro; consulta vazia bloqueia publicação |
 | Entregas | Categorias exclusivas reconciliadas; atraso cresce enquanto pendente e congela após entrega; resolvidas saem das cobranças abertas |
 | Filtros e escopo | Docente restringe as duas abas e o controle manual; coordenação só recebe disciplinas configuradas; paginação não altera métricas |
+| Panorama | Todos os docentes autorizados do recorte, inclusive fora da página; registros desconhecidos preservam `null`, acesso medido de zero dias preserva zero |
+| Escalas | Eixos começam em zero, usam intervalos inteiros regulares e incluem o maior valor; base vazia e valores indisponíveis não geram escala inválida |
+| Gráficos estáticos | SVG dos componentes reais, com dados do serviço, renderizado em PNG e inspecionado: eixos, valores, nomes e atraso; essa conferência não valida o layout da página no navegador |
 | Materiais | Pacote único de UAs, vídeos por carga horária, publicação informativa e versões/histórico preservados |
 | Componentes reais | Renderização React em Node, alimentada pelo serviço, confirmou tabela, dias, filtros, antecipadas, resolvidas e escape de conteúdo externo |
 | Relatórios | Ocorrências pontuais sem ranking ou corte em cinco; Para/Cc e texto/HTML; envio selecionado, idempotência e bloqueio por dados antigos |
@@ -31,6 +34,8 @@ O teste iniciou os serviços reais com `scripts/demo.mjs` e executou seis grupos
 
 Essas requisições e a renderização em Node verificam dados e conteúdo. Não verificam clique, foco, aparência, rolagem ou responsividade em navegador.
 
+Na revisão da identidade visual, três verificações HTTP adicionais confirmaram os módulos novos no Vite, o panorama completo de seis docentes com lista paginada em cinco e a seleção do Docente Beta com acesso global de dois dias e material replicado regular. Os serviços foram encerrados após o teste.
+
 ## Verificações pendentes
 
 - Conferir Chrome/Edge em desktop, tela estreita e zoom de 200%, inclusive filtros, abas, diálogos e bloqueio de edição não salva. O navegador remoto bloqueou localhost e arquivos locais por política de acesso.
@@ -47,7 +52,7 @@ npm --prefix backend ci
 npm run demo
 ```
 
-Abra http://localhost:8080 e clique em **Abrir demonstração do NED**. Identifique o título **Acompanhamento docente** e somente **Acessos ao ambiente** / **Entregas**.
+Abra http://localhost:8080 e clique em **Abrir demonstração do NED**. Identifique o título **Análise docente: acessos e atrasos**, os quatro cartões coloridos e somente **Acessos ao ambiente** / **Entregas**.
 
 - Filtre Docente Beta: acesso ao ambiente de 2 dias e material replicado regular.
 - Em Entregas, veja as pendências vencidas e use a situação para consultar resolvidas/antecipadas/todas.

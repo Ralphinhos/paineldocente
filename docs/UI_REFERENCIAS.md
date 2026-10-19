@@ -1,16 +1,25 @@
 # Referências e organização da interface
 
-**Análise Docente - Acessos e Atrasos(3).html** define a referência visual: fundo claro, cabeçalho branco, filtros, barras e tabela. A composição foi reduzida ao trabalho do NED com ocorrências.
+**Análise Docente - Acessos e Atrasos(3).html** define a identidade visual: fundo slate-50, cabeçalho branco, quatro cartões coloridos, títulos de filtro em maiúsculas, gráficos de colunas com eixos e valores e tabela branca. O fluxo mantém as duas abas do NED.
 
 ## Estrutura
 
-Somente duas abas principais: **Acessos ao ambiente** e **Entregas**. Um filtro global de docente afeta ambas. Resumos mostram críticos/atenção/regulares e pendências abertas/no prazo; entregas com atraso ficam entre as resolvidas. Gráficos horizontais priorizam problemas, com números e unidades visíveis. As listas abrem com problemas; Ver todos permite conferir os regulares.
+Somente duas abas principais: **Acessos ao ambiente** e **Entregas**. Um filtro global de docente afeta ambas. Quatro cartões por aba apresentam total, situação regular, pendências críticas/vencidas e atenção/prazo em aberto. Entregas concluídas com atraso ficam entre as resolvidas. As listas abrem com problemas; Ver todos permite conferir os regulares.
+
+Dois painéis de gráficos por aba, como a grade de duas colunas do HTML:
+
+- Acessos: panorama de todos os docentes, ordenado por dias sem acessar; contagem por faixa de acesso.
+- Entregas: até dez docentes com pendências, ordenados pelo maior atraso, com quantidade de itens e maior atraso em dias; contagem por situação.
+
+As colunas começam em zero e mostram nomes, números e unidades. Clique, Enter ou Espaço seleciona docente/situação. O nome completo está no rótulo acessível e no título da barra. Os gráficos usam SVG local, sem CDN. Não foram reproduzidas as médias de acesso, as faixas antigas, a mistura de atrasos resolvidos com pendências ou as interpretações causais do HTML original. Não há série histórica inventada.
 
 Acesso representa a última utilização do ambiente Moodle. Não usa a média das disciplinas ou semanas do HTML. As faixas são 0–7 / 8–14 / 15+. Dado ausente é identificado, nunca desenhado como zero. O indicador não mistura dias com percentuais nem gera uma nota ponderada.
 
 Cada atividade mantém datas, prazo, atraso em dias e origem automática/manual. Ação de lupa abre evidências; o registro de materiais fica dentro de Entregas. Troca/regravação preserva versões e exige novo prazo. Publicação é informativa.
 
-Superfícies brancas e base neutra, largura máxima de 1280px, uma faixa de três métricas por aba e um gráfico principal. A lista oferece os valores completos. Filtros se reorganizam em 1000px; em 620px as métricas formam uma lista com números à direita. Tabelas preservam colunas com rolagem horizontal. Abas têm teclado/ARIA, diálogos nativos e foco visível; cor é acompanhada de texto.
+Superfícies brancas, largura máxima de 1280px, intervalos de 24px e raio de 16px seguem o arquivo original. Cartões azuis, verdes e rosas usam fundo ligeiramente mais escuro para texto branco legível; o cartão âmbar mantém a cor viva com texto escuro. Ícones usam o mesmo traço Lucide e caixas translúcidas dos indicadores do HTML.
+
+Até 1000px, os cartões passam de quatro para duas colunas, os gráficos para uma e os filtros para duas. Até 620px, cartões e filtros passam para uma coluna. Nomes dos gráficos mantêm tamanho legível com rolagem horizontal. Tabelas preservam colunas com rolagem horizontal. Abas têm teclado/ARIA, diálogos nativos e foco visível; cor é acompanhada de texto.
 
 Notificações ficam em uma prévia acessada no cabeçalho, sem nova aba principal. Ela mostra Para, Cc, texto e HTML. O envio alcança somente a coordenação selecionada. Gráficos e componentes funcionam localmente, sem carregar CDN.
 

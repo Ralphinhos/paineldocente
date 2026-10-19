@@ -135,11 +135,35 @@ test('filtro de docente restringe as duas abas; situações e paginação não m
   assert.ok(overview.deliveries.rows.every((row) => row.teacher.id === '501'));
   assert.deepEqual(overview.deliveries.summary, issues.deliveries.summary);
   assert.deepEqual(overview.deliveries.chart, issues.deliveries.chart);
+  assert.deepEqual(overview.access.panorama, issues.access.panorama);
+  assert.equal(overview.access.panorama.length, 1);
+  assert.equal(overview.access.panorama[0].teacher.id, '501');
   assert.ok(overview.deliveries.pagination.total > overview.deliveries.rows.length);
   assert.ok(issues.deliveries.rows.every((row) => row.displayStatus === 'OVERDUE'));
   const compliant = await service.getMonitoring(admin, { deliveryStatus: 'COMPLIANT', pageSize: 50 });
   assert.ok(compliant.deliveries.rows.every((row) => ['EARLY', 'ON_TIME', 'INHERITED_READY'].includes(row.displayStatus)));
   assert.equal(compliant.deliveries.pagination.total, compliant.deliveries.summary.early + compliant.deliveries.summary.onTime + compliant.deliveries.summary.inherited);
+});
+
+test('panorama usa todos os docentes autorizados, sem depender da página; desconhecidos não viram zero', async () => {
+  const snapshot = snapshotOf(createDemoSource(at));
+  const template = snapshot.rows[0];
+  snapshot.rows = Array.from({ length: 23 }, (_, index) => ({
+    ...structuredClone(template), teacher: { ...template.teacher, id: String(index), name: 'Docente ' + index },
+    environmentAccess: index === 22 ? { status: 'NOT_VERIFIABLE', lastAccessAt: null, daysSinceAccess: null } : { status: index >= 15 ? 'CRITICAL' : index >= 8 ? 'ATTENTION' : 'CURRENT', lastAccessAt: day(index), daysSinceAccess: index },
+  }));
+  const store = new MemoryStore(); await store.saveSnapshot(snapshot);
+  const service = new MonitoringService({ store, snapshotIntervalMinutes: 60 });
+  const first = await service.getMonitoring(admin, { accessStatus: 'ALL', pageSize: 5 });
+  const second = await service.getMonitoring(admin, { accessStatus: 'CRITICAL', pageSize: 5, page: 2 });
+  assert.equal(first.access.rows.length, 5);
+  assert.equal(first.access.panorama.length, 23);
+  assert.deepEqual(first.access.panorama, second.access.panorama);
+  assert.equal(first.access.panorama[0].daysSinceAccess, 21);
+  assert.equal(first.access.panorama.at(-1).daysSinceAccess, null);
+  assert.equal(first.access.panorama.find((row) => row.teacher.id === '0').daysSinceAccess, 0);
+  const restricted = await service.getMonitoring({ role: 'coordinator', courseIds: ['unrelated'] }, { accessStatus: 'ALL' });
+  assert.deepEqual(restricted.access.panorama, []);
 });
 
 test('API exige autenticação, valida filtros, preserva escopo e aplica docente também ao controle manual', async () => {

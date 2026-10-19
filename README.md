@@ -12,7 +12,7 @@ npm --prefix backend ci
 npm run demo
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) e clique em **Abrir demonstração do NED**. O título é **Acompanhamento docente**, com apenas duas abas principais. Ctrl+C encerra os dois serviços.
+Abra [http://localhost:8080](http://localhost:8080) e clique em **Abrir demonstração do NED**. O título é **Análise docente: acessos e atrasos**, com apenas duas abas principais. Ctrl+C encerra os dois serviços.
 
 O teste usa dados fictícios em memória, coordenações fictícias e envio externo bloqueado. As portas 3001 e 8080 precisam estar livres. Registros de demonstração não persistem após encerrar.
 
@@ -25,7 +25,9 @@ O teste usa dados fictícios em memória, coordenações fictícias e envio exte
 
 O filtro de docente, período, modalidade e disciplina afeta os números, gráficos e listas das duas abas. Filtrar uma disciplina seleciona os docentes vinculados, preservando seu acesso global. A aba de acessos considera docentes com pelo menos uma disciplina ativa na data da coleta.
 
-As situações e a paginação restringem a lista. Os indicadores e gráficos usam toda a base dos filtros compartilhados. Clicar numa barra seleciona o docente. **Ver todos/Ver todas** permite conferir o restante.
+As situações e a paginação restringem a lista. Os indicadores e gráficos usam toda a base dos filtros compartilhados. Clicar numa barra de docente seleciona seu nome; clicar numa barra de situação filtra a lista. **Ver todos/Ver todas** permite conferir o restante.
+
+A aparência acompanha o HTML de referência: quatro cartões em azul, verde, rosa e âmbar, filtros com títulos em maiúsculas, painéis brancos arredondados e gráficos de colunas com escala iniciada em zero, nomes, valores e unidades. O panorama de acessos inclui todos os docentes do recorte, inclusive registros sem data, identificados por texto. Entregas mostra as pendências por docente e a distribuição por situação. Valores ausentes não viram barras de zero; entregas resolvidas não entram nas pendências vencidas.
 
 - Acessos: 0–7 dias em dia; 8–14 atenção; 15+ crítico. Sem registro e dado indisponível são distintos.
 - Entregas: antecipada, no prazo, replicada e conferida, pendente no prazo, pendente vencida, entregue com atraso, não aplicável e a validar.

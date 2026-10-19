@@ -20,6 +20,7 @@ export interface MonitoringData {
   access: {
     summary: { total: number; current: number; attention: number; critical: number; never: number; validation: number };
     rows: EnvironmentRecord[]; chart: EnvironmentRecord[]; pagination: PageInfo;
+    panorama: Array<Pick<EnvironmentRecord, 'teacher' | 'status' | 'daysSinceAccess'>>;
   };
   deliveries: {
     summary: { total: number; overdue: number; pendingInTime: number; deliveredLate: number; early: number; onTime: number; inherited: number; validation: number; notApplicable: number };
