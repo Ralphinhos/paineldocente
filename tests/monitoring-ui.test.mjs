@@ -1,0 +1,56 @@
+import test, { before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { createServer } from 'vite';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+const require = createRequire(import.meta.url);
+const { createRuntime } = require('../backend/runtime.js');
+let vite; let runtime; let modules;
+const admin = { role: 'ned_admin' };
+const filters = { period: '', modality: '', courseId: '', teacherId: '', query: '', accessStatus: 'ISSUES', deliveryStatus: 'OVERDUE', page: 1 };
+const noop = () => {};
+before(async () => {
+  runtime = await createRuntime({ NODE_ENV: 'test', DATA_SOURCE: 'demo', AUTH_MODE: 'demo', EMAIL_SEND_ENABLED: 'false' });
+  vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  modules = await Promise.all(['AccessOverview', 'DeliveryOverview', 'MonitoringFilters', 'DeliveryDetails'].map((name) => vite.ssrLoadModule(`/src/components/dashboard/${name}.tsx`)));
+});
+after(async () => { await vite?.close(); await runtime?.close(); });
+const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
+
+test('componentes reais apresentam acesso global e filtro de docente com dados da API', async () => {
+  const selected = { ...filters, accessStatus: 'ALL', teacherId: '502' };
+  const data = await runtime.services.monitoringService.getMonitoring(admin, selected);
+  const html = render(modules[0].AccessOverview, { data: data.access, filters: selected, disabled: false, onChange: noop, onTeacher: noop, onDeliveries: noop });
+  assert.match(html, /Docente Beta/); assert.ok(!html.includes('Docente Alfa'));
+  assert.match(html, /<strong>2<\/strong>/);
+  assert.match(html, /Em dia/); assert.ok(!html.includes('Ranking'));
+  const controls = render(modules[2].MonitoringFilters, { value: selected, options: data.filters, disabled: false, onChange: noop });
+  assert.match(controls, /value="502" selected=""/);
+  assert.match(controls, /Docente Beta/);
+});
+
+test('tabela de problemas mostra dias de atraso e somente pendências ainda abertas', async () => {
+  const data = await runtime.services.monitoringService.getMonitoring(admin, filters);
+  const html = render(modules[1].DeliveryOverview, { data: data.deliveries, filters, disabled: false, onChange: noop, onTeacher: noop, onOpen: noop, onManual: noop });
+  const tbody = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1];
+  assert.ok(tbody); assert.match(tbody, /Pendente em atraso/); assert.match(tbody, /7 dias de atraso/);
+  assert.ok(!tbody.includes('Entregue com atraso'));
+  assert.ok(!tbody.includes('Avaliação substitutiva'));
+  assert.equal((tbody.match(/<tr>/g) || []).length, data.deliveries.rows.length);
+  assert.match(html, /Registrar UA e videoaulas/);
+});
+
+test('resolvidas e antecipadas possuem rótulos corretos; nomes externos são escapados', async () => {
+  const selected = { ...filters, deliveryStatus: 'DELIVERED_LATE' };
+  const data = await runtime.services.monitoringService.getMonitoring(admin, selected);
+  const html = render(modules[1].DeliveryOverview, { data: data.deliveries, filters: selected, disabled: false, onChange: noop, onTeacher: noop, onOpen: noop, onManual: noop });
+  const tbody = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1];
+  assert.match(tbody, /Entregue com atraso/); assert.ok(!tbody.includes('Pendente em atraso'));
+  const early = await runtime.services.monitoringService.getMonitoring(admin, { ...filters, deliveryStatus: 'EARLY' });
+  const row = structuredClone(early.deliveries.rows[0]); row.teacher.name = '<img src=x onerror=alert(1)>';
+  const details = render(modules[3].DeliveryDetails, { row, onClose: noop });
+  assert.match(details, /Entregue antecipadamente/); assert.ok(!details.includes('<img'));
+  assert.match(details, /&lt;img/);
+});

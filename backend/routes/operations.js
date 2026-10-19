@@ -105,6 +105,8 @@ function listManualItems(snapshot, query, records = []) {
   const filtered = all.filter((item) =>
     !(query.period && item.course.period !== query.period)
     && !(query.courseId && item.course.id !== String(query.courseId))
+    && !(query.teacherId && item.teacher.id !== String(query.teacherId))
+    && !(query.modality && item.course.modality !== query.modality)
     && !(query.requirementId && item.requirement.baseId !== query.requirementId)
     && !(query.status && item.status !== query.status)
     && !(text && !`${item.course.name} ${item.course.shortName} ${item.teacher.name} ${item.requirement.label}`.toLocaleLowerCase('pt-BR').includes(text))

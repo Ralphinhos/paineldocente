@@ -9,7 +9,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "check": "npm run lint && npm run typecheck && npm run build && npm run test:ui && npm --prefix backend test",
-    "test:ui": "node --test tests/presentation.test.mjs tests/dashboard-view.test.mjs",
+    "test:ui": "node --test tests/presentation.test.mjs tests/dashboard-view.test.mjs tests/monitoring-ui.test.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preview": "vite preview"

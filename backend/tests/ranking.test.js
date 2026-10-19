@@ -4,6 +4,7 @@ const { teacherRanking, delayPoints } = require('../core/ranking');
 const { calendarDays, delayFacts } = require('../core/timing');
 const { buildSnapshot } = require('../core/rules');
 const { DashboardService, groupAssignments, summarize } = require('../services/dashboardService');
+const { MonitoringService } = require('../services/monitoringService');
 const { buildReport, ReportService } = require('../services/reportService');
 const { MemoryStore } = require('../services/store');
 const { distinctStructureRows, executiveVisuals } = require('../services/dashboardService');
@@ -140,25 +141,28 @@ test('substitutiva sai de todas as linhas; evolução nunca mistura versões', a
   assert.equal(data.trend.length, 1); assert.equal(data.trend[0].generatedAt, current.generatedAt);
   assert.equal((await store.listSnapshots())[1].rulesVersion, 'old');
 });
-test('relatório detalhado usa todas as ocorrências e identifica limite do resumo executivo', async () => {
+test('notificação lista todas as pendências pontuais sem cortar ocorrências ou incluir ranking', async () => {
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
   const template = raw.courses[0];
   raw.courses = Array.from({ length: 65 }, (_, index) => ({ ...structuredClone(template), id: `c${index}`, shortName: `Curso ${index}`, teachers: [{ ...template.teachers[0], id: `t${index}` }] }));
   const snapshot = buildSnapshot(raw, catalog); await store.saveSnapshot(snapshot);
-  const dashboardService = new DashboardService({ store, snapshotIntervalMinutes: 60 });
-  const service = new ReportService({ store, dashboardService, config: { reports: { emailEnabled: false, recipients: [] } } });
+  const monitoringService = new MonitoringService({ store, snapshotIntervalMinutes: 60 });
+  const service = new ReportService({ store, monitoringService, config: { reports: { emailEnabled: false, recipients: [] } } });
   const [report] = await service.preview('coordinators', { role: 'ned_admin' });
-  assert.equal(report.details.length, 65);
-  const full = await dashboardService.getDashboard({ role: 'executive' }, {}, { snapshot, allRows: true });
+  const full = await monitoringService.getMonitoring({ role: 'ned_admin' }, {}, { allRows: true });
+  assert.equal(report.details.length, full.deliveries.summary.overdue);
+  assert.equal(new Set(report.details.map((row) => row.course)).size, 65);
   const executive = buildReport('executive', full);
-  assert.equal(executive.details.length, 5); assert.match(executive.text, /60 outras ocorrências/);
+  assert.equal(executive.details.length, report.details.length);
   assert.ok(!executive.text.includes('substitutiva'));
+  assert.ok(!executive.text.includes('Ranking'));
+  assert.ok(!executive.text.includes('outras ocorrências disponíveis'));
 });
-test('relatórios de múltiplos destinatários preservam uma única fotografia', async () => {
+test('relatórios de múltiplos destinatários preservam uma única coleta', async () => {
   let lookups = 0; const captures = [];
   const snapshot = { id: 'fixed' };
-  const fakeData = { meta: { snapshotId: 'fixed', generatedAt: at, rulesVersion: 'v', publishAllowed: false }, summary: { courses: 0, monitoredTeachers: 0, requirements: { overdue: 0 }, access: { critical: 0, never: 0 }, averageDaysLate: 0, measuredLateItems: 0 }, rows: [] };
-  const service = new ReportService({ store: { latestSnapshot: async () => { lookups++; return snapshot; } }, dashboardService: { getDashboard: async (_user, _filters, options) => { captures.push(options.snapshot); return fakeData; } }, config: { reports: { emailEnabled: false, recipients: [{ audience: 'executive', name: 'A', email: 'a@example.invalid' }, { audience: 'executive', name: 'B', email: 'b@example.invalid' }] } } });
+  const fakeData = { meta: { snapshotId: 'fixed', generatedAt: at, rulesVersion: 'v', publishAllowed: false }, filters: { courses: [] }, access: { summary: { current: 0, attention: 0, critical: 0, never: 0, validation: 0 }, rows: [] }, deliveries: { summary: { overdue: 0, pendingInTime: 0, early: 0, onTime: 0, inherited: 0, deliveredLate: 0, notApplicable: 0, validation: 0 }, rows: [] } };
+  const service = new ReportService({ store: { latestSnapshot: async () => { lookups++; return snapshot; } }, monitoringService: { getMonitoring: async (_user, _filters, options) => { captures.push(options.snapshot); return fakeData; } }, config: { reports: { emailEnabled: false, recipients: [{ audience: 'executive', name: 'A', email: 'a@example.invalid' }, { audience: 'executive', name: 'B', email: 'b@example.invalid' }] } } });
   await service.preview('executive', { role: 'ned_admin' });
   assert.equal(lookups, 1); assert.deepEqual(captures, [snapshot, snapshot]);
 });
@@ -182,14 +186,14 @@ test('envio rejeita fotografia diferente daquela conferida na prévia', async ()
 test('HTML do relatório escapa nomes e mantém somente entregas do responsável', async () => {
   const raw = createDemoSource(new Date(at)); const snapshot = buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries });
   const store = new MemoryStore(); await store.saveSnapshot(snapshot);
-  const data = await new DashboardService({ store, snapshotIntervalMinutes: 60 }).getDashboard({ role: 'ned_admin' }, {}, { allRows: true });
-  data.rows[0].teacher.name = '<img src=x onerror=alert(1)>';
-  data.rows[0].severity = 'CRITICAL';
-  data.rows[0].requirements.push(item('PENDING', 10, { label: 'Item de outro docente', responsibility: 'OTHER_TEACHER' }));
+  const data = await new MonitoringService({ store, snapshotIntervalMinutes: 60 }).getMonitoring({ role: 'ned_admin' }, {}, { allRows: true });
+  const overdue = data.deliveries.rows.find((row) => row.displayStatus === 'OVERDUE');
+  overdue.teacher.name = '<img src=x onerror=alert(1)>';
   const report = buildReport('coordinators', data, '<script>bad</script>');
   assert.ok(!report.html.includes('<script>')); assert.ok(!report.html.includes('<img'));
   assert.ok(report.html.includes('&lt;script&gt;bad&lt;/script&gt;'));
-  assert.ok(!report.details[0].reason.includes('Item de outro docente'));
+  assert.ok(report.html.includes('&lt;img'));
+  assert.equal(report.details.length, data.access.summary.critical + data.access.summary.attention + data.access.summary.never + data.deliveries.summary.overdue);
 });
 test('atividades dos gráficos deduplicam material compartilhado e excluem outro responsável', () => {
   const raw = createDemoSource(new Date(at));

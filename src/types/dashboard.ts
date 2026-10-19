@@ -46,7 +46,7 @@ export interface DashboardData {
 }
 export interface DashboardFilters { teacherId?: string; requirementGroup?: string; requirementId?: string; period: string; modality: string; courseId: string; status: string; query: string; page: number }
 export interface VisualSelection { label: string; status: string; requirementGroup?: string; requirementId?: string; modality?: string }
-export interface ReportPreview { audience: "coordinators" | "executive"; reports: Array<{ snapshotId: string; publishAllowed: boolean; recipient: { name: string; email: string } | null; subject: string; text: string; html: string; blocker: string | null }> }
+export interface ReportPreview { audience: "coordinators" | "executive"; reports: Array<{ snapshotId: string; publishAllowed: boolean; recipient: { name: string; email: string; cc?: string[] } | null; subject: string; text: string; html: string; blocker: string | null }> }
 export type ManualDeliveryDisposition = "PENDING" | "DELIVERED" | "NOT_APPLICABLE";
 export interface ManualDeliveryHistory {
   version: number;

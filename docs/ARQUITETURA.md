@@ -1,5 +1,13 @@
 # Arquitetura e segurança
 
+## Interface do NED
+
+Duas abas: **Acessos ao ambiente** e **Entregas**. `GET /api/monitoring` calcula as duas bases sobre a mesma coleta, aplica escopo e filtros compartilhados e pagina as listas no servidor. Cálculos e notificações usam `core/monitoring.js`; o relatório pede todas as linhas autorizadas.
+
+O acesso global usa `mdl_user.lastaccess` e um registro por ID docente. `mdl_user_lastaccess` e logs continuam disponíveis como contexto da disciplina, sem substituir o acesso ao ambiente. Zero conhecido significa sem registro; campo ausente, futuro ou conflitante exige revisão. O validador independente confere faixas, datas e consistência entre disciplinas.
+
+O controle manual de UA/videoaulas fica dentro de Entregas, com o docente selecionado. As rotas antigas de consulta e seus escopos permanecem para compatibilidade; não há uma interface separada para coordenação ou gestão.
+
 ## Fluxo
 
 ```mermaid
@@ -85,7 +93,7 @@ Isso isenta a entrega da estrutura. O acesso do docente continua independente e 
 - TLS verificado no SQL Server; `trustServerCertificate=false`.
 - Consulta `READ COMMITTED`, sem `NOLOCK`.
 - Limite de conexões e tempo máximo de consulta.
-- E-mail com idempotência por fotografia, público e destinatário.
+- E-mail com idempotência por coleta, público e destinatário. Prévia informa Para/Cc; a interface envia somente para a coordenação selecionada. Dados desatualizados e mudanças após a prévia bloqueiam o envio.
 - Dados demonstrativos não podem ser enviados.
 - Falha crítica de qualidade bloqueia publicação.
 - Alteração manual usa origem exata, CSRF, papel NED e validação de item contra a fotografia atual.

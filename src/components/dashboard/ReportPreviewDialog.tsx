@@ -7,8 +7,7 @@ import type { ReportPreview } from '@/types/dashboard';
 interface Props { open: boolean; onClose: () => void; inline?: boolean }
 export function ReportPreviewDialog({ open, onClose, inline = false }: Props) {
   const { user, csrfToken } = useAuth();
-  const forcedAudience = user?.role === 'executive' ? 'executive' : user?.role === 'coordinator' ? 'coordinators' : null;
-  const [audience, setAudience] = useState<'coordinators' | 'executive'>(forcedAudience || 'coordinators');
+  const audience = 'coordinators';
   const [preview, setPreview] = useState<ReportPreview | null>(null);
   const [recipientIndex, setRecipientIndex] = useState(0);
   const [view, setView] = useState('email');
@@ -33,13 +32,12 @@ export function ReportPreviewDialog({ open, onClose, inline = false }: Props) {
     return () => controller.abort();
   }, [open, audience, retry]);
   const report = preview?.reports[recipientIndex];
-  const recipients = preview?.reports.filter((item) => item.recipient) || [];
-  const canSend = Boolean(preview?.reports.length && preview.reports.every((item) => item.publishAllowed && item.recipient));
+  const canSend = Boolean(report?.publishAllowed && report.recipient);
   const send = async () => {
-    if (!report || !canSend) return;
+    if (!report?.recipient || !canSend) return;
     setLoading(true); setFeedback(null);
     try {
-      const result = await apiRequest<{ results: Array<{ status: string }> }>('/api/reports/send', { method: 'POST', body: JSON.stringify({ audience, snapshotId: report.snapshotId }), csrfToken });
+      const result = await apiRequest<{ results: Array<{ status: string }> }>('/api/reports/send', { method: 'POST', body: JSON.stringify({ audience, snapshotId: report.snapshotId, recipientEmails: [report.recipient.email] }), csrfToken });
       const sent = result.results.filter((item) => item.status === 'SENT').length;
       const already = result.results.filter((item) => item.status === 'ALREADY_SENT').length;
       const processing = result.results.filter((item) => item.status === 'IN_PROGRESS').length;
@@ -62,19 +60,18 @@ export function ReportPreviewDialog({ open, onClose, inline = false }: Props) {
     catch { setFeedback({ text: 'Selecione e copie o texto da prévia. O navegador não liberou a cópia automática.', error: true }); }
   };
   const content = <section className={inline ? 'report-panel' : 'report-modal'} aria-labelledby={inline ? 'report-inline-title' : 'report-title'}>
-    <header className="report-heading"><div><h2 id={inline ? 'report-inline-title' : 'report-title'}>Preparar relatórios</h2><p>Confira o destinatário e o conteúdo antes do envio.</p></div>{!inline && <button className="icon-button" type="button" onClick={onClose} aria-label="Fechar relatório"><X size={20} /></button>}</header>
+    <header className="report-heading"><div><h2 id={inline ? 'report-inline-title' : 'report-title'}>Notificar coordenação</h2><p>Ocorrências e resumo dos cursos vinculados ao destinatário.</p><p>Esta prévia usa todos os cursos vinculados, independentemente dos filtros da tela.</p></div>{!inline && <button className="icon-button" type="button" onClick={onClose} aria-label="Fechar relatório"><X size={20} /></button>}</header>
     <div className="report-controls">
-      <label><span>Público</span><select disabled={Boolean(forcedAudience) || loading} value={audience} onChange={(event) => setAudience(event.target.value as typeof audience)}><option value="coordinators">Coordenações · detalhado</option><option value="executive">Alta gestão · resumo</option></select></label>
       <label><span>Destinatário</span><select value={recipientIndex} onChange={(event) => { setRecipientIndex(Number(event.target.value)); setCopied(false); setFeedback(null); }} disabled={loading || !preview?.reports.length}>{preview?.reports.map((item, index) => <option key={item.recipient?.email || index} value={index}>{item.recipient ? item.recipient.name + ' · ' + item.recipient.email : 'Prévia geral · sem destinatário'}</option>)}</select></label>
     </div>
     {loading && !report ? <div className="report-loading" role="status"><div className="skeleton-line" /><div className="skeleton-line" /><span>Preparando relatório…</span></div> : report ? <>
-      <div className="report-envelope"><span>Para</span><strong>{report.recipient?.email || 'Nenhum destinatário configurado'}</strong><span>Assunto</span><strong>{report.subject}</strong></div>
+      <div className="report-envelope"><span>Para</span><strong>{report.recipient?.email || 'Nenhum destinatário configurado'}</strong><span>Cópia</span><strong>{report.recipient?.cc?.join(', ') || 'Sem cópias configuradas'}</strong><span>Assunto</span><strong>{report.subject}</strong></div>
       <WorkspaceTabs id={inline ? 'report-inline' : 'report-preview'} label="Formato da prévia" compact value={view} onChange={setView} tabs={[{ id: 'email', label: 'Texto do e-mail' }, { id: 'html', label: 'Relatório HTML' }]} />
       <div className="report-preview" role="tabpanel" id={(inline ? 'report-inline' : 'report-preview') + '-panel-email'} aria-labelledby={(inline ? 'report-inline' : 'report-preview') + '-tab-email'} hidden={view !== 'email'}><pre className="report-mail">{report.text}</pre></div>
       <div className="report-preview" role="tabpanel" id={(inline ? 'report-inline' : 'report-preview') + '-panel-html'} aria-labelledby={(inline ? 'report-inline' : 'report-preview') + '-tab-html'} hidden={view !== 'html'}><iframe title="Prévia do relatório HTML" sandbox="" srcDoc={report.html} /></div>
     </> : <div className="empty-state"><strong>Prévia indisponível</strong><button className="secondary-button" type="button" onClick={() => setRetry((value) => value + 1)}>Tentar novamente</button></div>}
     {feedback && <div className={'inline-message ' + (feedback.error ? 'feedback-error' : 'feedback-success')} role={feedback.error ? 'alert' : 'status'}>{feedback.text}</div>}
-    <footer className="report-footer"><span>{canSend ? recipients.length + ' destinatário(s). O envio inclui todos deste público.' : report?.blocker || 'Configure e confira os destinatários antes de enviar.'}</span><div><button className="secondary-button" type="button" disabled={!report || loading} onClick={() => void copyEmail()}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'Texto copiado' : 'Copiar texto'}</button><button className="secondary-button" type="button" disabled={!report || loading} onClick={download}><Download size={16} />Baixar HTML</button>{user?.role === 'ned_admin' && <button className="primary-button" type="button" disabled={!canSend || loading} onClick={() => void send()}><Send size={16} />{loading ? 'Aguarde…' : 'Enviar para todos (' + recipients.length + ')'}</button>}</div></footer>
+    <footer className="report-footer"><span>{canSend ? 'Envio somente para o destinatário e as cópias acima.' : report?.blocker || 'Configure e confira o destinatário antes de enviar.'}</span><div><button className="secondary-button" type="button" disabled={!report || loading} onClick={() => void copyEmail()}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'Texto copiado' : 'Copiar texto'}</button><button className="secondary-button" type="button" disabled={!report || loading} onClick={download}><Download size={16} />Baixar HTML</button>{user?.role === 'ned_admin' && <button className="primary-button" type="button" disabled={!canSend || loading} onClick={() => void send()}><Send size={16} />{loading ? 'Aguarde…' : 'Enviar para esta coordenação'}</button>}</div></footer>
   </section>;
   if (inline) return open ? content : null;
   return <dialog ref={dialog} className="report-dialog" onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }} aria-labelledby="report-title">{open && content}</dialog>;

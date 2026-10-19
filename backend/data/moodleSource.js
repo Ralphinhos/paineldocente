@@ -56,7 +56,7 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
       }
       course = { id: courseId, name: row.course_name, shortName: row.course_shortname, period, modality: modality || 'NAO_MAPEADA', workloadHours: workload || 1, startsAt, endsAt, originalCourseId: row.originalcourseid ? String(row.originalcourseid) : null, restoredAt: row.originalcourseid ? fromUnix(row.course_created_at) : null, requirementDeadlines, requirementOwners: deadlineCatalog?.periods?.[period]?.[modality]?.responsibleTeachers?.[courseId] || {}, teachers: new Map(), groups: new Map() }; courses.set(courseId, course);
     }
-    if (!course.teachers.has(teacherId)) course.teachers.set(teacherId, { id: teacherId, name: row.teacher_name, email: row.teacher_email || null, assignedAt: fromUnix(row.assigned_at), lastAccessAt: fromUnix(row.last_access_at), accessEvents: [] });
+    if (!course.teachers.has(teacherId)) course.teachers.set(teacherId, { id: teacherId, name: row.teacher_name, email: row.teacher_email || null, assignedAt: fromUnix(row.assigned_at), lastAccessAt: fromUnix(row.last_access_at), environmentLastAccessAt: fromUnix(row.environment_last_access_at), environmentAccessKnown: row.environment_last_access_at != null && Number.isFinite(Number(row.environment_last_access_at)) && Number(row.environment_last_access_at) >= 0, accessEvents: [] });
     const teacher = course.teachers.get(teacherId);
     if (!row.cm_id) continue;
     const requirementId = classifyRequirement(row.activity_name, course.modality); if (!requirementId) continue;

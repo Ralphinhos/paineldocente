@@ -121,10 +121,10 @@ EMAIL_SEND_ENABLED=true
 Recrie API e worker. Faça um envio controlado:
 
 ```bash
-docker compose --env-file .env.production run --rm -e REPORT_AUDIENCE=executive api node scripts/send-weekly-report.js
+docker compose --env-file .env.production run --rm -e REPORT_AUDIENCE=coordinators api node scripts/send-weekly-report.js
 ```
 
-Valores de `REPORT_AUDIENCE`: `coordinators`, `executive` ou vazio para ambos. O comando é idempotente por fotografia e destinatário.
+O fluxo atual usa `REPORT_AUDIENCE=coordinators` (também é o padrão quando vazio). Configure as cópias da gestão no campo `cc` de cada destinatário. O modo `executive` permanece apenas para compatibilidade com integrações anteriores. O comando é idempotente por fotografia e destinatário.
 
 Agende no cron do servidor somente após o teste:
 

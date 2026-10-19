@@ -4,7 +4,7 @@ const { createRuntime } = require('../runtime');
 async function main() {
   const runtime = await createRuntime();
   try {
-    const audiences = process.env.REPORT_AUDIENCE === 'coordinators' ? ['coordinators'] : process.env.REPORT_AUDIENCE === 'executive' ? ['executive'] : ['coordinators', 'executive'];
+    const audiences = process.env.REPORT_AUDIENCE === 'coordinators' ? ['coordinators'] : process.env.REPORT_AUDIENCE === 'executive' ? ['executive'] : ['coordinators'];
     const actor = { id: 'system:weekly-report', name: 'Agendador semanal', email: 'system@localhost', role: 'ned_admin', courseIds: [] };
     const requestId = `scheduler-${crypto.randomUUID()}`;
     const results = [];

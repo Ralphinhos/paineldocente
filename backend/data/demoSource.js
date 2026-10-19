@@ -65,6 +65,13 @@ function createDemoSource(input = new Date(), phase = 3) {
       teachers: [{ id: '506', name: 'Docente Zeta (demo)', email: 'docente.zeta@example.invalid', assignedAt: shift(at, -41), lastAccessAt: shift(at, 0), accessEvents: [] }],
       activities: [activity(at, '2501', 'unidades_aprendizagem', 'Unidades', { observedQuantity: 4, actorId: '506' }), activity(at, '2502', 'videos', 'Videoaulas', { observedQuantity: 4, actorId: '506' }), activity(at, '2503', 'forum_diagnostico', 'Fórum', { actorId: '506' }), activity(at, '2504', 'desafio', 'Desafio', { actorId: '506' }), activity(at, '2505', 'avaliacao_final', 'Avaliação final', { actorId: '506' })] },
   ] };
+  // Deliberately independent from course access: Beta accessed Moodle recently,
+  // despite an old access to the replicated discipline.
+  const environmentDays = { '501': 1, '502': 2, '503': 18, '504': 10, '505': 0, '506': 0 };
+  for (const course of source.courses) for (const teacher of course.teachers) {
+    teacher.environmentAccessKnown = true;
+    teacher.environmentLastAccessAt = shift(at, -environmentDays[teacher.id]);
+  }
   source.manualDeliveries = createDemoManualDeliveries(at, phase);
   return source;
 }

@@ -29,12 +29,12 @@ async function main() {
     JWT_SECRET: randomBytes(48).toString('base64url'), AUTH_USERS_JSON: '[]',
     DATA_SOURCE: 'demo', SNAPSHOT_STORE: 'memory', RULES_APPROVED: 'false',
     RULE_CATALOG_PATH: path.join(root, 'backend/config/rules.json'),
-    EMAIL_SEND_ENABLED: 'false', REPORT_RECIPIENTS_JSON: '[]',
+    EMAIL_SEND_ENABLED: 'false', REPORT_RECIPIENTS_JSON: '',
   });
   server = createApp(runtime).listen(3001, '127.0.0.1');
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
-  console.log('\nLayout do HTML de Análise Docente · dados fictícios · e-mails desabilitados.');
-  console.log('Abra http://localhost:8080 e escolha Equipe NED ou Alta gestão.');
+  console.log('\nPainel NED · Acessos e Entregas · dados fictícios · e-mails desabilitados.');
+  console.log('Abra http://localhost:8080 e clique em Abrir demonstração do NED.');
   console.log('Para encerrar os dois serviços: Ctrl+C.\n');
   frontend = spawn(process.execPath, [path.join(root, 'node_modules/vite/bin/vite.js'), '--host', 'localhost', '--port', '8080', '--strictPort'], { cwd: root, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development' } });
   frontend.once('error', (error) => { console.error(error.message); void stop(1); });

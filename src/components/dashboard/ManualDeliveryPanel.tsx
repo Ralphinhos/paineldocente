@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/auth';
 import { formatDate } from '@/lib/presentation';
 import type { ManualDeliveryDisposition, ManualDeliveryItem, ManualDeliveryResponse } from '@/types/dashboard';
 
-interface ManualFilters { period: string; courseId: string; requirementId: string; status: string; query: string; page: number }
+interface ManualFilters { period: string; courseId: string; requirementId: string; status: string; query: string; page: number; teacherId?: string; modality?: string }
 interface Draft {
   courseId: string; teacherId: string; requirementId: 'unidades_aprendizagem' | 'videos';
   itemNumber: number; revision: number; disposition: ManualDeliveryDisposition;
@@ -21,9 +21,9 @@ function initialDraft(item: ManualDeliveryItem): Draft {
   return { courseId: item.course.id, teacherId: item.teacher.id, requirementId: item.requirement.baseId as Draft['requirementId'], itemNumber: item.requirement.itemNumber || 1, revision: item.version, disposition: item.disposition, evidenceDate: item.evidenceDate, publishedDate: item.publishedDate, justification: item.justification };
 }
 
-export function ManualDeliveryPanel({ active, refreshKey, onDirtyChange, onUpdated }: { active: boolean; refreshKey: number; onDirtyChange: (dirty: boolean) => void; onUpdated: () => Promise<void> }) {
+export function ManualDeliveryPanel({ active, refreshKey, onDirtyChange, onUpdated, initialFilters }: { active: boolean; refreshKey: number; onDirtyChange: (dirty: boolean) => void; onUpdated: () => Promise<void>; initialFilters?: Partial<ManualFilters> }) {
   const { csrfToken } = useAuth();
-  const [filters, setFilters] = useState<ManualFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<ManualFilters>(() => ({ ...EMPTY_FILTERS, ...initialFilters }));
   const [data, setData] = useState<ManualDeliveryResponse | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [loading, setLoading] = useState(false);
@@ -111,7 +111,7 @@ export function ManualDeliveryPanel({ active, refreshKey, onDirtyChange, onUpdat
     </div>
     <div className="manual-toolbar">
       <span id="manual-date-rule">Data do docente: envio das UAs ou gravação do vídeo.</span>
-      <label><input type="checkbox" checked={showPublication} onChange={(event) => setShowPublication(event.target.checked)} /><span>Mostrar publicação (sem efeito na nota)</span></label>
+      <label><input type="checkbox" checked={showPublication} onChange={(event) => setShowPublication(event.target.checked)} /><span>Mostrar publicação (informativa)</span></label>
       <label><span>Período</span><select disabled={filtersLocked} value={filters.period} onChange={(event) => patchFilter('period', event.target.value)}><option value="">Todos</option>{data?.filters.periods.map((period) => <option key={period}>{period}</option>)}</select></label>
     </div>
     {error && <div className="manual-feedback feedback-error" role="alert">{error}{!data ? <button type="button" onClick={() => void load()}>Tentar novamente</button> : <button type="button" disabled={saving || loading} onClick={() => { setRevisionDraft(null); setDrafts({}); void load(); }}>Descartar e recarregar</button>}</div>}
@@ -137,7 +137,7 @@ export function ManualDeliveryPanel({ active, refreshKey, onDirtyChange, onUpdat
                   : item.editable && draft.disposition === 'NOT_APPLICABLE'
                     ? <input disabled={editingLocked} aria-label={'Justificativa de ' + recordLabel} type="text" maxLength={500} value={draft.justification || ''} onChange={(event) => patchDraft(item, { justification: event.target.value })} placeholder="Justificativa obrigatória" />
                     : <span className="empty-value">—</span>}</td>
-                {showPublication && <td>{item.editable && draft.disposition !== 'NOT_APPLICABLE' ? <input disabled={editingLocked} aria-label={'Publicação de ' + recordLabel + ' (sem efeito na nota)'} type="date" value={draft.publishedDate || ''} onChange={(event) => patchDraft(item, { publishedDate: event.target.value || null })} /> : <span className="empty-value">—</span>}</td>}
+                {showPublication && <td>{item.editable && draft.disposition !== 'NOT_APPLICABLE' ? <input disabled={editingLocked} aria-label={'Publicação de ' + recordLabel + ' (informativa)'} type="date" value={draft.publishedDate || ''} onChange={(event) => patchDraft(item, { publishedDate: event.target.value || null })} /> : <span className="empty-value">—</span>}</td>}
                 <td><DelayLabel item={item} />
                   <div className="row-actions">
                     {item.canCreateRevision && <button type="button" disabled={filtersLocked || loading} onClick={() => { setExpandedHistory(null); setError(null); setRevisionDraft({ itemId: item.id, reason: '', deadlineDate: '', allVideos: false }); }}><RefreshCw size={14} aria-hidden="true" />{item.requirement.baseId === 'videos' ? 'Regravar' : 'Trocar pacote'}</button>}

@@ -53,6 +53,7 @@ const userSchema = z.object({
 });
 const recipientSchema = z.object({
   audience: z.enum(['coordinators', 'executive']), email: z.string().email(), name: z.string().min(1).max(120),
+  cc: z.array(z.string().email()).max(20).default([]),
   courseIds: z.array(z.union([z.string(), z.number()])).default([]),
 });
 
@@ -95,7 +96,7 @@ function loadConfig(environment = process.env) {
     dataSource: env.DATA_SOURCE, snapshotStore: env.SNAPSHOT_STORE, appDatabaseUrl: env.APP_DATABASE_URL,
     moodle: { server: env.MOODLE_DB_SERVER, port: env.MOODLE_DB_PORT, database: env.MOODLE_DB_DATABASE, user: env.MOODLE_DB_USER, password: env.MOODLE_DB_PASSWORD, caFile: env.MOODLE_DB_CA_FILE, categoryRoot: env.MOODLE_CATEGORY_ROOT, teacherRoleId: env.MOODLE_TEACHER_ROLE_ID, queryWindowDays: env.MOODLE_QUERY_WINDOW_DAYS, requestTimeoutMs: env.MOODLE_REQUEST_TIMEOUT_MS, deadlineCatalogPath: env.MOODLE_DEADLINE_CATALOG_PATH },
     rules: { catalogPath: env.RULE_CATALOG_PATH, approved: env.RULES_APPROVED },
-    reports: { emailEnabled: env.EMAIL_SEND_ENABLED, recipients: parseJsonArray(env.REPORT_RECIPIENTS_JSON, recipientSchema, 'REPORT_RECIPIENTS_JSON'), smtp: { host: env.SMTP_HOST, port: env.SMTP_PORT, secure: env.SMTP_SECURE, user: env.SMTP_USER, password: env.SMTP_PASSWORD, from: env.SMTP_FROM } },
+    reports: { emailEnabled: env.EMAIL_SEND_ENABLED, recipients: parseJsonArray(env.REPORT_RECIPIENTS_JSON, recipientSchema, 'REPORT_RECIPIENTS_JSON') .concat(!env.REPORT_RECIPIENTS_JSON && env.DATA_SOURCE === 'demo' ? [{ audience: 'coordinators', name: 'Coordenação Tecnologia (demo)', email: 'tecnologia.demo@example.invalid', courseIds: ['1101', '1102'], cc: ['reitoria.demo@example.invalid', 'proreitoria.demo@example.invalid', 'graduacao.demo@example.invalid'] }, { audience: 'coordinators', name: 'Coordenação Graduação (demo)', email: 'graduacao.coord.demo@example.invalid', courseIds: ['1103', '1104', '1105'], cc: ['reitoria.demo@example.invalid', 'proreitoria.demo@example.invalid', 'graduacao.demo@example.invalid'] }] : []), smtp: { host: env.SMTP_HOST, port: env.SMTP_PORT, secure: env.SMTP_SECURE, user: env.SMTP_USER, password: env.SMTP_PASSWORD, from: env.SMTP_FROM } },
     snapshotIntervalMinutes: env.SNAPSHOT_INTERVAL_MINUTES,
   });
 }

@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const { z } = require('zod');
 const { calendarDays, delayFacts, saoPauloDate } = require('./timing');
+const { calculateEnvironmentAccess } = require('./environmentAccess');
 
 const eventSchema = z.object({ name: z.string(), occurredAt: z.string().datetime(), actorId: z.union([z.string(), z.number()]).transform(String).optional(), relatedUserId: z.union([z.string(), z.number()]).transform(String).optional(), origin: z.string().optional() });
 const activitySchema = z.object({
@@ -12,7 +13,7 @@ const activitySchema = z.object({
   deadlineSource: z.enum(['DEMO_SCHEDULE', 'OFFICIAL_CATALOG']).nullable().default(null),
   mappingConfidence: z.enum(['EXACT', 'AMBIGUOUS']).default('EXACT'), events: z.array(eventSchema).default([]),
 });
-const teacherSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), name: z.string(), email: z.string().email().nullable().default(null), assignedAt: z.string().datetime().nullable(), lastAccessAt: z.string().datetime().nullable(), accessEvents: z.array(eventSchema).default([]) });
+const teacherSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), name: z.string(), email: z.string().email().nullable().default(null), assignedAt: z.string().datetime().nullable(), lastAccessAt: z.string().datetime().nullable(), environmentLastAccessAt: z.string().datetime().nullable().default(null), environmentAccessKnown: z.boolean().default(false), accessEvents: z.array(eventSchema).default([]) });
 const deadlineValueSchema = z.union([z.string().datetime(), z.array(z.string().datetime())]);
 const courseSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String), name: z.string(), shortName: z.string(), period: z.string(), modality: z.string(), workloadHours: z.number().int().positive(),
@@ -153,6 +154,8 @@ function reconcileObservedTiming(rows, source, previousSnapshot) {
 
 function buildSnapshot(rawSource, catalog, options = {}) {
   const source = sourceSchema.parse(rawSource); const generatedAt = new Date(source.generatedAt); const qualityIssues = [...source.sourceIssues]; const rows = [];
+  const environmentByTeacher = new Map();
+  if (!source.courses.length) qualityIssues.push({ code: 'EMPTY_COURSE_SCOPE', message: 'Consulta não retornou disciplinas. Confira conexão, categoria e escopo antes de concluir o relatório.', severity: 'CRITICAL' });
   const manualDeliveries = new Map();
   for (const record of options.manualDeliveries || []) {
     const key = manualDeliveryKey(record.courseId, record.teacherId, record.requirementId, record.itemNumber);
@@ -177,6 +180,11 @@ function buildSnapshot(rawSource, catalog, options = {}) {
     }
     for (const teacher of course.teachers) {
       const access = calculateAccess(teacher, course, generatedAt, catalog.accessThresholds);
+      const environmentAccess = calculateEnvironmentAccess(teacher, generatedAt, catalog.accessThresholds);
+      if (environmentAccess.status === 'NOT_VERIFIABLE') qualityIssues.push({ code: 'ENVIRONMENT_ACCESS_UNVERIFIABLE', message: `${teacher.name}: último acesso ao ambiente precisa de validação.`, severity: 'CRITICAL', courseId: course.id });
+      const environmentFact = JSON.stringify(environmentAccess);
+      if (environmentByTeacher.has(teacher.id) && environmentByTeacher.get(teacher.id) !== environmentFact) qualityIssues.push({ code: 'ENVIRONMENT_ACCESS_CONFLICT', message: `${teacher.name}: a coleta retornou acessos globais conflitantes. Atualize e valide antes de enviar.`, severity: 'CRITICAL', courseId: course.id });
+      environmentByTeacher.set(teacher.id, environmentFact);
       const currentReady = required.every((requirement) => { const activity = course.activities.find((candidate) => candidate.requirementId === requirement.id); const quantity = expectedQuantity(requirement, course.workloadHours); return quantity !== null && activity?.mappingConfidence === 'EXACT' && activity.visible && activity.observedQuantity >= quantity; });
       const inheritedReady = Boolean(course.originalCourseId && course.restoredAt && teacher.assignedAt && new Date(course.restoredAt) <= new Date(teacher.assignedAt) && currentReady);
       for (const requirement of required) {
@@ -196,7 +204,7 @@ function buildSnapshot(rawSource, catalog, options = {}) {
           }) : [];
           const owner = explicitOwner || (course.teachers.length === 1 ? teacher.id : manualOwners.length === 1 ? manualOwners[0].id : null);
           const validOwner = owner && course.teachers.some((candidate) => candidate.id === owner) ? owner : null;
-          rows.push({ rankingPolicy: catalog.ranking || null, snapshotId: null, course: { id: course.id, name: course.name, shortName: course.shortName, period: course.period, modality: course.modality, modalityLabel: modality.label, workloadHours: course.workloadHours, startsAt: course.startsAt, endsAt: course.endsAt }, teacher: { id: teacher.id, name: teacher.name, email: teacher.email }, requirement: { id: requirementKey, baseId: requirement.id, label: requirementLabel, manualControl: manual, responsibleTeacherId: validOwner, responsibility: validOwner ? validOwner === teacher.id ? 'ASSIGNED' : 'OTHER_TEACHER' : 'UNCONFIRMED', itemNumber: manual ? itemNumber : null, evidenceType: manual ? requirement.evidenceType : null }, structureStatus: evaluation.status, accessStatus: access.status, lastAccessAt: access.lastAccessAt, daysSinceAccess: access.daysSinceAccess, provenance: inheritedReady ? 'INHERITED_VERIFIED' : course.originalCourseId ? 'RESTORED_NOT_EXEMPT' : 'CREATED_FOR_PERIOD', calculatedAt: source.generatedAt, rulesVersion: catalog.version, ...evaluation });
+          rows.push({ rankingPolicy: catalog.ranking || null, snapshotId: null, course: { id: course.id, name: course.name, shortName: course.shortName, period: course.period, modality: course.modality, modalityLabel: modality.label, workloadHours: course.workloadHours, startsAt: course.startsAt, endsAt: course.endsAt }, teacher: { id: teacher.id, name: teacher.name, email: teacher.email }, environmentAccess, requirement: { id: requirementKey, baseId: requirement.id, label: requirementLabel, manualControl: manual, responsibleTeacherId: validOwner, responsibility: validOwner ? validOwner === teacher.id ? 'ASSIGNED' : 'OTHER_TEACHER' : 'UNCONFIRMED', itemNumber: manual ? itemNumber : null, evidenceType: manual ? requirement.evidenceType : null }, structureStatus: evaluation.status, accessStatus: access.status, lastAccessAt: access.lastAccessAt, daysSinceAccess: access.daysSinceAccess, provenance: inheritedReady ? 'INHERITED_VERIFIED' : course.originalCourseId ? 'RESTORED_NOT_EXEMPT' : 'CREATED_FOR_PERIOD', calculatedAt: source.generatedAt, rulesVersion: catalog.version, ...evaluation });
         }
       }
     }

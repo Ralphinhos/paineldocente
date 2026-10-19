@@ -1,53 +1,57 @@
-# Conferência da interface — layout do HTML
+# Conferência — Acessos e Entregas do NED
 
-Conferência técnica de 07/10/2026, com dados fictícios em memória. Ela verifica a apresentação dos dados e as ações da aplicação; não homologa dados reais da UNIFENAS.
+Conferência técnica de 19/10/2026, com dados fictícios. A interface passou a ter duas abas principais e foco nas ocorrências. O filtro de docente vale para ambas. O painel e as notificações usam o mesmo cálculo de ocorrências.
 
-Atualização de layout baseada diretamente em Análise Docente - Acessos e Atrasos(3).html: cabeçalho branco, quatro indicadores nas cores da referência, panorama com barras agrupadas, Top 10 em pares, evolução e atividades em largura completa, tabela e ranking ponderado expansível. A faixa antiga azul escura foi removida. Regras e integrações do backend não foram alteradas.
+## Evidências locais
 
-A conferência após essa atualização passou novamente em lint, TypeScript, build e 71 testes. Requisições HTTP e componentes React confirmaram os cliques dos indicadores, incluindo todas as pendências, nomes distintos nos eixos, os dois eixos com unidades e a tabela antes do ranking ponderado. Os textos pequenos dos indicadores têm contraste calculado de pelo menos 4,69:1 nos extremos dos gradientes. A aparência no navegador continua entre as conferências pendentes abaixo.
-
-| Conferência | Resultado |
+| Etapa | Resultado |
 |---|---|
-| Lint, TypeScript e build | Passaram em `npm run check` |
-| Apresentação, filtros e regras | 11 testes de interface e 60 de backend passaram |
-| Inicialização real | `scripts/demo.mjs` inicia Vite e API; o link exibido usa localhost e permite login |
-| Indicadores e planilha | Contagens conferem com docentes e itens filtrados; atrasos conferem com datas civis em São Paulo |
-| Filtros | Período, modalidade, docente e cada bimestre retornam a seleção correta; paginação e situação não mudam os gráficos nem o ranking |
-| Perfis | NED e alta gestão recebem o panorama completo; coordenação recebe somente 1101/1102 na demonstração, inclusive nos filtros, gráficos e relatório |
-| Componentes React | Renderização de HTML em Node confirmou sete gráficos principais e um ranking ponderado expansível, docentes da base autorizada, os dois bimestres identificados e uma linha por atividade |
-| Materiais manuais | Um pacote de UAs; vídeos conforme a carga horária; entrega de teste com atraso de 2 dias; publicação não altera situação nem ranking |
-| Troca de material | Versão 2 de pacote replicado usa prazo próprio, preserva a versão 1 e congela atraso de 1 dia após entregar |
-| Proteções | Coordenação/gestão não alteram o NED; CSRF, data futura, justificativa ausente e coleta desatualizada são rejeitados |
-| Relatórios | Público forçado conforme perfil; escopo preservado; não aplicável sai da base; tentativa de envio demonstrativo é bloqueada |
-| Compatibilidade de e-mail | Nodemailer compôs MIME de texto/HTML em memória para duas coordenações; repetição foi deduplicada; nenhum SMTP externo foi usado |
-| Portas e encerramento | Portas 3001/8080 ocupadas causam falha clara; não encerram outro processo; Ctrl+C fecha os serviços do teste |
-| Validador da coleta | 57 linhas de demonstração, sem duplicidade ou erro de invariantes; envio bloqueado pelo prazo ausente e catálogo piloto, conforme esperado |
+| Lint, TypeScript e build | `npm run check` passou |
+| Testes | 14 testes de interface e 74 de backend, todos aprovados |
+| Acesso global | Faixas 0–7 / 8–14 / 15+, dias civis, um registro por ID docente; acesso de 2 dias ao ambiente não vira 16 dias por uma disciplina |
+| Ausência de dados | Campo ausente, data futura e conflito exigem revisão; zero conhecido é sem registro; consulta vazia bloqueia publicação |
+| Entregas | Categorias exclusivas reconciliadas; atraso cresce enquanto pendente e congela após entrega; resolvidas saem das cobranças abertas |
+| Filtros e escopo | Docente restringe as duas abas e o controle manual; coordenação só recebe disciplinas configuradas; paginação não altera métricas |
+| Materiais | Pacote único de UAs, vídeos por carga horária, publicação informativa e versões/histórico preservados |
+| Componentes reais | Renderização React em Node, alimentada pelo serviço, confirmou tabela, dias, filtros, antecipadas, resolvidas e escape de conteúdo externo |
+| Relatórios | Ocorrências pontuais sem ranking ou corte em cinco; Para/Cc e texto/HTML; envio selecionado, idempotência e bloqueio por dados antigos |
+| E-mail em memória | Nodemailer compôs MIME com destinatário e três cópias, sem conectar a SMTP |
+| Validador | 57 linhas fictícias, sem erro de invariante; publicação bloqueada pelo prazo ausente, catálogo piloto e modo de demonstração |
 
-As verificações dos serviços usaram requisições HTTP pelo proxy Vite e os componentes reais alimentados pela resposta da API. A renderização em Node confere conteúdo e números; não verifica layout, cliques, foco ou rolagem em um navegador.
+## Fluxo HTTP pelo Vite
 
-## Dependências verificadas
+O teste iniciou os serviços reais com `scripts/demo.mjs` e executou seis grupos de conferência:
 
-A checagem do PR identificou alertas altos/críticos no backend. Foram atualizados Nodemailer para 10.0.16, proxy-addr para 2.0.8 e ip-address para 10.7.3. Node.js 22 é o ambiente da CI e do Docker. Os testes de interface também passam a ser executados pela CI.
+1. Vite entrega o aplicativo com as duas abas.
+2. Login NED e sessão atravessam o proxy até a API.
+3. Filtro por docente retorna acesso global e entregas correspondentes.
+4. Salvar uma gravação gera nova coleta, mostra atraso de 2 dias e mantém o item fora das pendências abertas.
+5. Prévia por coordenação informa Cc, preserva disciplinas vinculadas e não usa o acesso antigo à disciplina como ausência do ambiente.
+6. Demonstração e prévia antiga rejeitam o envio externo. Os serviços do teste foram encerrados.
 
-A auditoria de produção do frontend não encontrou alertas. A do backend não contém alertas altos/críticos após as atualizações. Permanece um aviso moderado de `sprintf-js`, herdado por `tedious`/`mssql`, contabilizado em três pacotes. O aviso não possui versão corrigida publicada; o driver SQL Server foi preservado. Esse resultado não equivale a uma auditoria de produção concluída.
+Essas requisições e a renderização em Node verificam dados e conteúdo. Não verificam clique, foco, aparência, rolagem ou responsividade em navegador.
 
-Fontes: [correção de proxy-addr](https://github.com/advisories/GHSA-jqcg-44mw-7w3h), [histórico do Nodemailer](https://github.com/nodemailer/nodemailer/blob/master/CHANGELOG.md), [aviso de sprintf-js](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), [transporte em memória](https://nodemailer.com/transports/stream).
+## Verificações pendentes
 
-## Conferências pendentes
+- Conferir Chrome/Edge em desktop, tela estreita e zoom de 200%, inclusive filtros, abas, diálogos e bloqueio de edição não salva. O navegador remoto bloqueou localhost e arquivos locais por política de acesso.
+- Conectar uma amostra real do Moodle institucional e comparar com consultas do DBA/planilhas, usando o último acesso ao ambiente e os prazos docentes homologados.
+- Homologar endereços, cópias, SMTP institucional e Docker em execução no servidor interno. Nenhum e-mail real foi enviado.
 
-- Layout em Chrome/Edge, incluindo tela estreita, cliques dos gráficos, diálogos, foco e rolagem. O navegador remoto bloqueou localhost e arquivos locais; use `npm run demo` no computador de teste.
-- Consulta a uma amostra do Moodle real, prazos oficiais e comparação com as planilhas do NED. Nenhuma conexão ao banco institucional foi usada nesta conferência.
-- SMTP institucional, destinatários/cópias e Docker em execução no servidor interno. O envio real continua bloqueado.
+As auditorias de dependências de produção passaram no limite alto/crítico. Frontend sem vulnerabilidades apontadas; backend mantém dois avisos moderados associados ao driver SQL (`sprintf-js`/`tedious`), fora do escopo desta alteração de funcionalidade.
 
-## Repetir os testes
-
-Na pasta do projeto, com Node.js 22 e as dependências instaladas:
+## Testar no computador
 
 ```bash
-npm run check
-npm audit --omit=dev --audit-level=high
-npm --prefix backend audit --omit=dev --audit-level=high
+npm ci
+npm --prefix backend ci
 npm run demo
 ```
 
-Abra http://localhost:8080 e identifique o cabeçalho branco **Análise de Risco e Desempenho Docente**. Confira os quatro indicadores, duas barras por docente no panorama, os Top 10 em pares e os gráficos inferiores em largura completa. Abra **Ranking docente com pesos** para ver a nota geral. Entre nos três perfis e confira o clique para a planilha, as datas e os relatórios. No perfil NED, registre uma data de docente, salve e consulte o histórico após trocar o pacote ou regravar. Esses registros de demonstração ficam em memória e não são enviados por e-mail.
+Abra http://localhost:8080 e clique em **Abrir demonstração do NED**. Identifique o título **Acompanhamento docente** e somente **Acessos ao ambiente** / **Entregas**.
+
+- Filtre Docente Beta: acesso ao ambiente de 2 dias e material replicado regular.
+- Em Entregas, veja as pendências vencidas e use a situação para consultar resolvidas/antecipadas/todas.
+- Abra Registrar UA e videoaulas, salve uma data de docente e confira a situação resultante. Durante edição, salve ou descarte antes de sair.
+- Em Preparar notificação, alterne a coordenação, confira Para/Cc e baixe o HTML. O envio fica bloqueado no modo demonstração.
+
+Ctrl+C encerra os serviços. O modo de demonstração não persiste registros após encerrar.

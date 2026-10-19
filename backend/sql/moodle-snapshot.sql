@@ -49,7 +49,8 @@ teacher_courses AS (
     cc.name AS category_name, cf.modality_field_value, cf.category_field_value,
     COALESCE(cf.modality_field_value, cf.category_field_value) AS modality_value, cf.workload_value,
     u.id AS teacher_id, CONCAT(u.firstname, ' ', u.lastname) AS teacher_name, u.email AS teacher_email,
-    MIN(ra.timemodified) AS assigned_at
+    MIN(ra.timemodified) AS assigned_at,
+    MAX(u.lastaccess) AS environment_last_access_at
   FROM dbo.mdl_course c
   INNER JOIN category_tree ct ON ct.id = c.category
   INNER JOIN dbo.mdl_course_categories cc ON cc.id = c.category
