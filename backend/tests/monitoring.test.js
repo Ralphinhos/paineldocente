@@ -183,3 +183,51 @@ test('API exige autenticação, valida filtros, preserva escopo e aplica docente
     assert.ok(manual.body.items.every((row) => row.teacher.id === '501'));
   } finally { await runtime.close(); }
 });
+
+test('gráficos empilhados e Top 10 usam categorias exclusivas e base exigível em dias civis', () => {
+  const template = snapshotOf(createDemoSource(at)).rows.find((row) => row.requirement.responsibility === 'ASSIGNED');
+  const record = (id, changes) => ({ ...structuredClone(template), requirement: { ...template.requirement, id, baseId: id, label: id }, deadlineAt: day(7), configuredAt: null, manualEvidenceDate: null, structureStatus: 'PENDING', overdue: false, ...changes });
+  const rows = [
+    record('aberta', { overdue: true }),
+    record('futura', { deadlineAt: day(-2) }),
+    record('dispensada', { structureStatus: 'NOT_APPLICABLE' }),
+    record('incerta', { structureStatus: 'NOT_VERIFIABLE' }),
+    record('antecipada', { structureStatus: 'DELIVERED_ON_TIME', configuredAt: day(9), timingSource: 'DEMO_TRUSTED' }),
+    record('resolvida', { structureStatus: 'DELIVERED_LATE', deadlineAt: day(20), configuredAt: day(1), timingSource: 'DEMO_TRUSTED' }),
+    record('hoje', { deadlineAt: '2026-10-19T03:00:00.000Z' }),
+  ];
+  const unassigned = record('sem-responsavel', { overdue: true });
+  unassigned.requirement.responsibility = 'UNCONFIRMED';
+  const result = buildMonitoring([...rows, unassigned], at);
+  const chart = result.deliveries.teacherOverview[0];
+  assert.equal(chart.total, 6);
+  assert.equal(chart.counts.overdue, 1); assert.equal(chart.counts.pendingInTime, 2);
+  assert.equal(chart.counts.early, 1); assert.equal(chart.counts.deliveredLate, 1); assert.equal(chart.counts.validation, 1);
+  assert.equal(Object.values(chart.counts).reduce((sum, value) => sum + value, 0), chart.total);
+  assert.equal(chart.due, 3); assert.equal(chart.maxDaysLate, 7);
+  assert.equal(chart.overduePercent, 1 / 3 * 100); assert.equal(chart.onTimePercent, 1 / 3 * 100);
+  assert.equal(result.deliveries.summary.validation, 2);
+  assert.deepEqual(result.deliveries.activityChart.map((row) => row.label), ['aberta']);
+});
+
+test('gráficos e prioridades independem da página; clique de atividade e rosca filtram apenas a lista', async () => {
+  const store = new MemoryStore(); await store.saveSnapshot(snapshotOf(createDemoSource(at)));
+  const service = new MonitoringService({ store, snapshotIntervalMinutes: 60 });
+  const first = await service.getMonitoring(admin, { deliveryStatus: 'ALL', accessStatus: 'ALL', pageSize: 5 });
+  const next = await service.getMonitoring(admin, { deliveryStatus: 'ALL', accessStatus: 'ALL', page: 2, pageSize: 5 });
+  assert.deepEqual(first.deliveries.teacherOverview, next.deliveries.teacherOverview);
+  assert.deepEqual(first.deliveries.activityChart, next.deliveries.activityChart);
+  assert.deepEqual(first.access.priorities, next.access.priorities);
+  const selected = first.deliveries.activityChart[0];
+  const activity = await service.getMonitoring(admin, { activityKey: selected.id, deliveryStatus: 'OVERDUE' });
+  assert.ok(activity.deliveries.rows.length > 0);
+  assert.ok(activity.deliveries.rows.every((row) => row.course.modality + ':' + row.item.id === selected.id && row.displayStatus === 'OVERDUE'));
+  assert.deepEqual(first.deliveries.summary, activity.deliveries.summary);
+  const green = await service.getMonitoring(admin, { deliveryStatus: 'ON_TIME_OR_INHERITED', pageSize: 50 });
+  assert.equal(green.deliveries.pagination.total, green.deliveries.summary.onTime + green.deliveries.summary.inherited);
+  assert.ok(green.deliveries.rows.every((row) => ['ON_TIME', 'INHERITED_READY'].includes(row.displayStatus)));
+  const scoped = await service.getMonitoring({ role: 'coordinator', courseIds: ['1101'] }, { deliveryStatus: 'ALL' });
+  assert.ok(scoped.deliveries.teacherOverview.every((row) => row.teacher.id === '501'));
+  const none = await service.getMonitoring({ role: 'coordinator', courseIds: [] });
+  assert.deepEqual(none.deliveries.teacherOverview, []); assert.deepEqual(none.deliveries.activityChart, []); assert.deepEqual(none.access.priorities, []);
+});

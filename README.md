@@ -1,6 +1,6 @@
-# Acompanhamento Docente · NED / UNIFENAS
+# Monitoramento Docente · NED / UNIFENAS
 
-Área interna do NED para identificar problemas pontuais, conferir evidências e preparar notificações por coordenação. A referência visual é o HTML **Análise Docente - Acessos e Atrasos(3).html**.
+Área interna do NED para identificar problemas pontuais, conferir evidências e preparar notificações por coordenação. A interface segue os dois modelos visuais aprovados em 19/10/2026: cabeçalho NED UNIFENAS, cartões suaves com ícones circulares, roscas, barras horizontais e prioridades ao lado da tabela. O HTML **Análise Docente - Acessos e Atrasos(3).html** continua como referência para as comparações Top 10.
 
 ## Testar sem Docker
 
@@ -12,22 +12,25 @@ npm --prefix backend ci
 npm run demo
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) e clique em **Abrir demonstração do NED**. O título é **Análise docente: acessos e atrasos**, com apenas duas abas principais. Ctrl+C encerra os dois serviços.
+Abra [http://localhost:8080](http://localhost:8080) e clique em **Abrir demonstração do NED**. O título é **Monitoramento Docente**, com as abas **Acessos**, **Entregas** e **Relatório por coordenador**. Ctrl+C encerra os dois serviços.
 
 O teste usa dados fictícios em memória, coordenações fictícias e envio externo bloqueado. As portas 3001 e 8080 precisam estar livres. Registros de demonstração não persistem após encerrar.
 
-## Duas abas
+## Três abas do NED
 
 | Aba | Unidade de acompanhamento | Conteúdo inicial |
 |---|---|---|
-| Acessos ao ambiente | Um docente, identificado pelo ID do Moodle | Atenção, críticos, sem registro e a validar |
+| Acessos | Um docente, identificado pelo ID do Moodle | Atenção, críticos, sem registro e a validar |
 | Entregas | Uma atividade por disciplina e responsável | Somente pendências vencidas, com dias de atraso |
+| Relatório por coordenador | Cursos vinculados ao destinatário no servidor | Prévia, Para/Cc, cópia do texto e download HTML |
 
-O filtro de docente, período, modalidade e disciplina afeta os números, gráficos e listas das duas abas. Filtrar uma disciplina seleciona os docentes vinculados, preservando seu acesso global. A aba de acessos considera docentes com pelo menos uma disciplina ativa na data da coleta.
+O filtro de docente, período, modalidade e disciplina afeta os números, gráficos e listas das duas abas analíticas. A busca permite selecionar o docente por nome e ID. Filtrar uma disciplina seleciona os docentes vinculados, preservando seu acesso global. A aba de acessos considera docentes com pelo menos uma disciplina ativa na data da coleta. O relatório usa os cursos da coordenação selecionada; os filtros analíticos ficam fora dessa aba para tornar o escopo explícito.
 
-As situações e a paginação restringem a lista. Os indicadores e gráficos usam toda a base dos filtros compartilhados. Clicar numa barra de docente seleciona seu nome; clicar numa barra de situação filtra a lista. **Ver todos/Ver todas** permite conferir o restante.
+As situações, a atividade selecionada e a paginação restringem a lista. Os indicadores e gráficos usam toda a base dos filtros compartilhados. Clicar numa barra de docente seleciona seu nome; clicar numa legenda da rosca filtra a situação; o Top 10 de atividades abre as pendências daquele item e modalidade. **Ver todos/Ver todas** permite conferir o restante.
 
-A aparência acompanha o HTML de referência: quatro cartões em azul, verde, rosa e âmbar, filtros com títulos em maiúsculas, painéis brancos arredondados e gráficos de colunas com escala iniciada em zero, nomes, valores e unidades. O panorama de acessos inclui todos os docentes do recorte, inclusive registros sem data, identificados por texto. Entregas mostra as pendências por docente e a distribuição por situação. Valores ausentes não viram barras de zero; entregas resolvidas não entram nas pendências vencidas.
+A aparência acompanha as imagens aprovadas: quatro cartões em azul, verde, âmbar e rosa, filtros compactos, painéis brancos e gráficos com valores e unidades. Acessos combina distribuição em rosca, os dez maiores intervalos e prioridades. Entregas combina rosca, barras empilhadas por docente e Top 10 de atividades com pendências. As comparações de acessos mais recentes e entregas no prazo ficam em **Ver comparações**. Valores ausentes não viram zero; entregas resolvidas não entram nas pendências vencidas.
+
+As barras empilhadas usam categorias exclusivas. O percentual de pendências usa somente itens aplicáveis, com responsável confirmado, situação conhecida e prazo em dia civil anterior à coleta. Pendências futuras, dados a validar e dispensas ficam fora dessa base. A quantidade e a base aparecem juntas; o maior atraso considera apenas pendências ainda abertas. A fatia “No prazo e replicadas” filtra esses dois estados; as antecipadas têm sua própria fatia.
 
 - Acessos: 0–7 dias em dia; 8–14 atenção; 15+ crítico. Sem registro e dado indisponível são distintos.
 - Entregas: antecipada, no prazo, replicada e conferida, pendente no prazo, pendente vencida, entregue com atraso, não aplicável e a validar.
@@ -53,7 +56,7 @@ A coleta usa estado atual e evidências homologadas. Visualizar atividade ou alt
 
 ## Notificar coordenação
 
-O botão **Preparar notificação** mostra texto e HTML com os problemas confirmados dos cursos vinculados ao destinatário e um resumo dos demais itens verificados. Prévia e envio usam a mesma coleta. A prévia abrange os cursos do destinatário, independentemente dos filtros da tela.
+O botão **Preparar notificação** abre a aba **Relatório por coordenador**, com texto e HTML dos problemas confirmados e resumo dos demais itens verificados. Prévia e envio usam a mesma coleta. A prévia abrange todos os cursos vinculados ao destinatário no servidor.
 
 O NED confere **Para, Cópia, assunto e conteúdo**. O envio pela interface alcança somente a coordenação selecionada e suas cópias. O relatório não atribui nota nem mistura entregas resolvidas com pendências abertas. Há bloqueio para demonstração, dados incompletos, coleta desatualizada e mudança de coleta após a prévia. Repetir o envio de uma coleta já enviada não cria outra mensagem.
 

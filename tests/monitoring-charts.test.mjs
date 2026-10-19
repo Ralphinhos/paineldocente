@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = await readFile(new URL('../src/lib/monitoringCharts.ts', import.meta.url), 'utf8');
 const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { integerScale } = await import('data:text/javascript;base64,' + Buffer.from(output).toString('base64'));
+const { integerScale, donutSegments } = await import('data:text/javascript;base64,' + Buffer.from(output).toString('base64'));
 
 test('escala dos gráficos começa em zero, usa inteiros e inclui o maior valor', () => {
   for (const maximum of [0, 1, 2, 7, 14, 18, 101, 9999]) {
@@ -16,6 +16,18 @@ test('escala dos gráficos começa em zero, usa inteiros e inclui o maior valor'
     assert.ok(ticks.length >= 2 && ticks.length <= 6);
     for (let i = 1; i < ticks.length; i++) assert.equal(ticks[i] - ticks[i - 1], ticks[1]);
   }
+});
+
+test('rosca reconcilia o total sem inventar fatias para estados zerados ou base vazia', () => {
+  const values = [34, 9, 5, 0];
+  const segments = donutSegments(values);
+  assert.equal(segments.reduce((sum, segment) => sum + segment.value, 0), 48);
+  assert.ok(Math.abs(segments.reduce((sum, segment) => sum + segment.share, 0) - 1) < 1e-12);
+  assert.equal(segments[0].offset, 0);
+  assert.equal(segments[3].share, 0);
+  assert.deepEqual(donutSegments([0, 0]), [{ value: 0, share: 0, offset: 0 }, { value: 0, share: 0, offset: 0 }]);
+  assert.deepEqual(donutSegments([5]), [{ value: 5, share: 1, offset: 0 }]);
+  assert.deepEqual(values, [34, 9, 5, 0]);
 });
 
 test('escala tolera base vazia e ausências sem alterar a representação dos registros', () => {

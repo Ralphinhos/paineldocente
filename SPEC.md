@@ -3,13 +3,15 @@
 ## product
 
 - P1 user:=NED; workflow:=collect>review>notify_coordinator
-- P2 UI:=access_tab|delivery_tab; !executive_dashboard,!weighted_score_UI
+- P2 UI:=access_tab|delivery_tab|coordinator_report_tab; one_NED_workspace; !weighted_score_UI
 - P3 scope_filters:=teacher_id|period|modality|Moodle_course; affect(summary|chart|list)
-- P4 status_filter|pagination=>list_only; default:=access.issues + deliveries.overdue
+- P4 status_filter|activity_key|pagination=>list_only; default:=access.issues + deliveries.overdue
 - P5 regular:=summary+show_all; unknown!=regular
-- P6 identity:=Análise Docente - Acessos e Atrasos(3).html; 4 colored_KPIs+2 column_charts/tab+white_table
+- P6 identity:=approved_images@2026-10-19; single_header+pastel_KPIs+circle_icons+donuts+horizontal_bars+table/priority_grid
 - P7 chart_axis:=zero_based+integer_ticks+visible_units; unknown!=zero
 - P8 access.panorama:=all_scoped_authorized_teachers; !list_pagination
+- P9 top10:=absence_days|overdue_teacher|overdue_activity; regular_comparisons:=collapsed
+- P10 report_scope:=recipient.courseIds; analytical_filters hidden@report_tab
 
 ## invariants
 
@@ -49,6 +51,10 @@
 - DELIVERED_LATE=>resolved_history; !open_incident
 - EARLY=>exact_date<deadline; !offset_other_lateness
 - COMPLIANT_filter:=EARLY|ON_TIME|INHERITED_READY
+- ON_TIME_OR_INHERITED_filter:=ON_TIME|INHERITED_READY; matches_green_donut_slice
+- teacher_chart:=exclusive_states; UNCONFIRMED_owner=>!teacher_attribution
+- overdue_percent_base:=applicable+known_state+confirmed_owner+calendar_days(collection,deadline)>0
+- future|NOT_APPLICABLE|NOT_VERIFIABLE=>!percent_base; resolved_late=>!open_delay_max
 - total:=sum(exclusive_states)-NOT_APPLICABLE
 - bimestres:=separate_requirements
 - module_updated|completion_changed|viewed!alone_delivery_proof

@@ -10,9 +10,14 @@ export interface EnvironmentRecord {
 export interface DeliveryRecord {
   id: string; course: AssignmentRow['course']; teacher: AssignmentRow['teacher']; item: Requirement; displayStatus: DeliveryState;
 }
+export interface TeacherDeliveryOverview {
+  teacher: AssignmentRow['teacher']; total: number; due: number; onTimeDue: number; maxDaysLate: number;
+  overduePercent: number | null; onTimePercent: number | null;
+  counts: { overdue: number; pendingInTime: number; deliveredLate: number; early: number; onTime: number; inherited: number; validation: number };
+}
 export interface MonitoringFilters {
-  period: string; modality: string; courseId: string; teacherId: string; query: string;
-  accessStatus: 'ISSUES' | 'ALL' | EnvironmentStatus; deliveryStatus: 'ALL' | 'COMPLIANT' | DeliveryState; page: number;
+  period: string; modality: string; courseId: string; teacherId: string; query: string; activityKey: string;
+  accessStatus: 'ISSUES' | 'ALL' | EnvironmentStatus; deliveryStatus: 'ALL' | 'COMPLIANT' | 'ON_TIME_OR_INHERITED' | DeliveryState; page: number;
 }
 export interface MonitoringData {
   meta: DashboardData['meta'];
@@ -21,11 +26,14 @@ export interface MonitoringData {
     summary: { total: number; current: number; attention: number; critical: number; never: number; validation: number };
     rows: EnvironmentRecord[]; chart: EnvironmentRecord[]; pagination: PageInfo;
     panorama: Array<Pick<EnvironmentRecord, 'teacher' | 'status' | 'daysSinceAccess'>>;
+    priorities: EnvironmentRecord[];
   };
   deliveries: {
     summary: { total: number; overdue: number; pendingInTime: number; deliveredLate: number; early: number; onTime: number; inherited: number; validation: number; notApplicable: number };
     rows: DeliveryRecord[];
     chart: Array<{ teacher: AssignmentRow['teacher']; overdue: number; maxDaysLate: number }>;
+    teacherOverview: TeacherDeliveryOverview[];
+    activityChart: Array<{ id: string; label: string; modality: string; overdue: number; due: number; maxDaysLate: number }>;
     pagination: PageInfo;
   };
 }

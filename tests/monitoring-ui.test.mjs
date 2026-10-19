@@ -27,7 +27,8 @@ test('componentes reais apresentam acesso global e filtro de docente com dados d
   assert.match(html, /<strong>2<\/strong>/);
   assert.match(html, /Em dia/); assert.ok(!html.includes('Ranking'));
   const controls = render(modules[2].MonitoringFilters, { value: selected, options: data.filters, disabled: false, onChange: noop });
-  assert.match(controls, /value="502" selected=""/);
+  assert.match(controls, /value="Docente Beta/);
+  assert.match(controls, /role="combobox"/);
   assert.match(controls, /Docente Beta/);
 });
 
@@ -70,4 +71,13 @@ test('gráfico distingue acesso medido de zero dias de ausência de data', () =>
   assert.match(html, /Docente sem registro: Sem registro/);
   assert.ok(!/Docente sem (?:data|registro): 0/.test(html));
   assert.ok(!html.includes('NaN'));
+});
+
+test('recorte vazio não apresenta docentes inexistentes como regulares', async () => {
+  const selected = { ...filters, teacherId: 'inexistente' };
+  const data = await runtime.services.monitoringService.getMonitoring(admin, selected);
+  const html = render(modules[0].AccessOverview, { data: data.access, filters: selected, disabled: false, onChange: noop, onTeacher: noop, onDeliveries: noop });
+  assert.match(html, /Nenhum docente neste recorte/);
+  assert.ok(!html.includes('Os docentes verificados estão em dia'));
+  assert.ok(!html.includes('NaN')); assert.ok(!html.includes('Infinity'));
 });

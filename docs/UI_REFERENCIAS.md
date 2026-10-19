@@ -1,27 +1,29 @@
 # Referências e organização da interface
 
-**Análise Docente - Acessos e Atrasos(3).html** define a identidade visual: fundo slate-50, cabeçalho branco, quatro cartões coloridos, títulos de filtro em maiúsculas, gráficos de colunas com eixos e valores e tabela branca. O fluxo mantém as duas abas do NED.
+A composição segue as duas imagens aprovadas em 19/10/2026: **Imagem do ChatGPT 19 de out. de 2026, 14_11_49-1.png** (acessos) e **14_11_50-2.png** (entregas). O HTML **Análise Docente - Acessos e Atrasos(3).html** orienta os Top 10, com as regras atuais de dados.
 
 ## Estrutura
 
-Somente duas abas principais: **Acessos ao ambiente** e **Entregas**. Um filtro global de docente afeta ambas. Quatro cartões por aba apresentam total, situação regular, pendências críticas/vencidas e atenção/prazo em aberto. Entregas concluídas com atraso ficam entre as resolvidas. As listas abrem com problemas; Ver todos permite conferir os regulares.
+O NED usa três abas: **Acessos**, **Entregas** e **Relatório por coordenador**. A terceira é a preparação do relatório dentro da mesma área de trabalho. O destinatário e seus cursos são definidos no servidor; os filtros analíticos ficam ocultos nessa aba.
 
-Dois painéis de gráficos por aba, como a grade de duas colunas do HTML:
+O cabeçalho une NED UNIFENAS, Monitoramento Docente, data da coleta e ações. Quatro cartões suaves mostram total, regularidade, atenção/prazo em aberto e críticos/vencidas. Ícones circulares e formas discretas no fundo seguem os modelos. Cores e textos identificam os estados; percentuais informam a proporção sobre o total do recorte.
 
-- Acessos: panorama de todos os docentes, ordenado por dias sem acessar; contagem por faixa de acesso.
-- Entregas: até dez docentes com pendências, ordenados pelo maior atraso, com quantidade de itens e maior atraso em dias; contagem por situação.
+- **Acessos:** rosca por situação, barras horizontais dos dez maiores intervalos, tabela de problemas e prioridades laterais. O acesso é ao ambiente Moodle, com um registro por docente. Faixas 0–7 / 8–14 / 15+. Sem registro, dado desconhecido e zero dias são distintos.
+- **Entregas:** rosca por situação, barras empilhadas por docente com prioridade às pendências, tabela com bimestre, prazo, atraso e origem; Top 10 de atividades e regras ao lado. As cores separam antecipadas, no prazo/replicadas, resolvidas com atraso, pendentes no prazo, vencidas e a validar.
+- **Comparações:** acessos mais recentes e entregas no prazo ficam em uma área expansível. As barras positivas usam base exigível confirmada; não geram nota ponderada.
 
-As colunas começam em zero e mostram nomes, números e unidades. Clique, Enter ou Espaço seleciona docente/situação. O nome completo está no rótulo acessível e no título da barra. Os gráficos usam SVG local, sem CDN. Não foram reproduzidas as médias de acesso, as faixas antigas, a mistura de atrasos resolvidos com pendências ou as interpretações causais do HTML original. Não há série histórica inventada.
+Os dados completos do recorte alimentam os gráficos, independentemente da página da tabela. O percentual de pendências usa itens já exigíveis em dias civis e com situação/responsável confirmados. Itens futuros, dispensas e dados a validar não entram nessa base. A legenda verde da rosca de entregas consulta somente no prazo/replicadas; antecipadas continuam separadas. O clique de atividade restringe a tabela pelo item e modalidade.
 
-Acesso representa a última utilização do ambiente Moodle. Não usa a média das disciplinas ou semanas do HTML. As faixas são 0–7 / 8–14 / 15+. Dado ausente é identificado, nunca desenhado como zero. O indicador não mistura dias com percentuais nem gera uma nota ponderada.
+A aparência dos modelos foi preservada, sem copiar inconsistências dos exemplos: o acesso continua global, a data da coleta é verdadeira, situações resolvidas não aparecem como pendências críticas e totais vêm do serviço. O período seleciona o período letivo disponível; não há filtro semanal fictício. UA/vídeos mantêm datas, versões e registro manual.
 
-Cada atividade mantém datas, prazo, atraso em dias e origem automática/manual. Ação de lupa abre evidências; o registro de materiais fica dentro de Entregas. Troca/regravação preserva versões e exige novo prazo. Publicação é informativa.
+## Componentes e dimensões
 
-Superfícies brancas, largura máxima de 1280px, intervalos de 24px e raio de 16px seguem o arquivo original. Cartões azuis, verdes e rosas usam fundo ligeiramente mais escuro para texto branco legível; o cartão âmbar mantém a cor viva com texto escuro. Ícones usam o mesmo traço Lucide e caixas translúcidas dos indicadores do HTML.
+- `AppShell` / `DashboardPage`: cabeçalho único e três áreas do NED.
+- `MonitoringMetrics`, `DistributionChart`, `MonitoringChart` e `TeacherDeliveryChart`: cartões, roscas e barras SVG locais.
+- `TeacherPicker`: busca de nomes e seleção por ID, com opções e navegação por teclado.
+- `src/styles/monitoring.css`: tema dos modelos, sem CDN ou nova biblioteca de gráficos.
 
-Até 1000px, os cartões passam de quatro para duas colunas, os gráficos para uma e os filtros para duas. Até 620px, cartões e filtros passam para uma coluna. Nomes dos gráficos mantêm tamanho legível com rolagem horizontal. Tabelas preservam colunas com rolagem horizontal. Abas têm teclado/ARIA, diálogos nativos e foco visível; cor é acompanhada de texto.
-
-Notificações ficam em uma prévia acessada no cabeçalho, sem nova aba principal. Ela mostra Para, Cc, texto e HTML. O envio alcança somente a coordenação selecionada. Gráficos e componentes funcionam localmente, sem carregar CDN.
+Largura máxima de 1600px, intervalos de 12–16px e superfícies com raio de 8–9px. Até 1250px, tabela e prioridades passam para linhas distintas. Até 1050px, cartões/filtros ficam em duas colunas e gráficos em uma. Até 650px, filtros ficam em uma coluna e as legendas da rosca abaixo do desenho; tabelas e barras preservam a leitura com rolagem. Até 370px, cartões ficam em uma coluna. Abas, busca, legendas e gráficos mantêm foco, teclado e rótulos acessíveis.
 
 ## Skiper UI — Skiper40 / CssLink
 

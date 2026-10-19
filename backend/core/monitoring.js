@@ -4,6 +4,38 @@ const { distinctStructureRows } = require('../services/dashboardService');
 const ACCESS_ORDER = { CRITICAL: 0, NEVER: 1, ATTENTION: 2, NOT_VERIFIABLE: 3, CURRENT: 4 };
 const DELIVERY_ORDER = { OVERDUE: 0, NOT_VERIFIABLE: 1, PENDING: 2, DELIVERED_LATE: 3, EARLY: 4, ON_TIME: 5, INHERITED_READY: 6, NOT_APPLICABLE: 7 };
 const unknownAccess = () => ({ status: 'NOT_VERIFIABLE', lastAccessAt: null, daysSinceAccess: null });
+const deliveryKeys = { OVERDUE: 'overdue', PENDING: 'pendingInTime', DELIVERED_LATE: 'deliveredLate', EARLY: 'early', ON_TIME: 'onTime', INHERITED_READY: 'inherited', NOT_VERIFIABLE: 'validation', NOT_APPLICABLE: 'notApplicable' };
+const emptyCounts = () => ({ overdue: 0, pendingInTime: 0, deliveredLate: 0, early: 0, onTime: 0, inherited: 0, validation: 0 });
+
+function deliveryCharts(records, asOf) {
+  const teachers = new Map();
+  const activities = new Map();
+  for (const record of records) {
+    if (record.displayStatus === 'NOT_APPLICABLE' || record.item.responsibility === 'UNCONFIRMED') continue;
+    const { teacher, item, course, displayStatus } = record;
+    const verifiedDue = displayStatus !== 'NOT_VERIFIABLE' && item.deadlineAt && calendarDays(asOf, item.deadlineAt) > 0;
+    const group = teachers.get(teacher.id) || { teacher, total: 0, counts: emptyCounts(), due: 0, onTimeDue: 0, maxDaysLate: 0 };
+    group.total += 1;
+    group.counts[deliveryKeys[displayStatus]] += 1;
+    if (verifiedDue) {
+      group.due += 1;
+      if (['EARLY', 'ON_TIME', 'INHERITED_READY'].includes(displayStatus)) group.onTimeDue += 1;
+    }
+    if (displayStatus === 'OVERDUE') group.maxDaysLate = Math.max(group.maxDaysLate, item.daysLate || 0);
+    teachers.set(teacher.id, group);
+    const id = `${course.modality}:${item.id}`;
+    const activity = activities.get(id) || { id, label: item.label, modality: course.modalityLabel, overdue: 0, due: 0, maxDaysLate: 0 };
+    if (verifiedDue) activity.due += 1;
+    if (displayStatus === 'OVERDUE') { activity.overdue += 1; activity.maxDaysLate = Math.max(activity.maxDaysLate, item.daysLate || 0); }
+    activities.set(id, activity);
+  }
+  return {
+    teacherOverview: [...teachers.values()].map((row) => ({ ...row, overduePercent: row.due ? row.counts.overdue / row.due * 100 : null, onTimePercent: row.due ? row.onTimeDue / row.due * 100 : null }))
+      .sort((a, b) => b.maxDaysLate - a.maxDaysLate || b.counts.overdue - a.counts.overdue || a.teacher.name.localeCompare(b.teacher.name, 'pt-BR')),
+    activityChart: [...activities.values()].filter((row) => row.overdue > 0)
+      .sort((a, b) => b.overdue - a.overdue || b.maxDaysLate - a.maxDaysLate || a.label.localeCompare(b.label, 'pt-BR')).slice(0, 10),
+  };
+}
 
 function environmentRecords(rows, asOf) {
   const teachers = new Map();
@@ -51,7 +83,6 @@ function buildMonitoring(rows, asOf) {
   const accessKeys = { CURRENT: 'current', ATTENTION: 'attention', CRITICAL: 'critical', NEVER: 'never', NOT_VERIFIABLE: 'validation' };
   for (const row of accessRows) access[accessKeys[row.status]] += 1;
   const deliveries = { total: 0, overdue: 0, pendingInTime: 0, deliveredLate: 0, early: 0, onTime: 0, inherited: 0, validation: 0, notApplicable: 0 };
-  const deliveryKeys = { OVERDUE: 'overdue', PENDING: 'pendingInTime', DELIVERED_LATE: 'deliveredLate', EARLY: 'early', ON_TIME: 'onTime', INHERITED_READY: 'inherited', NOT_VERIFIABLE: 'validation', NOT_APPLICABLE: 'notApplicable' };
   const teacherBars = new Map();
   for (const row of deliveryRows) {
     deliveries[deliveryKeys[row.displayStatus]] += 1;
@@ -66,10 +97,11 @@ function buildMonitoring(rows, asOf) {
     access: {
       summary: access, rows: accessRows,
       chart: accessRows.filter((row) => ['CRITICAL', 'ATTENTION'].includes(row.status)).slice(0, 10),
+      priorities: accessRows.filter((row) => row.status !== 'CURRENT').slice(0, 5),
       panorama: [...accessRows].sort((a, b) => (b.daysSinceAccess ?? -1) - (a.daysSinceAccess ?? -1) || a.teacher.name.localeCompare(b.teacher.name, 'pt-BR'))
         .map(({ teacher, status, daysSinceAccess }) => ({ teacher, status, daysSinceAccess })),
     },
-    deliveries: { summary: deliveries, rows: deliveryRows, chart: [...teacherBars.values()].sort((a, b) => b.maxDaysLate - a.maxDaysLate || b.overdue - a.overdue || a.teacher.name.localeCompare(b.teacher.name, 'pt-BR')).slice(0, 10) },
+    deliveries: { summary: deliveries, rows: deliveryRows, chart: [...teacherBars.values()].sort((a, b) => b.maxDaysLate - a.maxDaysLate || b.overdue - a.overdue || a.teacher.name.localeCompare(b.teacher.name, 'pt-BR')).slice(0, 10), ...deliveryCharts(deliveryRows, asOf) },
   };
 }
 

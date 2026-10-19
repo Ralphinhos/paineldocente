@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
-import { BarChart3, Table2, SquarePen, Mail } from 'lucide-react';
-interface Tab { id: string; label: string; count?: number; icon?: 'chart' | 'table' | 'edit' | 'mail' }
-const icons = { chart: BarChart3, table: Table2, edit: SquarePen, mail: Mail };
+import { BarChart3, Table2, SquarePen, Mail, UsersRound } from 'lucide-react';
+interface Tab { id: string; label: string; count?: number; icon?: 'chart' | 'table' | 'edit' | 'mail' | 'people' }
+const icons = { chart: BarChart3, table: Table2, edit: SquarePen, mail: Mail, people: UsersRound };
 interface Props { id: string; label: string; tabs: Tab[]; value: string; onChange: (value: string) => void; locked?: boolean; compact?: boolean }
 // Adapted from Cult UI's direction-aware tabs. See docs/UI_REFERENCIAS.md.
 export function WorkspaceTabs({ id, label, tabs, value, onChange, locked = false, compact = false }: Props) {

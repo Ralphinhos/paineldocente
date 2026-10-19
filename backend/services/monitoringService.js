@@ -28,7 +28,8 @@ class MonitoringService {
     const accessStatus = filters.accessStatus || 'ISSUES';
     const deliveryStatus = filters.deliveryStatus || 'OVERDUE';
     const accessRows = result.access.rows.filter((row) => accessStatus === 'ALL' || (accessStatus === 'ISSUES' ? row.status !== 'CURRENT' : row.status === accessStatus));
-    const deliveryRows = result.deliveries.rows.filter((row) => deliveryStatus === 'ALL' || (deliveryStatus === 'COMPLIANT' ? ['EARLY', 'ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : row.displayStatus === deliveryStatus));
+    const deliveryRows = result.deliveries.rows.filter((row) => (!filters.activityKey || `${row.course.modality}:${row.item.id}` === filters.activityKey)
+      && (deliveryStatus === 'ALL' || (deliveryStatus === 'COMPLIANT' ? ['EARLY', 'ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : deliveryStatus === 'ON_TIME_OR_INHERITED' ? ['ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : row.displayStatus === deliveryStatus)));
     const issues = snapshot.qualityIssues.filter((issue) => user.role !== 'coordinator' || !issue.courseId || user.courseIds.includes(issue.courseId));
     const invalid = result.access.summary.validation + result.deliveries.summary.validation;
     return {
