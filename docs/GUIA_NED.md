@@ -13,6 +13,7 @@ O painel destaca problemas de acesso e entrega para o NED conferir e comunicar �
 | Filtros | Busca docente por nome ou ID e seleciona período, modalidade e disciplina. Clicar nos gráficos filtra a consulta; trocar de página mantém os indicadores. |
 | Gráficos | Dicas ao passar o mouse ou focar pelo teclado mostram nomes completos, valores e base dos percentuais. Top 10 mantém até dez linhas; comparações positivas são expansíveis. |
 | Registrar UA e videoaulas | Registra datas do docente, dispensa justificada e publicação informativa. Abre nova versão de material com motivo e novo prazo; consulta versões anteriores. |
+| Prazos | Cadastra datas por período e modalidade, com exceções por disciplina e por vídeo. Confere o impacto antes de salvar e registra autor, data e motivo. |
 | Relatório por coordenador | Separa os cursos vinculados no servidor. Mostra Para, Cc, assunto, texto e HTML; permite copiar, baixar o HTML e enviar para a coordenação selecionada, quando liberado. |
 | Atualizar dados | Faz uma nova coleta para recalcular a situação. Em produção, o worker também coleta automaticamente; a configuração inicial é diária. |
 
@@ -49,26 +50,26 @@ Abra http://localhost:8080 e clique em **Abrir demonstração do NED**. Confira 
 
 ## Onde cadastrar os prazos
 
-**Hoje o cadastro geral é no servidor**, no arquivo backend/config/deadlines.json. O NED define e aprova as datas; a TI registra o catálogo. Não existe uma tela de cadastro geral de prazos nesta versão.
+**O cadastro fica na aba Prazos**, dentro do painel do NED. Escolha período e modalidade; aplique às disciplinas do recorte ou selecione uma disciplina para uma exceção. Altere as datas, informe o motivo e clique em Revisar alterações. Confira antes e depois; use Confirmar e salvar prazos.
 
-| Campo | Para que serve |
+| Campo da tela | Para que serve |
 | --- | --- |
-| periods | Organiza o período letivo, por exemplo 2026/2. |
-| MODULAR SEMESTRAL GRADUACAO_EAD | Separa as modalidades dentro do período. |
-| defaults | Define o prazo padrão de cada requisito naquela modalidade. |
-| courses | Permite um prazo diferente por ID Moodle da disciplina. Tem prioridade sobre o padrão. |
-| videos | Aceita uma data comum ou uma lista com uma data por videoaula. A lista deve cobrir todos os vídeos previstos. |
-| responsibleTeachers | Define o docente responsável por requisito quando há mais de um na disciplina, usando IDs Moodle. |
+| Período | Organiza o período letivo, por exemplo 2026/2. |
+| Modalidade | Separa semestral, modular e graduação EaD. |
+| Disciplina | Aplica às disciplinas do recorte ou ajusta uma disciplina específica. |
+| Datas das atividades | Altera os campos desejados. Os demais prazos permanecem como estão. |
+| Datas das videoaulas | Uma data comum; ao selecionar uma disciplina, pode informar uma data por vídeo previsto. |
+| Motivo | Registra a justificativa da mudança com autor e data no histórico. |
 
-**Bimestres:** use avaliacao_bimestral_1 e avaliacao_bimestral_2 com datas próprias. Os demais requisitos também têm chaves específicas, descritas em docs/PRAZOS.md e backend/config/rules.json.
+**Bimestres:** as avaliações bimestrais 1 e 2 possuem campos próprios. Substitutiva fica fora do cadastro de critérios obrigatórios.
 
-**Rotina para alterar:** o NED aprova as datas; a TI atualiza o arquivo e sua versão; reinicia API e worker; gera nova coleta e confere o resultado antes do envio. O arquivo é montado no Docker como somente leitura para a aplicação.
+**Depois de salvar:** os prazos ficam no banco da aplicação e uma nova coleta é solicitada automaticamente. Confira os indicadores e uma nova prévia antes de enviar relatórios. API e worker usam a versão salva, sem reiniciar. Se a coleta falhar, os prazos ficam salvos e os relatórios permanecem bloqueados até atualizar os dados.
 
-As datas do catálogo usam ISO UTC; a contagem considera o dia em São Paulo. O exemplo técnico usa 15h UTC, equivalente a 12h em São Paulo, para representar o dia sem virada de data. O horário não antecipa a cobrança dentro do próprio dia.
+As datas usam o dia em São Paulo. O NED preenche o calendário da tela; a conversão é automática. Relatórios já enviados e coletas anteriores preservam os prazos utilizados. Edição por outra pessoa ou mudança de coleta exige nova conferência.
 
 **Exceção já disponível na tela:** uma nova versão de UA ou vídeo recebe um prazo próprio no formulário. Isso não altera o prazo dos demais itens.
 
-**Limites atuais:** ainda não há tela geral de prazos, ajuste justificado de atividades automáticas do Moodle, cadastro de destinatários na interface ou exportação XLSX por coordenação. Recomendo priorizar a tela de Prazos e exceções antes da operação recorrente. Não altere a data real de entrega para esconder um atraso.
+**Limites atuais:** ajuste justificado de atividades automáticas do Moodle, cadastro de destinatários e atribuição de responsáveis compartilhados ainda não têm formulário na interface. A exportação XLSX por coordenação também não está disponível. A aba Prazos mostra as últimas 20 alterações; o banco preserva todas as versões. Não altere a data real de entrega para esconder um atraso.
 
 ## Conectar ao banco e colocar no servidor
 
@@ -91,6 +92,6 @@ docker compose --env-file .env.production run --rm api \
 
 Sem erros de validação e com publishAllowed=true, a coleta está liberada pelas verificações do sistema. Isso complementa a conferência NED/TI; não substitui a comparação com a fonte.
 
-**O que foi verificado nesta revisão:** compilação e 103 testes automáticos; fluxo HTTP de demonstração; gráficos reais renderizados estaticamente. Nenhum e-mail externo foi enviado. A conferência visual completa em Chrome/Edge, o SQL Server, o PostgreSQL, o Docker e o SMTP da Universidade ainda precisam de teste no ambiente institucional.
+**O que foi verificado:** testes automáticos de regras, API e componentes, incluindo conferência, persistência, concorrência e recálculo dos prazos em memória. Nenhum e-mail externo foi enviado. A conferência visual completa em Chrome/Edge, o SQL Server, o PostgreSQL, o Docker e o SMTP da Universidade ainda precisam de teste no ambiente institucional.
 
 **Referências no projeto:** README.md para teste; GUIA_DEPLOY.md para a TI; docs/PRAZOS.md para datas; docs/VALIDACAO_REGRAS.md para homologação.

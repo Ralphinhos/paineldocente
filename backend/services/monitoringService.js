@@ -32,8 +32,10 @@ class MonitoringService {
       && (deliveryStatus === 'ALL' || (deliveryStatus === 'COMPLIANT' ? ['EARLY', 'ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : deliveryStatus === 'ON_TIME_OR_INHERITED' ? ['ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : row.displayStatus === deliveryStatus)));
     const issues = snapshot.qualityIssues.filter((issue) => user.role !== 'coordinator' || !issue.courseId || user.courseIds.includes(issue.courseId));
     const invalid = result.access.summary.validation + result.deliveries.summary.validation;
+    const deadlineVersion = await this.store.latestDeadlineCatalog();
+    const deadlinesChanged = (deadlineVersion?.id || null) !== (snapshot.deadlineVersionId || null);
     return {
-      meta: { snapshotId: snapshot.id, generatedAt: snapshot.generatedAt, source: snapshot.source, isDemo: snapshot.isDemo, rulesVersion: snapshot.rulesVersion, rulesStatus: snapshot.rulesStatus, qualityStatus: snapshot.qualityStatus, publishAllowed: snapshot.publishAllowed && invalid === 0, stale: Date.now() - new Date(snapshot.generatedAt).getTime() > this.snapshotIntervalMinutes * 120000, qualityIssues: issues },
+      meta: { snapshotId: snapshot.id, generatedAt: snapshot.generatedAt, source: snapshot.source, isDemo: snapshot.isDemo, rulesVersion: snapshot.rulesVersion, rulesStatus: snapshot.rulesStatus, qualityStatus: snapshot.qualityStatus, publishAllowed: snapshot.publishAllowed && invalid === 0 && !deadlinesChanged, stale: Date.now() - new Date(snapshot.generatedAt).getTime() > this.snapshotIntervalMinutes * 120000, qualityIssues: issues, deadlineVersionId: snapshot.deadlineVersionId || null, currentDeadlineVersionId: deadlineVersion?.id || null, deadlinesChanged },
       filters: monitoringFilters(scoped),
       access: { ...result.access, ...(options.allRows ? {} : pageRows(accessRows, filters.page, filters.pageSize)) },
       deliveries: { ...result.deliveries, ...(options.allRows ? {} : pageRows(deliveryRows, filters.page, filters.pageSize)) },

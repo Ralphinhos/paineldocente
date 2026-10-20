@@ -1,6 +1,21 @@
 # Cadastro dos prazos docentes
 
-O NED define as datas fora do Moodle. A versão atual lê `backend/config/deadlines.json` no início da API e do worker. Não há formulário geral de prazos na interface. Não use a data de entrega do aluno como prazo de preparação do docente.
+O NED define as datas na aba **Prazos**. A aplicação grava versões no PostgreSQL e usa o calendário salvo em cada coleta. Não use a data de entrega do aluno como prazo de preparação do docente.
+
+## Operação na interface
+
+1. Abra **Prazos** e escolha período, modalidade e todas as disciplinas do recorte ou uma disciplina específica.
+2. Altere as datas necessárias. UA é um pacote; avaliações do semestral têm dois campos de bimestre. Para vídeos, use uma data comum ou selecione uma disciplina e marque **Definir um prazo para cada videoaula**.
+3. Informe o motivo e clique em **Revisar alterações**. Confira disciplinas, valores anteriores e novos. A prévia não grava nada e vale por 15 minutos para o mesmo usuário e conteúdo.
+4. Use **Confirmar e salvar prazos**. O calendário recebe versão, autor e data; a trilha de auditoria guarda o impacto. A API solicita nova coleta. Confira os resultados e uma nova prévia antes de enviar relatórios.
+
+Edição concorrente ou coleta diferente invalida a conferência. Os relatórios ficam bloqueados enquanto a coleta não usa o calendário atual. Falha de coleta não perde as datas salvas: use **Atualizar dados** e confira novamente. Coletas e relatórios anteriores permanecem com os valores usados na geração. O histórico da tela mostra as últimas 20 versões; todas ficam no banco.
+
+Somente NED altera. A API exige autenticação, origem e CSRF. O limite é 1.000 disciplinas por confirmação; a conferência exibe 20 alterações por página. Campos deixados sem alteração não são removidos. Prazo de nova versão de UA/vídeo continua tendo prioridade para aquele item.
+
+## Configuração inicial pela TI
+
+`backend/config/deadlines.json` permanece como base inicial, inclusive para atribuir responsáveis compartilhados. Depois do primeiro cadastro NED, o catálogo persistido prevalece, preservando os dados iniciais. Alterar só o JSON não substitui uma versão já salva pela interface. A TI deve coordenar migrações de calendário e responsáveis com o NED.
 
 ## Estrutura
 
@@ -60,11 +75,11 @@ IDs e datas abaixo são fictícios. A versão permanece `NAO_HOMOLOGADO` para bl
 
 O exemplo da disciplina `12345` supõe 40h, portanto quatro vídeos. Em `responsibleTeachers`, a chave `videos` vale para todos os vídeos; `videos:2` permite atribuir apenas o segundo vídeo a outro docente vinculado. Sem responsável confirmado, itens compartilhados permanecem a validar em vez de serem cobrados de todos os docentes.
 
-## Aplicar no servidor
+## Importar a base inicial no servidor
 
-1. NED confere datas, chaves, IDs e responsáveis; TI faz cópia/versionamento do catálogo.
+1. Antes do primeiro cadastro pela interface, NED confere datas, chaves, IDs e responsáveis; TI faz cópia/versionamento do catálogo inicial.
 2. Preencher `backend/config/deadlines.json`, atribuir uma versão oficial depois da aprovação e manter `EMAIL_SEND_ENABLED=false` durante a conferência. Regras continuam sujeitas à homologação de `backend/config/rules.json` e `RULES_APPROVED`.
-3. Reiniciar API e worker para reler o arquivo. Se alterar `.env.production`, recriar os serviços com `up -d --force-recreate api worker`, pois só reiniciar não carrega novas variáveis.
+3. Reiniciar API e worker para reler a base inicial. Depois de existir calendário persistido, use a interface para alterar os prazos. Se alterar `.env.production`, recriar os serviços com `up -d --force-recreate api worker`, pois só reiniciar não carrega novas variáveis.
 4. Gerar uma coleta nova e conferir prazos/estados no painel. Se um prazo mudou, o sistema não reutiliza automaticamente uma classificação observada sob o prazo anterior.
 5. Executar o validador abaixo. `--require-publishable` só passa depois da homologação completa das regras e dos dados.
 
@@ -79,4 +94,4 @@ Prazo ausente ou inválido bloqueia classificação/publicação; não vira atra
 
 Em **Entregas → Registrar UA e videoaulas**, abrir nova versão exige motivo e prazo próprio. O prazo dessa versão fica no PostgreSQL e prevalece sobre o catálogo para aquele item. O histórico é preservado; publicação informativa não substitui envio/gravação.
 
-Ajuste justificado de atividades automáticas do Moodle e cadastro geral de prazos pelo NED ainda não têm tela. Uma tela de **Prazos e exceções**, com aprovação e histórico, é o próximo incremento recomendado; não está implementada nesta revisão.
+Ajuste justificado de atividades automáticas do Moodle e atribuição de responsáveis ainda não têm tela. O cadastro geral de prazos está disponível nesta revisão.

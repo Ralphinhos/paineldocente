@@ -15,10 +15,18 @@ Conferência técnica de 20/10/2026, com dados fictícios. A interface segue os 
 
 ## Evidências locais
 
+### Aba Prazos
+
+A revisão seguinte acrescenta a quarta aba: **Prazos**. O NED escolhe período/modalidade, aplica uma data às disciplinas do recorte ou edita uma disciplina, com opção de datas individuais de vídeo e campos dos dois bimestres. Revisão antes da gravação, motivo obrigatório, autor, data e versões ficam disponíveis. Coletas antigas não são alteradas; nova versão manual mantém prazo próprio.
+
+`npm run check` passou com **119 testes (21 de interface e 98 de backend)**. Dezesseis testes de calendário cobrem autorização/origem/CSRF, datas inválidas, escopo, confirmação assinada e expirada, gravação em lote, bimestres, vídeos, histórico, concorrência, coleta desatualizada, falha de recálculo, atualização do worker e bloqueio de relatório com calendário novo. API, worker, API legada e validador reconhecem a versão de prazos da coleta. A confirmação afeta até 1.000 disciplinas; a tabela de conferência pagina vinte alterações.
+
+As verificações de persistência/conflito foram executadas em memória. A reserva e as transações PostgreSQL foram revisadas no código; migração e concorrência contra PostgreSQL real ainda precisam de homologação. O ambiente não possui Docker/PostgreSQL instalados. A conferência completa da aba no navegador continua pendente; os módulos React e o fluxo HTTP são verificados separadamente.
+
 | Etapa | Resultado |
 |---|---|
 | Lint, TypeScript e build | `npm run check` passou |
-| Testes | 21 testes de interface e 82 de backend, todos aprovados |
+| Testes | 21 testes de interface e 98 de backend, todos aprovados |
 | Acesso global | Faixas 0–7 / 8–14 / 15+, dias civis, um registro por ID docente; acesso de 2 dias ao ambiente não vira 16 dias por uma disciplina |
 | Ausência de dados | Campo ausente, data futura e conflito exigem revisão; zero conhecido é sem registro; consulta vazia bloqueia publicação |
 | Entregas | Categorias exclusivas reconciliadas; atraso cresce enquanto pendente e congela após entrega; resolvidas saem das cobranças abertas |
@@ -38,7 +46,7 @@ Conferência técnica de 20/10/2026, com dados fictícios. A interface segue os 
 
 A conferência desta revisão inicia os serviços reais com `scripts/demo.mjs` e usa o proxy do Vite:
 
-1. Entrega o aplicativo e compila os componentes das três abas e o novo CSS.
+1. Entrega o aplicativo e compila os componentes das quatro abas e o CSS.
 2. Exige autenticação; panorama, barras e prioridades usam a base completa mesmo com tabela paginada.
 3. Seleção do Docente Beta preserva dois dias de acesso global e material replicado regular.
 4. A fatia no prazo/replicadas e o filtro por atividade retornam somente os estados e itens correspondentes, preservando os totais do recorte.

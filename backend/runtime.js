@@ -6,6 +6,7 @@ const { DashboardService } = require('./services/dashboardService');
 const { MonitoringService } = require('./services/monitoringService');
 const { ReportService } = require('./services/reportService');
 const { SnapshotService } = require('./services/snapshotService');
+const { DeadlineService } = require('./services/deadlineService');
 const { MemoryStore, PostgresStore } = require('./services/store');
 async function createRuntime(environment = process.env) {
   const config = loadConfig(environment);
@@ -18,6 +19,7 @@ async function createRuntime(environment = process.env) {
   const dashboardService = new DashboardService({ store, snapshotIntervalMinutes: config.snapshotIntervalMinutes });
   const monitoringService = new MonitoringService({ store, snapshotIntervalMinutes: config.snapshotIntervalMinutes });
   const reportService = new ReportService({ config, store, monitoringService });
-  return { config, auth: createAuth(config), services: { store, snapshotService, dashboardService, monitoringService, reportService }, close: async () => { await source?.close(); await store.close(); } };
+  const deadlineService = new DeadlineService({ config, store, snapshotService, catalog });
+  return { config, auth: createAuth(config), services: { store, snapshotService, dashboardService, monitoringService, reportService, deadlineService }, close: async () => { await source?.close(); await store.close(); } };
 }
 module.exports = { createRuntime };

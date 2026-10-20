@@ -36,7 +36,7 @@
 .teacher-picker-options button:hover, .teacher-picker-options button.is-active { background: #eef5ff; }
 .teacher-picker-options small { flex-shrink: 0; color: #627793; font-size: .6875rem; }
 .teacher-picker-empty { padding: 12px 8px; color: #627793; font-size: .75rem; }
-.ned-workspace .page-wrap > .workspace-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.ned-workspace .page-wrap > .workspace-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 .ned-workspace .page-wrap > .workspace-tabs button { min-height: 40px; border: 1px solid #e0e9f1; border-radius: 7px; background: linear-gradient(180deg, #f0f5fa, #edf2f7); color: #334d78; font-size: .8125rem; }
 .ned-workspace .page-wrap > .workspace-tabs button[aria-selected='true'] { color: white; border-color: #0d65dc; background: linear-gradient(110deg, #1465d6, #096ae4); box-shadow: inset 0 -1px 0 #0046bd26; }
 .monitoring-view { display: grid; gap: 14px; }
@@ -226,6 +226,40 @@
 .ned-login-card > .demo-notice { margin: 20px 0 0; padding: 12px 14px; border-radius: 6px; background: #fff8e9; color: #84602c; font-size: .75rem; }
 .ned-login-card .support-line { display: block; margin-top: 24px; text-align: center; color: #61748e; font-size: .75rem; }
 .ned-login > .app-footer { margin: 0 auto; padding-bottom: 20px; }
+.deadline-panel .ned-panel-heading { padding-bottom: 18px; }
+.deadline-panel .ned-panel-heading p { margin-top: 6px; }
+.deadline-filters { display: grid; grid-template-columns: .8fr 1fr 1.8fr; gap: 16px; padding: 18px; border-block: 1px solid #e5edf7; background: #f7fbff; }
+.deadline-filters label, .deadline-reason label { display: grid; gap: 7px; min-width: 0; color: #314d78; font-size: .8125rem; }
+.deadline-filters select, .deadline-date-inputs input, .deadline-reason textarea { border: 1px solid #d3e0ef; border-radius: 6px; color: #314567; background: #fff; padding: 9px 11px; min-height: 40px; font: inherit; }
+.deadline-scope { padding: 16px 18px 8px; color: #526787; font-size: .8125rem; }
+.deadline-fields { padding: 0 18px; }
+.deadline-field { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr); align-items: start; gap: 20px; padding: 16px 0; border-bottom: 1px solid #e9eff6; }
+.deadline-field strong { display: block; color: #24416b; font-size: .875rem; }
+.deadline-field small { display: block; max-width: 400px; margin-top: 5px; color: #61748f; font-size: .75rem; }
+.deadline-date-inputs { display: grid; gap: 12px; }
+.deadline-date-inputs label { display: grid; gap: 5px; color: #61748f; font-size: .75rem; }
+.deadline-date-inputs input { max-width: 240px; font-size: .875rem; font-variant-numeric: tabular-nums; }
+.deadline-individual { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.deadline-video-toggle { display: flex; align-items: start; gap: 9px; margin: 18px; color: #425c83; font-size: .8125rem; }
+.deadline-video-toggle input { width: 17px; height: 17px; min-height: 17px; flex-shrink: 0; }
+.deadline-video-toggle small { color: #61748f; }
+.deadline-reason { padding: 0 18px; }
+.deadline-reason textarea { resize: vertical; width: 100%; max-width: 740px; font-size: .875rem; }
+.deadline-reason p { margin-top: 8px; color: #61748f; font-size: .75rem; }
+.deadline-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 18px; }
+.deadline-review { padding-top: 18px; border-top: 1px solid #d3e3f6; background: #f8fbff; }
+.deadline-review > h3, .deadline-review > p { margin: 0 18px 12px; }
+.deadline-review > h3 { color: #102b62; font-size: 1rem; }
+.deadline-review > p { color: #526787; font-size: .8125rem; }
+.deadline-review-table { min-width: 680px; }
+.deadline-review-table td { max-width: 320px; overflow-wrap: anywhere; }
+.deadline-pending { margin: 14px 18px; padding: 12px; background: #fff7e7; border: 1px solid #f6dfaf; border-radius: 6px; color: #81510e; font-size: .8125rem; }
+.deadline-history { padding: 16px 18px; border-top: 1px solid #e1eaf4; color: #526787; font-size: .8125rem; }
+.deadline-history summary { display: flex; align-items: center; gap: 8px; min-height: 32px; cursor: pointer; }
+.deadline-history ol { list-style: none; padding: 0; max-height: 400px; overflow-y: auto; }
+.deadline-history li { padding: 14px 0; border-bottom: 1px solid #e9eff6; }
+.deadline-history strong, .deadline-history span { display: block; margin-bottom: 4px; }
+.deadline-history strong { color: #24416b; }
 @media (max-width: 1400px) {
   .ned-header-inner { gap: 18px; }
   .ned-wordmark strong { font-size: 1.75rem; }
@@ -278,7 +312,7 @@
   .monitoring-filter-fields { grid-template-columns: 1fr; }
   .monitoring-filter-fields > label > span, .monitoring-filter-fields > .teacher-filter > span { min-width: 70px; }
   .monitoring-filters .filter-reset { top: -26px; }
-  .ned-workspace .page-wrap > .workspace-tabs { gap: 5px; grid-template-columns: .8fr .8fr 1.4fr; }
+  .ned-workspace .page-wrap > .workspace-tabs { gap: 5px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ned-workspace .page-wrap > .workspace-tabs button { min-height: 44px; padding: 6px 5px; gap: 4px; font-size: .6875rem; line-height: 1.3; }
   .ned-workspace .page-wrap > .workspace-tabs button svg { width: 14px; }
   .monitoring-view { gap: 12px; }
@@ -318,6 +352,9 @@
   .ned-login-intro h1 { font-size: 1.8rem; }
   .ned-login-features { gap: 12px; margin-top: 22px; }
   .ned-login-card { padding: 24px; }
+  .deadline-filters { grid-template-columns: 1fr; padding: 14px; }
+  .deadline-field { grid-template-columns: 1fr; gap: 12px; }
+  .deadline-actions > button { flex: 1; }
 }
 @media (max-width: 370px) {
   .monitoring-metrics { grid-template-columns: 1fr; }

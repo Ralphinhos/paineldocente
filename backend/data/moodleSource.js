@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const sql = require('mssql');
+const { officialDeadline } = require('../core/deadlines');
 
 function fromUnix(value) { const n = Number(value); return n > 0 ? new Date(n * 1000).toISOString() : null; }
 function normalize(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
@@ -27,10 +28,6 @@ function classifyRequirement(name, modality) {
 }
 function derivePeriod(shortName, startsAt) { const match = String(shortName || '').match(/(20\d{2})[^0-9]?([12])/); if (match) return `${match[1]}/${match[2]}`; const date = new Date(startsAt); return Number.isNaN(date.getTime()) ? null : `${date.getUTCFullYear()}/${date.getUTCMonth() < 6 ? 1 : 2}`; }
 function deriveWorkload(value, shortName, courseName) { const match = `${value || ''} ${shortName} ${courseName}`.match(/(?:^|\D)(20|40|60|80)\s*h?(?:\D|$)/i); return match ? Number(match[1]) : null; }
-function officialDeadline(catalog, period, modality, courseId, requirementId) {
-  const scope = catalog?.periods?.[period]?.[modality];
-  return scope?.courses?.[courseId]?.[requirementId] || scope?.defaults?.[requirementId] || null;
-}
 function buildEvents(row, teacherId) { return [row.module_updated_at && { name: '\\core\\event\\course_module_updated', occurredAt: fromUnix(row.module_updated_at), actorId: teacherId, origin: 'web' }, row.completion_updated_at && { name: '\\core\\event\\course_module_completion_updated', occurredAt: fromUnix(row.completion_updated_at), actorId: teacherId, relatedUserId: row.completion_related_user_id ? String(row.completion_related_user_id) : undefined, origin: 'web' }, row.module_viewed_at && { name: `\\mod_${row.module_name}\\event\\course_module_viewed`, occurredAt: fromUnix(row.module_viewed_at), actorId: teacherId, origin: 'web' }].filter(Boolean); }
 
 function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }) {
@@ -76,7 +73,7 @@ class MoodleSource {
     if (this.pool) return this.pool; const ca = this.config.caFile ? fs.readFileSync(this.config.caFile, 'utf8') : undefined;
     this.pool = await new sql.ConnectionPool({ server: this.config.server, port: this.config.port, database: this.config.database, user: this.config.user, password: this.config.password, connectionTimeout: this.config.requestTimeoutMs, requestTimeout: this.config.requestTimeoutMs, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 }, options: { encrypt: true, trustServerCertificate: false, enableArithAbort: true, ...(ca ? { cryptoCredentialsDetails: { ca } } : {}) } }).connect(); return this.pool;
   }
-  async fetch() { const generatedAt = new Date().toISOString(); const pool = await this.connect(); const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-snapshot.sql'), 'utf8'); const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot).input('teacherRoleId', sql.Int, this.config.teacherRoleId).input('logFrom', sql.BigInt, Math.floor((Date.now() - this.config.queryWindowDays * 86400000) / 1000)).query(query); return normalizeRows(result.recordset, generatedAt, this.deadlines); }
+  async fetch(deadlineCatalog = this.deadlines) { const generatedAt = new Date().toISOString(); const pool = await this.connect(); const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-snapshot.sql'), 'utf8'); const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot).input('teacherRoleId', sql.Int, this.config.teacherRoleId).input('logFrom', sql.BigInt, Math.floor((Date.now() - this.config.queryWindowDays * 86400000) / 1000)).query(query); return normalizeRows(result.recordset, generatedAt, deadlineCatalog); }
   async close() { if (this.pool) await this.pool.close(); this.pool = null; }
 }
 module.exports = { MoodleSource, classifyRequirement, normalizeRows, officialDeadline };

@@ -25,6 +25,8 @@ class ReportService {
     const reports = await Promise.all(recipients.map((recipient) => this.monitoringService.getMonitoring(recipientUser(audience, recipient), {}, { snapshot, allRows: true }).then((data) => buildReport(audience, data, recipient.name))));
     if (reports.some((report) => !report.publishAllowed)) throw new HttpError(409, 'QUALITY_GATE_BLOCKED', 'Atualize ou valide os dados antes do envio.');
     for (const [index, recipient] of recipients.entries()) {
+      const currentDeadlines = await this.store.latestDeadlineCatalog();
+      if ((currentDeadlines?.id || null) !== (snapshot.deadlineVersionId || null)) throw new HttpError(409, 'DEADLINES_STALE', 'Os prazos mudaram. Atualize a coleta e confira uma nova prévia antes de enviar.');
       const key = crypto.createHash('sha256').update(`${snapshot.id}:${audience}:${recipient.email.toLowerCase()}`).digest('hex');
       const claim = await this.store.claimReportRun(createReportRun({ snapshotId: snapshot.id, audience, idempotencyKey: key, recipients: [recipient.email, ...(recipient.cc || [])], status: 'PROCESSING' }));
       if (!claim.claimed) { results.push({ email: recipient.email, status: claim.run?.status === 'SENT' ? 'ALREADY_SENT' : 'IN_PROGRESS' }); continue; }

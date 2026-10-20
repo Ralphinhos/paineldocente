@@ -30,7 +30,7 @@ export interface AssignmentRow {
 }
 export interface QualityIssue { code: string; message: string; severity: "INFO" | "WARNING" | "CRITICAL"; courseId?: string }
 export interface DashboardData {
-  meta: { snapshotId: string; generatedAt: string; source: "demo" | "moodle"; isDemo: boolean; rulesVersion: string; rulesStatus: string; qualityStatus: "VALID" | "WARNING" | "BLOCKED"; publishAllowed: boolean; stale: boolean; qualityIssues: QualityIssue[] };
+  meta: { snapshotId: string; generatedAt: string; source: "demo" | "moodle"; isDemo: boolean; rulesVersion: string; rulesStatus: string; qualityStatus: "VALID" | "WARNING" | "BLOCKED"; publishAllowed: boolean; stale: boolean; qualityIssues: QualityIssue[]; deadlineVersionId?: string | null; currentDeadlineVersionId?: string | null; deadlinesChanged?: boolean };
   ranking: RankingData;
   visuals: {
     access: { total: number; items: Array<{ key: "CURRENT" | "ATTENTION" | "CRITICAL"; label: string; count: number; detail: string; percent: number }> };

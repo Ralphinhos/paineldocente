@@ -101,7 +101,7 @@ docker compose --env-file .env.production run --rm api node scripts/validate-sna
 
 Somente após aprovação NED + TI:
 
-1. preencha `backend/config/deadlines.json`;
+1. cadastre as datas oficiais na aba **Prazos** do NED, ou importe o catálogo inicial em `backend/config/deadlines.json` antes do primeiro cadastro pela interface;
 2. altere o catálogo de regras para status homologado;
 3. defina `RULES_APPROVED=true`;
 4. recrie `api` e `worker`;
@@ -113,7 +113,7 @@ docker compose --env-file .env.production run --rm api node scripts/validate-sna
 
 Saída válida e `publishAllowed=true` são obrigatórias.
 
-O NED fornece e aprova os prazos; a TI cadastra período, modalidade e exceções por disciplina conforme [docs/PRAZOS.md](docs/PRAZOS.md). API e worker leem esse arquivo na inicialização: reinicie ambos após editar o catálogo. Alterações de variáveis de ambiente exigem recriar os serviços. Não há cadastro geral de prazos na interface atual.
+O NED cadastra e confere os prazos na interface conforme [docs/PRAZOS.md](docs/PRAZOS.md). As versões ficam no PostgreSQL e são lidas por API e worker a cada coleta. O esquema cria `pd_deadline_catalogs` e o vínculo da coleta à versão utilizada. Antes de atualizar uma instalação existente, faça backup e homologue a migração em cópia do banco. O arquivo JSON continua como base inicial; depois do primeiro cadastro NED, o catálogo persistido prevalece. Alterações de variáveis de ambiente exigem recriar os serviços.
 
 ## 7. Habilitar e-mail semanal
 

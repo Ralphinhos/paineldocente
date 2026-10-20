@@ -59,9 +59,12 @@ async function main() {
     const requirePublishable = process.argv.includes('--require-publishable');
     const snapshot = fresh ? await runtime.services.snapshotService.run() : await runtime.services.store.latestSnapshot();
     const invariantErrors = validateSnapshot(snapshot);
+    const deadlineVersion = await runtime.services.store.latestDeadlineCatalog();
+    const pendingDeadlineCollection = (deadlineVersion?.id || null) !== (snapshot?.deadlineVersionId || null);
     const result = {
       valid: invariantErrors.length === 0,
-      publishAllowed: Boolean(snapshot?.publishAllowed),
+      publishAllowed: Boolean(snapshot?.publishAllowed && !pendingDeadlineCollection),
+      pendingDeadlineCollection,
       snapshotId: snapshot?.id || null,
       source: snapshot?.source || null,
       rows: snapshot?.rows?.length || 0,
@@ -71,7 +74,7 @@ async function main() {
     };
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (invariantErrors.length) process.exitCode = 1;
-    else if (requirePublishable && !snapshot?.publishAllowed) process.exitCode = 2;
+    else if (requirePublishable && !result.publishAllowed) process.exitCode = 2;
   } finally {
     await runtime.close();
   }

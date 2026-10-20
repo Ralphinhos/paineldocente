@@ -12,16 +12,17 @@ npm --prefix backend ci
 npm run demo
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) e clique em **Abrir demonstração do NED**. O título é **Monitoramento Docente**, com as abas **Acessos**, **Entregas** e **Relatório por coordenador**. Ctrl+C encerra os dois serviços.
+Abra [http://localhost:8080](http://localhost:8080) e clique em **Abrir demonstração do NED**. O título é **Monitoramento Docente**, com as abas **Acessos**, **Entregas**, **Prazos** e **Relatório por coordenador**. Ctrl+C encerra os dois serviços.
 
 O teste usa dados fictícios em memória, coordenações fictícias e envio externo bloqueado. As portas 3001 e 8080 precisam estar livres. Registros de demonstração não persistem após encerrar.
 
-## Três abas do NED
+## Quatro abas do NED
 
 | Aba | Unidade de acompanhamento | Conteúdo inicial |
 |---|---|---|
 | Acessos | Um docente, identificado pelo ID do Moodle | Atenção, críticos, sem registro e a validar |
 | Entregas | Uma atividade por disciplina e responsável | Somente pendências vencidas, com dias de atraso |
+| Prazos | Período e modalidade, com exceção por disciplina | Datas, conferência das alterações e histórico do NED |
 | Relatório por coordenador | Cursos vinculados ao destinatário no servidor | Prévia, Para/Cc, cópia do texto e download HTML |
 
 O filtro de docente, período, modalidade e disciplina afeta os números, gráficos e listas das duas abas analíticas. A busca permite selecionar o docente por nome e ID. Filtrar uma disciplina seleciona os docentes vinculados, preservando seu acesso global. A aba de acessos considera docentes com pelo menos uma disciplina ativa na data da coleta. O relatório usa os cursos da coordenação selecionada; os filtros analíticos ficam fora dessa aba para tornar o escopo explícito.
@@ -44,7 +45,7 @@ As barras empilhadas usam categorias exclusivas. O percentual de pendências usa
 |---|---|
 | Último acesso ao ambiente | Moodle SQL Server: `mdl_user.lastaccess` |
 | Disciplinas, docentes, atividades e eventos | Consulta automática ao Moodle, usuário com SELECT apenas |
-| Prazo para o docente | Catálogo oficial homologado; não confundir com prazo do aluno |
+| Prazo para o docente | Aba Prazos do NED, salva no PostgreSQL; não confundir com prazo do aluno |
 | Pacote de UAs | Data em que o docente enviou o pacote completo ao NED |
 | Videoaulas | Data da gravação de cada vídeo, registrada pelo NED |
 
@@ -70,13 +71,21 @@ Use esse JSON em `REPORT_RECIPIENTS_JSON`. `courseIds` são IDs das disciplinas 
 
 A interface é de trabalho do NED. Coordenadores e gestão recebem os relatórios, sem necessidade de outra conta no painel. Permissões de consulta das integrações anteriores permanecem no backend para compatibilidade e isolamento dos relatórios; não há painéis separados na interface.
 
+## Cadastrar prazos pelo NED
+
+Na aba **Prazos**, escolha período, modalidade e todas as disciplinas do recorte ou uma disciplina específica. Altere as datas necessárias e informe o motivo. **Revisar alterações** mostra os valores anteriores e novos; **Confirmar e salvar prazos** grava uma versão com autor, data e motivo e solicita nova coleta.
+
+As videoaulas podem ter uma data comum. Ao selecionar uma disciplina, é possível definir uma data para cada vídeo previsto pela carga horária. UA continua como pacote único; avaliações do semestral têm campos separados para os dois bimestres. Datas de gravação/envio continuam em **Entregas → Registrar UA e videoaulas**.
+
+API e worker leem o calendário persistido em cada coleta, sem reiniciar. Edição concorrente ou coleta diferente exige nova conferência. Falha do recálculo preserva as datas salvas e bloqueia os relatórios até uma coleta com a versão atual. Novas versões de UA/vídeo mantêm seu prazo próprio. A demonstração continua sem persistência após encerrar.
+
 ## Produção no servidor interno
 
-Guia direto para a equipe: [Funcionalidades e implantação](docs/GUIA_NED.md). O cadastro geral de prazos é feito em `backend/config/deadlines.json`, pela TI com datas aprovadas pelo NED: [estrutura e exemplo](docs/PRAZOS.md). A interface ainda não possui um formulário geral de prazos.
+Guia direto para a equipe: [Funcionalidades e implantação](docs/GUIA_NED.md). O cadastro geral fica na aba **Prazos**, feito pelo NED: [operação, histórico e configuração inicial](docs/PRAZOS.md). O arquivo `backend/config/deadlines.json` serve como catálogo inicial da TI até existir uma versão salva pelo NED.
 
 Consulte [GUIA_DEPLOY.md](GUIA_DEPLOY.md) e `.env.production.example`. O servidor precisa de acesso ao SQL Server, PostgreSQL para coletas/histórico, autenticação institucional e SMTP. O navegador não recebe credenciais Moodle.
 
-`backend/config/rules.json` permanece PILOT e `backend/config/deadlines.json` precisa dos prazos oficiais. Só habilite `RULES_APPROVED` e `EMAIL_SEND_ENABLED` após conferir a amostra real e os destinatários com o NED/TI. Não houve conexão ao banco ou SMTP institucional nesta implementação.
+`backend/config/rules.json` permanece PILOT. Cadastre e confira os prazos oficiais antes de homologar. Só habilite `RULES_APPROVED` e `EMAIL_SEND_ENABLED` após conferir a amostra real e os destinatários com o NED/TI. Não houve conexão ao banco ou SMTP institucional nesta implementação.
 
 Opcional para quem tem Docker instalado:
 

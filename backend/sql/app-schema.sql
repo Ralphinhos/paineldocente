@@ -54,3 +54,14 @@ CREATE TABLE IF NOT EXISTS pd_audit_events (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now()
 );
 REVOKE UPDATE, DELETE, TRUNCATE ON pd_snapshots, pd_snapshot_rows FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS pd_deadline_catalogs (
+  id uuid PRIMARY KEY, revision bigserial UNIQUE NOT NULL, catalog jsonb NOT NULL,
+  created_at timestamptz NOT NULL, created_by text NOT NULL, actor_id text NOT NULL,
+  reason text NOT NULL CHECK (length(trim(reason)) >= 3),
+  source_snapshot_id uuid NOT NULL REFERENCES pd_snapshots(id) ON DELETE RESTRICT,
+  course_count integer NOT NULL CHECK (course_count > 0),
+  change_count integer NOT NULL CHECK (change_count > 0)
+);
+ALTER TABLE pd_snapshots ADD COLUMN IF NOT EXISTS deadline_version_id uuid REFERENCES pd_deadline_catalogs(id) ON DELETE RESTRICT;
+REVOKE UPDATE, DELETE, TRUNCATE ON pd_deadline_catalogs FROM PUBLIC;

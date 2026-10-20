@@ -141,8 +141,10 @@ class DashboardService {
     });
     const issues = scopedIssues(snapshot, user); const ageMinutes = Math.floor((Date.now() - new Date(snapshot.generatedAt)) / 60000);
     const ranking = teacherRanking(allAssignments, snapshot.generatedAt, snapshot.rows[0]?.rankingPolicy);
+    const currentDeadlines = await this.store.latestDeadlineCatalog();
+    const deadlinesChanged = (currentDeadlines?.id || null) !== (snapshot.deadlineVersionId || null);
     return {
-      meta: { snapshotId: snapshot.id, generatedAt: snapshot.generatedAt, source: snapshot.source, isDemo: snapshot.isDemo, rulesVersion: snapshot.rulesVersion, rulesStatus: snapshot.rulesStatus, qualityStatus: issues.some((issue) => issue.severity === 'CRITICAL') ? 'BLOCKED' : snapshot.qualityStatus, publishAllowed: snapshot.publishAllowed, stale: ageMinutes > this.snapshotIntervalMinutes * 2, qualityIssues: issues },
+      meta: { snapshotId: snapshot.id, generatedAt: snapshot.generatedAt, source: snapshot.source, isDemo: snapshot.isDemo, rulesVersion: snapshot.rulesVersion, rulesStatus: snapshot.rulesStatus, qualityStatus: issues.some((issue) => issue.severity === 'CRITICAL') ? 'BLOCKED' : snapshot.qualityStatus, publishAllowed: snapshot.publishAllowed && !deadlinesChanged, stale: ageMinutes > this.snapshotIntervalMinutes * 2, qualityIssues: issues, deadlineVersionId: snapshot.deadlineVersionId || null, currentDeadlineVersionId: currentDeadlines?.id || null, deadlinesChanged },
       summary: summarize(filtered), ranking, visuals: executiveVisuals(filtered, snapshot.generatedAt), trend, modalityBreakdown: modalityBreakdown(filtered),
       rows: options.allRows ? assignments : assignments.slice((page - 1) * pageSize, page * pageSize),
       filters: filterOptions(scoped), pagination: { page, pageSize, total: assignments.length, pages },
