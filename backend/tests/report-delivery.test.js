@@ -96,3 +96,24 @@ test('envio bloqueia coleta desatualizada mesmo se o snapshot estava liberado', 
     assert.equal(sent, false);
   } finally { await runtime.close(); }
 });
+
+for (const retry of [false, true]) test('requisições simultâneas não duplicam ' + (retry ? 'a tentativa após falha' : 'o primeiro envio'), async () => {
+  const runtime = await createRuntime({ NODE_ENV: 'test', DATA_SOURCE: 'demo', AUTH_MODE: 'demo', SMTP_FROM: 'ned@example.invalid', REPORT_RECIPIENTS_JSON: JSON.stringify([{ audience: 'coordinators', email: 'alfa@example.invalid', name: 'Alfa', courseIds: ['1101'] }]) });
+  try {
+    const { store, reportService } = runtime.services;
+    const snapshot = await store.latestSnapshot();
+    store.latestSnapshot = async () => ({ ...snapshot, isDemo: false, publishAllowed: true, qualityStatus: 'VALID', qualityIssues: [] });
+    const actor = { id: 'test:ned', role: 'ned_admin' };
+    if (retry) {
+      reportService.transporter = { async sendMail() { throw new Error('Falha simulada, sem conexão SMTP.'); } };
+      await assert.rejects(reportService.send('coordinators', actor, 'failed', snapshot.id), (error) => error.code === 'EMAIL_DELIVERY_FAILED');
+      assert.equal(store.reportRuns[0].status, 'FAILED');
+    }
+    let deliveries = 0;
+    reportService.transporter = { async sendMail() { deliveries += 1; await new Promise((resolve) => setTimeout(resolve, 20)); } };
+    const results = await Promise.all(Array.from({ length: 3 }, (_, index) => reportService.send('coordinators', actor, 'concurrent-' + index, snapshot.id)));
+    assert.equal(deliveries, 1); assert.equal(store.reportRuns.length, 1);
+    assert.equal(results.flatMap((result) => result.results).filter((result) => result.status === 'SENT').length, 1);
+    assert.equal(store.reportRuns[0].status, 'SENT');
+  } finally { await runtime.close(); }
+});

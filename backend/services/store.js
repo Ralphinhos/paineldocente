@@ -28,6 +28,13 @@ class MemoryStore {
     return structuredClone(records);
   }
   async findReportRun(key) { return this.reportRuns.find((run) => run.idempotencyKey === key) || null; }
+  async claimReportRun(run) {
+    const existing = this.reportRuns.find((item) => item.idempotencyKey === run.idempotencyKey);
+    if (existing && existing.status !== 'FAILED') return { claimed: false, run: structuredClone(existing) };
+    if (existing) Object.assign(existing, { status: 'PROCESSING', errorMessage: null, sentAt: null });
+    else this.reportRuns.push(structuredClone(run));
+    return { claimed: true, run: structuredClone(existing || run) };
+  }
   async recordReportRun(run) { this.reportRuns.push(structuredClone(run)); return run; }
   async updateReportRun(id, changes) { const index = this.reportRuns.findIndex((run) => run.id === id); if (index < 0) return null; this.reportRuns[index] = { ...this.reportRuns[index], ...structuredClone(changes) }; return this.reportRuns[index]; }
   async addAudit(event) { this.auditEvents.push({ id: this.auditEvents.length + 1, ...structuredClone(event) }); }
@@ -69,6 +76,11 @@ class PostgresStore {
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
   async findReportRun(key) { const result = await this.pool.query('SELECT * FROM pd_report_runs WHERE idempotency_key=$1', [key]); return result.rows[0] || null; }
+  async claimReportRun(run) {
+    const result = await this.pool.query(`INSERT INTO pd_report_runs (id,snapshot_id,audience,status,idempotency_key,recipients,error_message,sent_at) VALUES ($1,$2,$3,'PROCESSING',$4,$5::jsonb,NULL,NULL) ON CONFLICT (idempotency_key) DO UPDATE SET status='PROCESSING',error_message=NULL,sent_at=NULL WHERE pd_report_runs.status='FAILED' RETURNING *`, [run.id, run.snapshotId, run.audience, run.idempotencyKey, JSON.stringify(run.recipients)]);
+    if (result.rowCount) return { claimed: true, run: result.rows[0] };
+    return { claimed: false, run: await this.findReportRun(run.idempotencyKey) };
+  }
   async recordReportRun(run) { await this.pool.query(`INSERT INTO pd_report_runs (id,snapshot_id,audience,status,idempotency_key,recipients,error_message,sent_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)`, [run.id, run.snapshotId, run.audience, run.status, run.idempotencyKey, JSON.stringify(run.recipients), run.errorMessage || null, run.sentAt || null]); return run; }
   async updateReportRun(id, changes) { const result = await this.pool.query(`UPDATE pd_report_runs SET status=COALESCE($2,status),error_message=$3,sent_at=$4 WHERE id=$1 RETURNING *`, [id, changes.status || null, changes.errorMessage || null, changes.sentAt || null]); return result.rows[0] || null; }
   async addAudit(event) { await this.pool.query(`INSERT INTO pd_audit_events (actor_id,action,target_id,request_id,metadata) VALUES ($1,$2,$3,$4,$5::jsonb)`, [event.actorId, event.action, event.targetId || null, event.requestId || null, JSON.stringify(event.metadata || {})]); }

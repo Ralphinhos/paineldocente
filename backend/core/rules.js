@@ -136,7 +136,7 @@ function reconcileObservedTiming(rows, source, previousSnapshot) {
     if (row.reasonCode !== 'CONFIGURATION_DATE_UNKNOWN' || !row.deadlineAt) continue;
     const key = `${row.course.id}:${row.teacher.id}:${row.requirement.id}`;
     const previous = prior.get(key);
-    if (previous && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(previous.structureStatus)) {
+    if (previous && previous.deadlineAt === row.deadlineAt && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(previous.structureStatus)) {
       Object.assign(row, { structureStatus: previous.structureStatus, reasonCode: previous.reasonCode, reason: previous.reason, configuredAt: previous.configuredAt, timingSource: previous.timingSource });
       continue;
     }

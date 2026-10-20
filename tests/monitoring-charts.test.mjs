@@ -6,6 +6,9 @@ import ts from 'typescript';
 const source = await readFile(new URL('../src/lib/monitoringCharts.ts', import.meta.url), 'utf8');
 const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
 const { integerScale, donutSegments } = await import('data:text/javascript;base64,' + Buffer.from(output).toString('base64'));
+const tooltipSource = await readFile(new URL('../src/lib/chartTooltip.ts', import.meta.url), 'utf8');
+const tooltipOutput = ts.transpileModule(tooltipSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
+const { tooltipPosition } = await import('data:text/javascript;base64,' + Buffer.from(tooltipOutput).toString('base64'));
 
 test('escala dos gráficos começa em zero, usa inteiros e inclui o maior valor', () => {
   for (const maximum of [0, 1, 2, 7, 14, 18, 101, 9999]) {
@@ -35,4 +38,16 @@ test('escala tolera base vazia e ausências sem alterar a representação dos re
   const values = [null, 0, 18, NaN, Infinity];
   assert.deepEqual(integerScale(values), { ceiling: 20, ticks: [0, 5, 10, 15, 20] });
   assert.equal(values[0], null); assert.equal(values[1], 0);
+});
+
+test('dicas de leitura permanecem dentro da tela nas bordas do gráfico', () => {
+  for (const viewport of [{ width: 1366, height: 768 }, { width: 360, height: 640 }]) {
+    const size = { width: 300, height: 290 };
+    for (const anchor of [{ x: 0, y: 0 }, { x: viewport.width - 1, y: viewport.height - 1 }, { x: viewport.width / 2, y: 100 }]) {
+      const position = tooltipPosition(anchor, size, viewport);
+      assert.ok(position.left >= 12); assert.ok(position.top >= 12);
+      assert.ok(position.left + size.width <= viewport.width - 12);
+      assert.ok(position.top + size.height <= viewport.height - 12);
+    }
+  }
 });

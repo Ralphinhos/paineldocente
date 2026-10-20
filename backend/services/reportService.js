@@ -26,10 +26,9 @@ class ReportService {
     if (reports.some((report) => !report.publishAllowed)) throw new HttpError(409, 'QUALITY_GATE_BLOCKED', 'Atualize ou valide os dados antes do envio.');
     for (const [index, recipient] of recipients.entries()) {
       const key = crypto.createHash('sha256').update(`${snapshot.id}:${audience}:${recipient.email.toLowerCase()}`).digest('hex');
-      const existing = await this.store.findReportRun(key);
-      if (existing?.status === 'SENT' || existing?.status === 'PROCESSING') { results.push({ email: recipient.email, status: existing.status === 'SENT' ? 'ALREADY_SENT' : 'IN_PROGRESS' }); continue; }
-      const run = existing || createReportRun({ snapshotId: snapshot.id, audience, idempotencyKey: key, recipients: [recipient.email, ...(recipient.cc || [])], status: 'PROCESSING' });
-      if (existing) await this.store.updateReportRun(run.id, { status: 'PROCESSING', errorMessage: null, sentAt: null }); else await this.store.recordReportRun(run);
+      const claim = await this.store.claimReportRun(createReportRun({ snapshotId: snapshot.id, audience, idempotencyKey: key, recipients: [recipient.email, ...(recipient.cc || [])], status: 'PROCESSING' }));
+      if (!claim.claimed) { results.push({ email: recipient.email, status: claim.run?.status === 'SENT' ? 'ALREADY_SENT' : 'IN_PROGRESS' }); continue; }
+      const run = claim.run;
       try {
         const report = reports[index];
         await this.transporter.sendMail({ from: this.config.reports.smtp.from, to: recipient.email, cc: recipient.cc || [], subject: report.subject, text: report.text, html: report.html });

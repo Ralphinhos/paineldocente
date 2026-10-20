@@ -72,6 +72,8 @@ A interface é de trabalho do NED. Coordenadores e gestão recebem os relatório
 
 ## Produção no servidor interno
 
+Guia direto para a equipe: [Funcionalidades e implantação](docs/GUIA_NED.md). O cadastro geral de prazos é feito em `backend/config/deadlines.json`, pela TI com datas aprovadas pelo NED: [estrutura e exemplo](docs/PRAZOS.md). A interface ainda não possui um formulário geral de prazos.
+
 Consulte [GUIA_DEPLOY.md](GUIA_DEPLOY.md) e `.env.production.example`. O servidor precisa de acesso ao SQL Server, PostgreSQL para coletas/histórico, autenticação institucional e SMTP. O navegador não recebe credenciais Moodle.
 
 `backend/config/rules.json` permanece PILOT e `backend/config/deadlines.json` precisa dos prazos oficiais. Só habilite `RULES_APPROVED` e `EMAIL_SEND_ENABLED` após conferir a amostra real e os destinatários com o NED/TI. Não houve conexão ao banco ou SMTP institucional nesta implementação.

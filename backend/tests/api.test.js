@@ -23,6 +23,27 @@ test('proxy rejeita conta institucional sem mapeamento', async () => {
   await request(createApp(runtime)).get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'sem-acesso@unifenas.br').expect(403).expect((response) => assert.equal(response.body.error.code, 'USER_NOT_AUTHORIZED'));
   await runtime.close();
 });
+test('proxy revalida identidade e permissão mesmo com cookie de sessão válido', async () => {
+  const secret = 'proxy-test-secret-with-at-least-32-characters';
+  const runtime = await createRuntime({ ...env, AUTH_MODE: 'proxy', DEMO_AUTH_ENABLED: 'false', AUTH_PROXY_SHARED_SECRET: secret, AUTH_USERS_JSON: JSON.stringify([{ email: 'ned@unifenas.br', name: 'NED', role: 'ned_admin', courseIds: [] }, { email: 'auditoria@unifenas.br', name: 'Auditoria', role: 'auditor', courseIds: [] }]) });
+  try {
+    const agent = request.agent(createApp(runtime));
+    const signedIn = await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'ned@unifenas.br').expect(200);
+    assert.equal(signedIn.body.user.role, 'ned_admin');
+    await agent.get('/api/monitoring').expect(401);
+    const switched = await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'auditoria@unifenas.br').expect(200);
+    assert.equal(switched.body.user.role, 'auditor');
+    assert.notEqual(switched.body.csrfToken, signedIn.body.csrfToken);
+    await agent.post('/api/operations/snapshots').set('Origin', env.APP_ORIGIN).set('x-panel-auth-secret', secret).set('x-auth-request-email', 'auditoria@unifenas.br').set('x-csrf-token', switched.body.csrfToken).expect(403);
+    runtime.config.auth.users.splice(1, 1);
+    await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'auditoria@unifenas.br').expect(403);
+  } finally { await runtime.close(); }
+});
+test('cookie malformado não derruba consulta de sessão', async () => {
+  const runtime = await createRuntime(env);
+  try { const response = await request(createApp(runtime)).get('/api/auth/session').set('Cookie', 'painel_docente_session=%E0%A4%A').expect(200); assert.equal(response.body.authenticated, false); }
+  finally { await runtime.close(); }
+});
 test('NED recebe um pacote de UAs e videoaulas conforme a carga horária', async () => {
   const { runtime, agent } = await login('ned');
   const response = await agent.get('/api/operations/manual-deliveries?pageSize=50').expect(200);

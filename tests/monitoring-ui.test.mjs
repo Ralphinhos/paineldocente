@@ -81,3 +81,13 @@ test('recorte vazio não apresenta docentes inexistentes como regulares', async 
   assert.ok(!html.includes('Os docentes verificados estão em dia'));
   assert.ok(!html.includes('NaN')); assert.ok(!html.includes('Infinity'));
 });
+
+test('Top 10 limita o desenho mesmo ao receber mil docentes sem cortar nomes acessíveis', () => {
+  const bars = Array.from({ length: 1000 }, (_, index) => ({ id: String(index), label: 'Docente com nome completo para identificação ' + index, value: 10000 - index, detail: 'Registro confirmado', tone: 'blue' }));
+  const html = render(modules[4].MonitoringChart, { title: 'Top 10', description: 'Maior intervalo', unit: 'dias', bars, empty: 'Sem docentes', footnote: 'Recorte completo', disabled: false, onSelect: noop });
+  assert.equal((html.match(/role="button"/g) || []).length, 10);
+  assert.match(html, /Docente com nome completo para identificação 9: 9\.991 dias/);
+  assert.ok(!html.includes('identificação 10:'));
+  assert.match(html, /viewBox="0 0 640 448"/);
+  assert.ok(!html.includes('NaN')); assert.ok(!html.includes('Infinity'));
+});

@@ -61,7 +61,10 @@ GRANT SELECT ON OBJECT::dbo.mdl_course_modules TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_customfield_data TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_customfield_field TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_forum TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_h5pactivity TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_label TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_logstore_standard_log TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_lti TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_modules TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_page TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_quiz TO [painel_docente_ro];
@@ -109,6 +112,8 @@ docker compose --env-file .env.production run --rm api node scripts/validate-sna
 ```
 
 Saída válida e `publishAllowed=true` são obrigatórias.
+
+O NED fornece e aprova os prazos; a TI cadastra período, modalidade e exceções por disciplina conforme [docs/PRAZOS.md](docs/PRAZOS.md). API e worker leem esse arquivo na inicialização: reinicie ambos após editar o catálogo. Alterações de variáveis de ambiente exigem recriar os serviços. Não há cadastro geral de prazos na interface atual.
 
 ## 7. Habilitar e-mail semanal
 

@@ -4,7 +4,7 @@ const { HttpError } = require('./http');
 const COOKIE_NAME = 'painel_docente_session';
 const SESSION_SECONDS = 8 * 60 * 60;
 
-function parseCookies(header = '') { return header.split(';').reduce((cookies, pair) => { const i = pair.indexOf('='); if (i > 0) cookies[pair.slice(0, i).trim()] = decodeURIComponent(pair.slice(i + 1).trim()); return cookies; }, {}); }
+function parseCookies(header = '') { return header.split(';').reduce((cookies, pair) => { const i = pair.indexOf('='); if (i > 0) { try { cookies[pair.slice(0, i).trim()] = decodeURIComponent(pair.slice(i + 1).trim()); } catch { /* Ignore malformed cookies instead of failing the request. */ } } return cookies; }, {}); }
 function safeEqual(left, right) { if (typeof left !== 'string' || typeof right !== 'string') return false; const a = Buffer.from(left); const b = Buffer.from(right); return a.length === b.length && crypto.timingSafeEqual(a, b); }
 function publicUser(user) { return { id: user.id, email: user.email, name: user.name, role: user.role }; }
 
@@ -23,12 +23,17 @@ function createAuth(config) {
     try { const d = jwt.verify(token, config.auth.jwtSecret, { algorithms: ['HS256'], issuer: 'painel-docente', audience: 'painel-docente-web' }); return { id: d.sub, email: d.email, name: d.name, role: d.role, courseIds: Array.isArray(d.courseIds) ? d.courseIds.map(String) : [], csrfToken: d.csrfToken }; } catch { return null; }
   };
   const optional = (request, response, next) => {
-    const session = readSession(request); if (session) { request.user = session; return next(); }
-    if (config.auth.mode === 'proxy' && safeEqual(request.get('x-panel-auth-secret'), config.auth.proxySharedSecret)) {
+    const session = readSession(request);
+    if (config.auth.mode === 'proxy') {
+      if (!safeEqual(request.get('x-panel-auth-secret'), config.auth.proxySharedSecret)) return next();
       const email = request.get('x-auth-request-email'); if (!email) return next();
       const user = findMappedUser(email);
       if (!user) return next(new HttpError(403, 'USER_NOT_AUTHORIZED', 'Conta institucional sem acesso ao Painel Docente.'));
-      if (user) { const token = issueToken(user); const d = jwt.decode(token); setSessionCookie(response, token); request.user = { ...user, csrfToken: d.csrfToken }; }
+      const sameMapping = session && session.email === user.email && session.role === user.role && session.name === user.name && JSON.stringify([...session.courseIds].sort()) === JSON.stringify([...user.courseIds].sort());
+      if (sameMapping) request.user = { ...user, csrfToken: session.csrfToken };
+      else { const token = issueToken(user); const d = jwt.decode(token); setSessionCookie(response, token); request.user = { ...user, csrfToken: d.csrfToken }; }
+    } else if (session) {
+      request.user = session;
     }
     return next();
   };

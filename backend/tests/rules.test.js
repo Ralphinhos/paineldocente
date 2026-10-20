@@ -29,6 +29,20 @@ test('fotografias comprovam entrega tardia sem depender do log', () => {
   assert.equal(row.timingSource, 'SNAPSHOT_OBSERVED');
   assert.equal(row.reasonCode, 'READY_OBSERVED_AFTER_OVERDUE');
 });
+test('alterar prazo oficial não reaproveita classificação antiga de entrega observada', () => {
+  const raw = createDemoSource(new Date('2026-09-03T12:00:00.000Z'), 3);
+  raw.source = 'moodle';
+  const activity = raw.courses.find((course) => course.id === '1105').activities.find((item) => item.requirementId === 'forum_diagnostico');
+  activity.configurationTimeSource = null; activity.configuredAt = null; activity.visible = true; activity.observedQuantity = 4;
+  activity.deadlineSource = 'OFFICIAL_CATALOG'; activity.deadlineAt = '2026-09-05T12:00:00.000Z';
+  const previous = buildSnapshot(raw, catalog, { rulesApproved: true, manualDeliveries: raw.manualDeliveries });
+  const pick = (snapshot) => snapshot.rows.find((row) => row.course.id === '1105' && row.requirement.id === 'forum_diagnostico');
+  assert.equal(pick(previous).structureStatus, 'DELIVERED_ON_TIME');
+  raw.generatedAt = '2026-09-04T12:00:00.000Z'; activity.deadlineAt = '2026-09-01T12:00:00.000Z';
+  const current = buildSnapshot(raw, catalog, { rulesApproved: true, previousSnapshot: previous, manualDeliveries: raw.manualDeliveries });
+  assert.equal(pick(current).structureStatus, 'NOT_VERIFIABLE');
+  assert.equal(pick(current).reasonCode, 'CONFIGURATION_DATE_UNKNOWN');
+});
 test('conclusão alterada conta como acesso sem contar como entrega', () => {
   const now = new Date('2026-09-03T12:00:00.000Z');
   const access = calculateAccess({ lastAccessAt: null, accessEvents: [{ name: '\\core\\event\\course_module_completion_updated', occurredAt: '2026-09-02T12:00:00.000Z' }] }, { startsAt: '2026-08-01T00:00:00.000Z', endsAt: '2026-10-01T00:00:00.000Z' }, now, catalog.accessThresholds);

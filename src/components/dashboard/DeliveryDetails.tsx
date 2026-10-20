@@ -10,7 +10,7 @@ export function DeliveryDetails({ row, onClose }: { row: DeliveryRecord | null; 
     if (row && !dialog.current?.open) dialog.current?.showModal();
     else if (!row) dialog.current?.close();
   }, [row]);
-  return <dialog ref={dialog} className="delivery-details-dialog" aria-labelledby="delivery-details-title" onCancel={onClose} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return <dialog ref={dialog} className="delivery-details-dialog" aria-labelledby="delivery-details-title" onCancel={onClose} onClick={(event) => { if (event.target !== event.currentTarget) return; const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose(); }}>
     {row && <section><header><div><h2 id="delivery-details-title">{row.item.label}</h2><p>{row.teacher.name} · {row.course.name}</p></div><button className="icon-button" type="button" onClick={onClose} aria-label="Fechar detalhes"><X size={19} /></button></header>
       <DelayLabel item={row.item} /><dl className="delivery-facts"><div><dt>Prazo</dt><dd>{formatDate(row.item.deadlineAt, 'A validar')}</dd></div><div><dt>{row.item.baseId === 'unidades_aprendizagem' ? 'Envio do pacote' : row.item.baseId === 'videos' ? 'Gravação' : row.item.timingSource === 'SNAPSHOT_OBSERVED' ? 'Observada pronta em' : 'Entrega'}</dt><dd>{formatDate(row.item.manualEvidenceDate || row.item.configuredAt)}</dd></div><div><dt>Origem</dt><dd>{row.item.manualControl ? 'Registro manual do NED' : 'Moodle · coleta automática'}</dd></div></dl>
       <p className="delivery-reason">{row.item.reason}</p>
