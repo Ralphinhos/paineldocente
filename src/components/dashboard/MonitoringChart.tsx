@@ -9,14 +9,15 @@ interface Props {
   title: string; description: string; unit: string; bars: Bar[]; empty: string;
   onSelect: (id: string) => void; disabled: boolean; footnote: string;
   legend?: Array<{ label: string; tone: ChartTone }>; compact?: boolean;
+  scaleMax?: number; actionLabel?: string;
 }
 
-export function MonitoringChart({ title, description, unit, bars, empty, onSelect, disabled, footnote, legend = [], compact = false }: Props) {
+export function MonitoringChart({ title, description, unit, bars, empty, onSelect, disabled, footnote, legend = [], compact = false, scaleMax, actionLabel = 'Filtrar' }: Props) {
   const titleId = useId();
   const helpId = useId();
   const tooltip = useChartTooltip();
   const visible = bars.slice(0, 10);
-  const { ceiling, ticks } = integerScale(visible.map((bar) => bar.value));
+  const { ceiling, ticks } = integerScale([...visible.map((bar) => bar.value), ...(scaleMax ? [scaleMax] : [])]);
   const width = compact ? 420 : 640;
   const plot = { left: compact ? 164 : 180, right: width - 66, top: 18 };
   const height = Math.max(112, visible.length * 38 + 68);
@@ -33,8 +34,8 @@ export function MonitoringChart({ title, description, unit, bars, empty, onSelec
           {visible.map((bar, index) => {
             const y = plot.top + index * 38;
             const label = chartLabel(bar.label, compact ? 24 : 29);
-            const accessible = bar.label + ': ' + (bar.value == null ? bar.unavailableLabel || 'A validar' : bar.value.toLocaleString('pt-BR') + ' ' + unit) + '. ' + bar.detail + '. Clique para filtrar.';
-            return <g {...tooltip.bind(bar.id, { title: bar.label, lines: [{ label: unit, value: bar.value == null ? bar.unavailableLabel || 'A validar' : bar.valueLabel || bar.value.toLocaleString('pt-BR') }, { label: 'Situação', value: bar.detail }], hint: disabled ? undefined : 'Clique ou pressione Enter para filtrar.' })} key={bar.id} className="ned-chart-pick" role="button" tabIndex={disabled ? -1 : 0} aria-disabled={disabled} aria-label={accessible} onClick={() => { tooltip.hide(); if (!disabled) onSelect(bar.id); }} onKeyDown={(event) => selectByKeyboard(event, bar.id)}>
+            const accessible = bar.label + ': ' + (bar.value == null ? bar.unavailableLabel || 'A validar' : (bar.valueLabel || bar.value.toLocaleString('pt-BR')) + ' ' + unit) + '. ' + bar.detail + '. ' + actionLabel + '.';
+            return <g {...tooltip.bind(bar.id, { title: bar.label, lines: [{ label: unit, value: bar.value == null ? bar.unavailableLabel || 'A validar' : bar.valueLabel || bar.value.toLocaleString('pt-BR') }, { label: 'Situação', value: bar.detail }], hint: disabled ? undefined : actionLabel + ' com clique ou Enter.' })} key={bar.id} className="ned-chart-pick" role="button" tabIndex={disabled ? -1 : 0} aria-disabled={disabled} aria-label={accessible} onClick={() => { tooltip.hide(); if (!disabled) onSelect(bar.id); }} onKeyDown={(event) => selectByKeyboard(event, bar.id)}>
               <rect x={2} y={y} width={width - 4} height={36} rx={4} className="ned-chart-target" />
               <text x={plot.left - 12} y={y + (label[1] ? 12 : 20)} textAnchor="end" className="ned-bar-label"><tspan x={plot.left - 12}>{label[0]}</tspan>{label[1] && <tspan x={plot.left - 12} dy={14}>{label[1]}</tspan>}</text>
               {bar.value == null ? <text x={plot.left + 8} y={y + 20} className="ned-bar-label">{bar.unavailableLabel || 'A validar'}</text> : <>

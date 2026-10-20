@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS pd_snapshot_rows (
   PRIMARY KEY (snapshot_id,course_id,teacher_id,requirement_id)
 );
 CREATE INDEX IF NOT EXISTS pd_snapshot_rows_course_idx ON pd_snapshot_rows (snapshot_id,course_id);
+CREATE INDEX IF NOT EXISTS pd_snapshot_rows_period_idx ON pd_snapshot_rows ((payload->'course'->>'period'),snapshot_id);
 CREATE TABLE IF NOT EXISTS pd_manual_deliveries (
   course_id text NOT NULL, teacher_id text NOT NULL, requirement_id text NOT NULL CHECK (requirement_id IN ('unidades_aprendizagem','videos')),
   item_number integer NOT NULL CHECK (item_number > 0), revision integer NOT NULL DEFAULT 1,

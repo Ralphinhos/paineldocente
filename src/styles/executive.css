@@ -1,0 +1,102 @@
+.workspace-view-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: -2px 0 20px; border-bottom: 1px solid #dce6f1; }
+.workspace-view-nav nav { display: flex; align-items: center; gap: 24px; }
+.workspace-view-nav nav a, .workspace-view-nav nav > span { display: block; padding: 13px 2px; border-bottom: 3px solid transparent; color: #61748f; font-size: .875rem; font-weight: 600; text-decoration: none; }
+.workspace-view-nav nav a[aria-current="page"], .workspace-view-nav nav > .is-current { border-color: #3694ff; color: #174b8f; }
+.workspace-view-nav nav a:hover { color: #174b8f; }
+.workspace-view-nav nav > span[aria-disabled="true"] { cursor: not-allowed; }
+.workspace-role-label { color: #61748f; font-size: .75rem; }
+.executive-scope-bar { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(220px, 1.2fr) minmax(230px, 1.2fr); gap: 14px 22px; padding: 18px 20px 14px; margin-bottom: 22px; border: 1px solid #e0e9f2; border-radius: 9px; background: #fff; }
+.executive-scope-bar > label { display: grid; gap: 7px; color: #425c83; font-size: .8125rem; }
+.executive-scope-bar select, .executive-table-controls select, .executive-table-controls input { min-height: 42px; min-width: 0; padding: 9px 12px; border: 1px solid #cfdeef; border-radius: 6px; background: #fff; color: #264168; font: inherit; }
+.executive-scope-bar > p { grid-column: 1 / -1; margin: 0; color: #61748f; font-size: .75rem; line-height: 1.5; }
+.executive-overview { gap: 22px; }
+.executive-overview .monitoring-metric { min-height: 134px; align-items: center; padding-bottom: 27px; }
+.executive-overview .metric-card-content { min-width: 0; }
+.metric-card-detail { display: block; margin-top: 4px; max-width: 220px; color: #526787; font-size: .6875rem; line-height: 1.4; }
+.executive-overview .metric-card-percent { bottom: 8px; }
+.executive-section-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; margin: 26px 0 14px; }
+.executive-overview .executive-section-title { margin: 4px 0 -8px; }
+.executive-section-title h2 { margin: 0; color: #193862; font-size: 1.0625rem; font-weight: 650; }
+.executive-section-title > span { color: #61748f; font-size: .75rem; }
+.executive-distributions .distribution-ring { max-height: 248px; }
+.executive-distributions .distribution-body { grid-template-columns: minmax(180px, .85fr) minmax(210px, 1fr); }
+.executive-rankings { align-items: start; }
+.executive-rankings .monitoring-chart { height: 100%; }
+.executive-rankings .ned-panel-note { min-height: 51px; }
+.executive-history-grid { align-items: stretch; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); margin-bottom: 24px; }
+.executive-evolution { min-width: 0; }
+.executive-evolution .ned-plot-scroll { padding-bottom: 0; }
+.executive-evolution svg { display: block; margin: 0 auto; }
+.executive-evolution .ned-chart-legend { gap: 8px 16px; padding: 0 18px; }
+.executive-chart-message { display: flex; min-height: 280px; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 24px; color: #61748f; text-align: center; font-size: .8125rem; }
+.executive-chart-message strong { color: #425c83; }
+.executive-chart-message p { max-width: 340px; margin: 0; line-height: 1.6; }
+.executive-teachers { margin-bottom: 24px; }
+.executive-teachers .list-heading { align-items: center; gap: 14px; }
+.executive-teachers .list-heading p { margin: 5px 0 0; color: #61748f; font-size: .75rem; }
+.executive-table-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: .8125rem; }
+.executive-search { position: relative; display: block; }
+.executive-search > svg { position: absolute; top: 13px; left: 10px; color: #61748f; pointer-events: none; }
+.executive-table-controls .executive-search input { width: 220px; padding-left: 33px; }
+.executive-performance-table { min-width: 940px; font-variant-numeric: tabular-nums; }
+.executive-performance-table th:not(:first-child), .executive-performance-table td:not(:first-child) { text-align: right; }
+.executive-performance-table th { color: #526787; font-size: .75rem; }
+.executive-performance-table td { color: #314d78; }
+.executive-performance-table td:first-child { min-width: 230px; max-width: 300px; overflow-wrap: anywhere; }
+.executive-performance-table .teacher-name { font-weight: 600; color: #244e87; text-decoration: none; }
+.executive-performance-table .teacher-name:hover { text-decoration: underline; }
+.executive-performance-table small { display: block; margin-top: 5px; color: #61748f; font-size: .6875rem; font-weight: 400; }
+.executive-table-proportion { display: grid; gap: 4px; justify-items: end; min-width: 90px; }
+.executive-table-proportion strong { font-size: .875rem; font-weight: 600; }
+.executive-mini-bar { width: 82px; height: 4px; overflow: hidden; border-radius: 3px; background: #e8eff6; }
+.executive-mini-bar i { display: block; height: 100%; border-radius: inherit; }
+.executive-access { display: inline-block; padding: 5px 8px; border-radius: 5px; font-size: .75rem; font-weight: 550; white-space: nowrap; background: #edf2f7; color: #526787; }
+.executive-access.access-current { background: #e8f7ef; color: #197748; }
+.executive-access.access-attention { background: #fff5df; color: #8a5a0a; }
+.executive-access.access-critical { background: #fff0f3; color: #b63a55; }
+.executive-access.access-never { background: #f2edff; color: #7150aa; }
+.detail-scope-note { margin: 0 0 16px; color: #526787; font-size: .8125rem; line-height: 1.5; }
+.demo-view-options { display: grid; gap: 12px; }
+.demo-view-options > button { width: 100%; justify-content: center; min-height: 46px; }
+.executive-empty { padding: 40px 20px; text-align: center; color: #61748f; }
+.executive-empty h2 { font-size: 1rem; color: #425c83; }
+.ned-workspace .page-wrap > .workspace-tabs.tabs-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.executive-scope-bar :focus-visible, .executive-table-controls :focus-visible, .workspace-view-nav a:focus-visible, .executive-teachers a:focus-visible { outline: 3px solid #3694ff; outline-offset: 3px; }
+@media (max-width: 1200px) {
+  .executive-overview .metric-card-label { font-size: .75rem; }
+  .executive-overview .metric-card-icon { width: 44px; height: 44px; }
+  .executive-overview .monitoring-metric { gap: 10px; }
+  .executive-distributions .distribution-body { grid-template-columns: minmax(160px, .8fr) minmax(185px, 1fr); gap: 6px; padding-inline: 10px; }
+  .executive-teachers .list-heading { align-items: start; flex-direction: column; }
+}
+@media (max-width: 1050px) {
+  .executive-distributions .distribution-body { grid-template-columns: minmax(210px, .8fr) minmax(250px, 1fr); }
+  .executive-history-grid { grid-template-columns: 1fr; }
+  .executive-rankings .ned-panel-note { min-height: 0; }
+}
+@media (max-width: 650px) {
+  .workspace-view-nav { align-items: start; gap: 8px; margin-bottom: 15px; }
+  .workspace-view-nav nav { gap: 18px; }
+  .workspace-view-nav nav a, .workspace-view-nav nav > span { padding: 12px 1px; font-size: .8125rem; }
+  .workspace-role-label { max-width: 110px; padding-top: 12px; text-align: right; font-size: .6875rem; }
+  .executive-scope-bar { grid-template-columns: 1fr; gap: 12px; padding: 14px; margin-bottom: 16px; }
+  .executive-scope-bar select { font-size: .875rem; }
+  .executive-overview { gap: 14px; }
+  .executive-overview .monitoring-metric { min-height: 150px; align-items: start; gap: 9px; padding: 12px 10px 25px; }
+  .executive-overview .metric-card-icon { width: 30px; height: 30px; }
+  .executive-overview .metric-card-icon svg { width: 20px; }
+  .executive-overview .metric-card-label { font-size: .6875rem; }
+  .executive-overview .metric-card-number strong { font-size: 1.75rem; }
+  .metric-card-detail { margin-top: 7px; font-size: .6875rem; }
+  .executive-overview .metric-card-percent { right: 10px; }
+  .executive-section-title { margin-top: 22px; }
+  .executive-section-title > span { font-size: .6875rem; }
+  .executive-distributions .distribution-body { display: flex; padding-inline: 16px; }
+  .executive-chart-message { min-height: 210px; }
+  .executive-table-controls { width: 100%; align-items: stretch; flex-direction: column; }
+  .executive-table-controls .executive-search input, .executive-table-controls select { width: 100%; }
+  .executive-performance-table { min-width: 910px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .executive-overview *, .workspace-view-nav * { transition: none; animation: none; }
+}

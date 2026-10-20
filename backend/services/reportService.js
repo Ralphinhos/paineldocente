@@ -4,13 +4,13 @@ const { HttpError } = require('../core/http');
 const { createReportRun } = require('./store');
 const { buildReport } = require('./occurrenceReport');
 const { MonitoringService } = require('./monitoringService');
-function recipientUser(audience, recipient) { return { id: `report:${recipient.email}`, email: recipient.email, name: recipient.name, role: audience === 'coordinators' ? 'coordinator' : 'executive', courseIds: recipient.courseIds || [] }; }
+function recipientUser(audience, recipient) { return { id: `report:${recipient.email}`, email: recipient.email, name: recipient.name, role: 'executive', scope: audience === 'coordinators' ? 'report_courses' : undefined, courseIds: recipient.courseIds || [] }; }
 class ReportService {
   constructor({ config, store, monitoringService }) { this.config = config; this.store = store; this.monitoringService = monitoringService || new MonitoringService({ store, snapshotIntervalMinutes: config.snapshotIntervalMinutes || 1440 }); this.transporter = config.reports.emailEnabled ? nodemailer.createTransport({ host: config.reports.smtp.host, port: config.reports.smtp.port, secure: config.reports.smtp.secure, auth: config.reports.smtp.user ? { user: config.reports.smtp.user, pass: config.reports.smtp.password } : undefined }) : null; }
   async preview(audience, user) {
     const snapshot = await this.store.latestSnapshot();
     if (!snapshot) throw new HttpError(503, 'SNAPSHOT_UNAVAILABLE', 'Ainda não há coleta disponível.');
-    if (user.role === 'coordinator' || user.role === 'executive') return [{ recipient: { name: user.name, email: user.email }, ...buildReport(audience, await this.monitoringService.getMonitoring(user, {}, { snapshot, allRows: true }), user.name) }];
+    if (user.role === 'executive') return [{ recipient: { name: user.name, email: user.email }, ...buildReport(audience, await this.monitoringService.getMonitoring(user, {}, { snapshot, allRows: true }), user.name) }];
     const recipients = this.config.reports.recipients.filter((item) => item.audience === audience);
     if (recipients.length) return Promise.all(recipients.map(async (recipient) => ({ recipient: { name: recipient.name, email: recipient.email, cc: recipient.cc || [] }, ...buildReport(audience, await this.monitoringService.getMonitoring(recipientUser(audience, recipient), {}, { snapshot, allRows: true }), recipient.name) })));
     const previewUser = { ...user, role: audience === 'executive' ? 'executive' : 'ned_admin', courseIds: [] };

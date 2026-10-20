@@ -80,3 +80,12 @@ Abra http://localhost:8080 e clique em **Abrir demonstração do NED**. Identifi
 - Em Relatório por coordenador, alterne a coordenação, confira Para/Cc e baixe o HTML. O envio fica bloqueado no modo demonstração.
 
 Ctrl+C encerra os serviços. O modo de demonstração não persiste registros após encerrar.
+
+
+## Dois perfis e panorama semestral — 20/10/2026
+
+- NED mantém quatro abas; Alta Gestão recebe resumo por semestre e detalhamento em leitura. Login de coordenação/auditoria removido da configuração, da demonstração e da aceitação de sessões antigas. Destinatários de e-mail continuam separados por curso.
+- `npm run check` aprovado: lint, TypeScript, build e **138 testes** (27 interface/SSR e 111 backend). Novos casos cobrem bases percentuais, bimestres, homônimos, disciplinas encerradas, replicação, responsabilidade compartilhada, paginação de mil docentes e bloqueio das operações para a Gestão.
+- Verificação HTTP pela API e pelo proxy Vite: módulos/CSS novos, duas entradas demo, login de coordenação rejeitado, resumo e histórico, links com mesma referência, contagem do detalhamento consistente com os gráficos, operações/destinatários bloqueados para Gestão e Prazos disponível ao NED. Nenhum e-mail externo foi enviado.
+- SVGs reais de roscas, quatro comparações e evolução foram renderizados e inspecionados. Essa inspeção não comprova o layout completo em Chrome/Edge nem a interação de mouse/teclado no navegador; esses testes continuam pendentes.
+- PostgreSQL real, criação do índice por período, SQL Server, Docker, SSO e SMTP continuam dependentes de homologação institucional. Esta alteração implementa os dois perfis e a análise semestral; não declara resolvidas todas as correções propostas no diagnóstico anterior.

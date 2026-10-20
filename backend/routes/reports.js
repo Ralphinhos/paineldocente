@@ -10,10 +10,8 @@ function parseAudience(value) {
 function reportRoutes({ auth, reportService }) {
   const router = express.Router();
   router.use(auth.required);
-  router.get('/preview', auth.requireRole('ned_admin', 'auditor', 'coordinator', 'executive'), asyncHandler(async (request, response) => {
+  router.get('/preview', auth.requireRole('ned_admin'), asyncHandler(async (request, response) => {
     let audience = parseAudience(request.query.audience || (request.user.role === 'executive' ? 'executive' : 'coordinators'));
-    if (request.user.role === 'coordinator') audience = 'coordinators';
-    if (request.user.role === 'executive') audience = 'executive';
     response.set('Cache-Control', 'private, no-store');
     response.json({ audience, reports: await reportService.preview(audience, request.user) });
   }));

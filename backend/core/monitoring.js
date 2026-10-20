@@ -37,10 +37,10 @@ function deliveryCharts(records, asOf) {
   };
 }
 
-function environmentRecords(rows, asOf) {
+function environmentRecords(rows, asOf, includeInactive = false) {
   const teachers = new Map();
   for (const row of rows) {
-    if (new Date(row.course.startsAt) > new Date(asOf) || new Date(row.course.endsAt) < new Date(asOf)) continue;
+    if (!includeInactive && (new Date(row.course.startsAt) > new Date(asOf) || new Date(row.course.endsAt) < new Date(asOf))) continue;
     const access = row.environmentAccess || unknownAccess();
     const existing = teachers.get(row.teacher.id);
     if (!existing) teachers.set(row.teacher.id, { teacher: row.teacher, ...access, courses: new Map([[row.course.id, row.course]]) });
@@ -75,8 +75,8 @@ function deliveryRecord(row, asOf) {
   return { id: `${row.course.id}:${row.requirement.id}`, course: row.course, teacher: row.teacher, item, displayStatus };
 }
 
-function buildMonitoring(rows, asOf) {
-  const accessRows = environmentRecords(rows, asOf);
+function buildMonitoring(rows, asOf, options = {}) {
+  const accessRows = environmentRecords(rows, asOf, options.includeInactiveAccess);
   const deliveryRows = distinctStructureRows(rows).map((row) => deliveryRecord(row, asOf))
     .sort((a, b) => DELIVERY_ORDER[a.displayStatus] - DELIVERY_ORDER[b.displayStatus] || (b.item.daysLate ?? -1) - (a.item.daysLate ?? -1) || a.teacher.name.localeCompare(b.teacher.name, 'pt-BR') || a.course.shortName.localeCompare(b.course.shortName, 'pt-BR') || a.item.label.localeCompare(b.item.label, 'pt-BR'));
   const access = { total: accessRows.length, current: 0, attention: 0, critical: 0, never: 0, validation: 0 };

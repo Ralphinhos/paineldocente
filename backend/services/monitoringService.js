@@ -1,4 +1,5 @@
 const { HttpError } = require('../core/http');
+const { calendarDays } = require('../core/timing');
 const { buildMonitoring, pageRows } = require('../core/monitoring');
 const { allowedRows } = require('./dashboardService');
 
@@ -15,7 +16,7 @@ function monitoringFilters(rows) {
 class MonitoringService {
   constructor({ store, snapshotIntervalMinutes }) { Object.assign(this, { store, snapshotIntervalMinutes }); }
   async getMonitoring(user, filters = {}, options = {}) {
-    const snapshot = options.snapshot || await this.store.latestSnapshot();
+    const snapshot = options.snapshot || (filters.snapshotId ? await this.store.getSnapshot(filters.snapshotId) : await this.store.latestSnapshot());
     if (!snapshot) throw new HttpError(503, 'SNAPSHOT_UNAVAILABLE', 'Ainda não há coleta disponível.');
     const scoped = allowedRows(snapshot, user);
     const query = String(filters.query || '').trim().toLocaleLowerCase('pt-BR');
@@ -24,13 +25,14 @@ class MonitoringService {
       && !(filters.courseId && row.course.id !== String(filters.courseId))
       && !(filters.teacherId && row.teacher.id !== String(filters.teacherId))
       && !(query && !`${row.teacher.name} ${row.course.name} ${row.course.shortName}`.toLocaleLowerCase('pt-BR').includes(query)));
-    const result = buildMonitoring(rows, snapshot.generatedAt);
+    const result = buildMonitoring(rows, snapshot.generatedAt, { includeInactiveAccess: filters.accessScope === 'semester' });
+    if (filters.bimester || filters.deadlineScope === 'closed') result.deliveries = buildMonitoring(rows.filter((row) => (!filters.bimester || row.requirement.baseId.endsWith('_' + filters.bimester)) && (filters.deadlineScope !== 'closed' || row.deadlineAt && calendarDays(snapshot.generatedAt, row.deadlineAt) > 0)), snapshot.generatedAt).deliveries;
     const accessStatus = filters.accessStatus || 'ISSUES';
     const deliveryStatus = filters.deliveryStatus || 'OVERDUE';
-    const accessRows = result.access.rows.filter((row) => accessStatus === 'ALL' || (accessStatus === 'ISSUES' ? row.status !== 'CURRENT' : row.status === accessStatus));
+    const accessRows = result.access.rows.filter((row) => accessStatus === 'ALL' || (accessStatus === 'ISSUES' ? row.status !== 'CURRENT' : accessStatus === 'ALERTS' ? ['ATTENTION', 'CRITICAL', 'NEVER'].includes(row.status) : row.status === accessStatus));
     const deliveryRows = result.deliveries.rows.filter((row) => (!filters.activityKey || `${row.course.modality}:${row.item.id}` === filters.activityKey)
-      && (deliveryStatus === 'ALL' || (deliveryStatus === 'COMPLIANT' ? ['EARLY', 'ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : deliveryStatus === 'ON_TIME_OR_INHERITED' ? ['ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : row.displayStatus === deliveryStatus)));
-    const issues = snapshot.qualityIssues.filter((issue) => user.role !== 'coordinator' || !issue.courseId || user.courseIds.includes(issue.courseId));
+      && (deliveryStatus === 'ALL' || (deliveryStatus === 'LATE_ALL' ? ['OVERDUE', 'DELIVERED_LATE'].includes(row.displayStatus) : deliveryStatus === 'COMPLIANT' ? ['EARLY', 'ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : deliveryStatus === 'ON_TIME_OR_INHERITED' ? ['ON_TIME', 'INHERITED_READY'].includes(row.displayStatus) : row.displayStatus === deliveryStatus)));
+    const issues = snapshot.qualityIssues.filter((issue) => user.scope !== 'report_courses' || !issue.courseId || user.courseIds.includes(issue.courseId));
     const invalid = result.access.summary.validation + result.deliveries.summary.validation;
     const deadlineVersion = await this.store.latestDeadlineCatalog();
     const deadlinesChanged = (deadlineVersion?.id || null) !== (snapshot.deadlineVersionId || null);

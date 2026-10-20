@@ -85,7 +85,7 @@ test('ranking respeita escopo, período e base inteira; não depende de página 
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
   await store.saveSnapshot(buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries }));
   const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
-  const user = { role: 'coordinator', courseIds: ['1101', '1102'] };
+  const user = { role: 'executive', scope: 'report_courses', courseIds: ['1101', '1102'] };
   const first = await service.getDashboard(user, { pageSize: 5 });
   const filtered = await service.getDashboard(user, { pageSize: 50, status: 'DELIVERED_LATE' });
   assert.deepEqual(first.ranking, filtered.ranking);
@@ -101,7 +101,7 @@ test('filtro pendente no prazo exige prazo conhecido, preserva escopo e não mud
   assert.ok(future, 'a amostra deve conter uma pendência no prazo');
   const store = new MemoryStore(); await store.saveSnapshot(snapshot);
   const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
-  const user = { role: 'coordinator', courseIds: [future.course.id] };
+  const user = { role: 'executive', scope: 'report_courses', courseIds: [future.course.id] };
   const overview = await service.getDashboard(user, { pageSize: 50 });
   const within = await service.getDashboard(user, { pageSize: 50, status: 'WITHIN_DEADLINE' });
   assert.ok(within.rows.length);
@@ -213,7 +213,7 @@ test('clique de atividade filtra o bimestre correto e mantém a base dos gráfic
   const raw = createDemoSource(new Date(at)); const store = new MemoryStore();
   await store.saveSnapshot(buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries }));
   const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
-  const user = { role: 'coordinator', courseIds: ['1103'] };
+  const user = { role: 'executive', scope: 'report_courses', courseIds: ['1103'] };
   const full = await service.getDashboard(user);
   const first = await service.getDashboard(user, { requirementGroup: 'ASSESSMENT', requirementId: 'avaliacao_bimestral_1' });
   assert.ok(first.rows.length);

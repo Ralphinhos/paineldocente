@@ -1,6 +1,6 @@
 # Monitoramento Docente · NED / UNIFENAS
 
-Área interna do NED para identificar problemas pontuais, conferir evidências e preparar notificações por coordenação. A interface segue os dois modelos visuais aprovados em 19/10/2026: cabeçalho NED UNIFENAS, cartões suaves com ícones circulares, roscas, barras horizontais e prioridades ao lado da tabela. O HTML **Análise Docente - Acessos e Atrasos(3).html** continua como referência para as comparações Top 10.
+Aplicação interna com dois perfis: **NED**, que acompanha e registra informações, e **Alta Gestão**, que consulta o panorama semestral e os detalhes em leitura. Coordenadores recebem relatórios por e-mail e não possuem login. As duas visões usam a identidade visual aprovada em 19/10/2026; o panorama semestral aproveita as comparações do HTML **Análise Docente - Acessos e Atrasos(3).html**. Veja [Visão da Gestão](docs/VISAO_GESTAO.md).
 
 ## Testar sem Docker
 
@@ -12,7 +12,7 @@ npm --prefix backend ci
 npm run demo
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) e clique em **Abrir demonstração do NED**. O título é **Monitoramento Docente**, com as abas **Acessos**, **Entregas**, **Prazos** e **Relatório por coordenador**. Ctrl+C encerra os dois serviços.
+Abra [http://localhost:8080](http://localhost:8080) e escolha **Abrir demonstração do NED** ou **Abrir Alta Gestão**. No NED, o título é **Monitoramento Docente**, com as abas **Acessos**, **Entregas**, **Prazos** e **Relatório por coordenador**. Ctrl+C encerra os dois serviços.
 
 O teste usa dados fictícios em memória, coordenações fictícias e envio externo bloqueado. As portas 3001 e 8080 precisam estar livres. Registros de demonstração não persistem após encerrar.
 

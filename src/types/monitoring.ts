@@ -17,7 +17,8 @@ export interface TeacherDeliveryOverview {
 }
 export interface MonitoringFilters {
   period: string; modality: string; courseId: string; teacherId: string; query: string; activityKey: string;
-  accessStatus: 'ISSUES' | 'ALL' | EnvironmentStatus; deliveryStatus: 'ALL' | 'COMPLIANT' | 'ON_TIME_OR_INHERITED' | DeliveryState; page: number;
+  accessStatus: 'ISSUES' | 'ALERTS' | 'ALL' | EnvironmentStatus; deliveryStatus: 'ALL' | 'LATE_ALL' | 'COMPLIANT' | 'ON_TIME_OR_INHERITED' | DeliveryState; page: number;
+  snapshotId?: string; accessScope?: 'active' | 'semester'; bimester?: string; deadlineScope?: 'all' | 'closed';
 }
 export interface MonitoringData {
   meta: DashboardData['meta'];

@@ -4,7 +4,7 @@ A composição segue as duas imagens aprovadas em 19/10/2026: **Imagem do ChatGP
 
 ## Estrutura
 
-O NED usa três abas: **Acessos**, **Entregas** e **Relatório por coordenador**. A terceira é a preparação do relatório dentro da mesma área de trabalho. O destinatário e seus cursos são definidos no servidor; os filtros analíticos ficam ocultos nessa aba.
+O NED usa quatro abas: **Acessos**, **Entregas**, **Prazos** e **Relatório por coordenador**. A última prepara o relatório dentro da mesma área de trabalho. A Alta Gestão possui um panorama próprio por semestre, com a mesma identidade visual e acesso ao detalhamento em leitura. O destinatário e seus cursos são definidos no servidor; os filtros analíticos ficam ocultos nessa aba.
 
 O cabeçalho une NED UNIFENAS, Monitoramento Docente, data da coleta e ações. Quatro cartões suaves mostram total, regularidade, atenção/prazo em aberto e críticos/vencidas. Ícones circulares e formas discretas no fundo seguem os modelos. Cores e textos identificam os estados; percentuais informam a proporção sobre o total do recorte.
 

@@ -2,12 +2,34 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Pool } = require('pg');
+const { saoPauloDate } = require('../core/timing');
+
+function snapshotMeta(snapshot) { const { rows, ...meta } = snapshot; return structuredClone(meta); }
+function semesterWeek(generatedAt) {
+  const day = new Date(saoPauloDate(generatedAt) + 'T12:00:00Z');
+  day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 6) % 7);
+  return day.toISOString().slice(0, 10);
+}
 
 class MemoryStore {
   constructor() { this.snapshots = []; this.reportRuns = []; this.auditEvents = []; this.manualDeliveries = []; this.deadlineCatalogs = []; }
   async init() {}
   async saveSnapshot(snapshot) { if ((snapshot.deadlineVersionId || null) !== (this.deadlineCatalogs.at(-1)?.id || null)) throw deadlineConflict(); if (this.snapshots.some((item) => item.id === snapshot.id)) throw new Error('Snapshot duplicado.'); this.snapshots.push(structuredClone(snapshot)); this.snapshots.sort((a, b) => new Date(a.generatedAt) - new Date(b.generatedAt)); return snapshot; }
   async latestSnapshot() { return this.snapshots.length ? structuredClone(this.snapshots.at(-1)) : null; }
+  async getSnapshot(id, period) {
+    const found = this.snapshots.find((snapshot) => snapshot.id === id);
+    return found ? { ...snapshotMeta(found), rows: structuredClone(found.rows.filter((row) => !period || row.course.period === period)) } : null;
+  }
+  async listSemesterPeriods() { return [...new Set(this.snapshots.flatMap((snapshot) => snapshot.rows.map((row) => row.course.period)))].filter(Boolean).sort().reverse(); }
+  async listSemesterSnapshotMetas(period) {
+    const weeks = new Map();
+    for (const snapshot of [...this.snapshots].reverse()) {
+      if (!snapshot.rows.some((row) => row.course.period === period)) continue;
+      const week = semesterWeek(snapshot.generatedAt);
+      if (!weeks.has(week)) weeks.set(week, snapshotMeta(snapshot));
+    }
+    return [...weeks.values()].slice(0, 26);
+  }
   async listSnapshots(limit = 12) { return structuredClone(this.snapshots.slice(-limit).reverse()); }
   async listManualDeliveries() { return structuredClone(this.manualDeliveries); }
   async latestDeadlineCatalog() { return structuredClone(this.deadlineCatalogs.at(-1) || null); }
@@ -63,6 +85,25 @@ class PostgresStore {
     catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
   async latestSnapshot() { const meta = await this.pool.query('SELECT * FROM pd_snapshots ORDER BY generated_at DESC LIMIT 1'); if (!meta.rowCount) return null; const rows = await this.pool.query('SELECT payload FROM pd_snapshot_rows WHERE snapshot_id=$1', [meta.rows[0].id]); return rowToSnapshot(meta.rows[0], rows.rows); }
+  async getSnapshot(id, period) {
+    const meta = await this.pool.query('SELECT * FROM pd_snapshots WHERE id=$1', [id]);
+    if (!meta.rowCount) return null;
+    const rows = await this.pool.query("SELECT payload FROM pd_snapshot_rows WHERE snapshot_id=$1 AND ($2::text IS NULL OR payload->'course'->>'period'=$2)", [id, period || null]);
+    return rowToSnapshot(meta.rows[0], rows.rows);
+  }
+  async listSemesterPeriods() {
+    const result = await this.pool.query("SELECT DISTINCT payload->'course'->>'period' AS period FROM pd_snapshot_rows WHERE payload->'course'->>'period' IS NOT NULL ORDER BY period DESC");
+    return result.rows.map((row) => row.period).filter(Boolean);
+  }
+  async listSemesterSnapshotMetas(period) {
+    const result = await this.pool.query(`SELECT * FROM (
+      SELECT DISTINCT ON (date_trunc('week', s.generated_at AT TIME ZONE 'America/Sao_Paulo')) s.*
+      FROM pd_snapshots s WHERE EXISTS (
+        SELECT 1 FROM pd_snapshot_rows r WHERE r.snapshot_id=s.id AND r.payload->'course'->>'period'=$1
+      ) ORDER BY date_trunc('week', s.generated_at AT TIME ZONE 'America/Sao_Paulo') DESC, s.generated_at DESC, s.id DESC
+    ) weekly ORDER BY generated_at DESC LIMIT 26`, [period]);
+    return result.rows.map((row) => snapshotMeta(rowToSnapshot(row, [])));
+  }
   async listSnapshots(limit = 12) { const metas = await this.pool.query('SELECT * FROM pd_snapshots ORDER BY generated_at DESC LIMIT $1', [Math.max(1, Math.min(Number(limit) || 12, 52))]); const snapshots = []; for (const meta of metas.rows) { const rows = await this.pool.query('SELECT payload FROM pd_snapshot_rows WHERE snapshot_id=$1', [meta.id]); snapshots.push(rowToSnapshot(meta, rows.rows)); } return snapshots; }
   async listManualDeliveries() { const result = await this.pool.query('SELECT * FROM pd_manual_deliveries ORDER BY course_id,teacher_id,requirement_id,item_number,revision'); return result.rows.map(rowToManualDelivery); }
   async latestDeadlineCatalog() { const result = await this.pool.query('SELECT * FROM pd_deadline_catalogs ORDER BY revision DESC LIMIT 1'); return rowToDeadlineVersion(result.rows[0]); }

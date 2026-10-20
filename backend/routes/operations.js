@@ -118,7 +118,7 @@ function listManualItems(snapshot, query, records = []) {
 
 function operationsRoutes({ auth, store, snapshotService }) {
   const router = express.Router();
-  router.use(auth.required, auth.requireRole('ned_admin', 'auditor'));
+  router.use(auth.required, auth.requireRole('ned_admin'));
   router.get('/snapshots', asyncHandler(async (_request, response) => {
     const snapshots = await store.listSnapshots(12);
     response.json({ snapshots: snapshots.map((snapshot) => ({ id: snapshot.id, generatedAt: snapshot.generatedAt, source: snapshot.source, rulesVersion: snapshot.rulesVersion, qualityStatus: snapshot.qualityStatus, publishAllowed: snapshot.publishAllowed, rows: snapshot.rows.length })) });

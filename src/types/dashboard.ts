@@ -1,4 +1,4 @@
-export type Role = "ned_admin" | "coordinator" | "executive" | "auditor";
+export type Role = "ned_admin" | "executive";
 export interface User { id: string; name: string; email: string; role: Role }
 export interface DemoProfile { id: string; name: string; role: Role }
 export type SessionResponse = { authenticated: false; authMode: "demo" | "proxy"; demoEnabled: boolean; demoProfiles: DemoProfile[] } | { authenticated: true; user: User; csrfToken: string; authMode: "demo" | "proxy"; demoEnabled: boolean };

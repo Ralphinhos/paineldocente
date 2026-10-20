@@ -46,7 +46,7 @@ const envSchema = z.object({
   SNAPSHOT_INTERVAL_MINUTES: z.coerce.number().int().min(15).max(10080).default(1440),
 });
 
-const roleSchema = z.enum(['ned_admin', 'coordinator', 'executive', 'auditor']);
+const roleSchema = z.enum(['ned_admin', 'executive']);
 const userSchema = z.object({
   email: z.string().email(), name: z.string().min(1).max(120), role: roleSchema,
   courseIds: z.array(z.union([z.string(), z.number()])).default([]),
@@ -59,7 +59,6 @@ const recipientSchema = z.object({
 
 const DEMO_PROFILES = Object.freeze([
   { id: 'ned', email: 'ned.demo@example.invalid', name: 'Equipe NED — Demonstração', role: 'ned_admin', courseIds: [] },
-  { id: 'coordenacao', email: 'coordenacao.demo@example.invalid', name: 'Coordenação — Demonstração', role: 'coordinator', courseIds: ['1101', '1102'] },
   { id: 'gestao', email: 'gestao.demo@example.invalid', name: 'Alta Gestão — Demonstração', role: 'executive', courseIds: [] },
 ]);
 

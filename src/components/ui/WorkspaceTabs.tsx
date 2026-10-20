@@ -17,7 +17,7 @@ export function WorkspaceTabs({ id, label, tabs, value, onChange, locked = false
     onChange(tabs[next].id);
     event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next].focus();
   };
-  return <div className={'workspace-tabs' + (compact ? ' tabs-compact' : '')} role="tablist" aria-label={label}>
+  return <div className={'workspace-tabs' + (tabs.length === 2 ? ' tabs-two' : '') + (compact ? ' tabs-compact' : '')} role="tablist" aria-label={label}>
     {tabs.map((tab, index) => {
       const Icon = tab.icon ? icons[tab.icon] : null;
       return <button key={tab.id} id={id + '-tab-' + tab.id} type="button" role="tab" aria-selected={value === tab.id} aria-controls={id + '-panel-' + tab.id} tabIndex={value === tab.id ? 0 : -1} disabled={locked && value !== tab.id} onClick={() => onChange(tab.id)} onKeyDown={(event) => navigate(event, index)}>

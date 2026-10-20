@@ -40,8 +40,8 @@ openssl rand -hex 24
 
 Regras:
 
-- `AUTH_USERS_JSON` define perfil e escopo; nunca vem do navegador.
-- `courseIds` da coordenação devem usar IDs reais do Moodle.
+- `AUTH_USERS_JSON` aceita somente os perfis de login `ned_admin` e `executive`; nunca vem do navegador. Remova cadastros antigos de coordenação/auditoria antes de reiniciar os serviços.
+- Coordenadores recebem e-mail e não possuem login. Seus `courseIds` em `REPORT_RECIPIENTS_JSON` usam IDs reais do Moodle.
 - `APP_DB_PASSWORD` deve ser alfanumérico ou codificado para URL.
 - `RULES_APPROVED=false` e `EMAIL_SEND_ENABLED=false` durante homologação.
 

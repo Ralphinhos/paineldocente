@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const { HttpError } = require('./http');
+const { roleSchema } = require('../config');
 const COOKIE_NAME = 'painel_docente_session';
 const SESSION_SECONDS = 8 * 60 * 60;
 
@@ -13,7 +14,7 @@ function createAuth(config) {
   const findMappedUser = (email) => {
     const normalized = String(email || '').trim().toLowerCase();
     const found = config.auth.users.find((user) => user.email.toLowerCase() === normalized);
-    return found ? { id: `sso:${normalized}`, ...found, email: normalized, courseIds: found.courseIds.map(String) } : null;
+    return found && roleSchema.safeParse(found.role).success ? { id: `sso:${normalized}`, ...found, email: normalized, courseIds: found.courseIds.map(String) } : null;
   };
   const issueToken = (user) => jwt.sign({ sub: user.id, email: user.email, name: user.name, role: user.role, courseIds: user.courseIds.map(String), csrfToken: crypto.randomBytes(24).toString('base64url') }, config.auth.jwtSecret, { algorithm: 'HS256', expiresIn: SESSION_SECONDS, issuer: 'painel-docente', audience: 'painel-docente-web' });
   const setSessionCookie = (response, token) => response.setHeader('Set-Cookie', [`${COOKIE_NAME}=${encodeURIComponent(token)}`, ...baseCookie, `Max-Age=${SESSION_SECONDS}`].join('; '));
@@ -32,7 +33,7 @@ function createAuth(config) {
       const sameMapping = session && session.email === user.email && session.role === user.role && session.name === user.name && JSON.stringify([...session.courseIds].sort()) === JSON.stringify([...user.courseIds].sort());
       if (sameMapping) request.user = { ...user, csrfToken: session.csrfToken };
       else { const token = issueToken(user); const d = jwt.decode(token); setSessionCookie(response, token); request.user = { ...user, csrfToken: d.csrfToken }; }
-    } else if (session) {
+    } else if (session && roleSchema.safeParse(session.role).success) {
       request.user = session;
     }
     return next();

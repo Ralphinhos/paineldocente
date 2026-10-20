@@ -2,8 +2,8 @@
 
 ## product
 
-- P1 user:=NED; workflow:=collect>review>notify_coordinator
-- P2 UI:=access_tab|delivery_tab|coordinator_report_tab; one_NED_workspace; !weighted_score_UI
+- P1 users:=NED|executive; coordinator:=email_recipient,!login; workflow:=collect>review>notify_coordinator
+- P2 NED_UI:=access_tab|delivery_tab|deadline_tab|coordinator_report_tab; executive_UI:=semester_overview; !weighted_score_UI
 - P3 scope_filters:=teacher_id|period|modality|Moodle_course; affect(summary|chart|list)
 - P4 status_filter|activity_key|pagination=>list_only; default:=access.issues + deliveries.overdue
 - P5 regular:=summary+show_all; unknown!=regular
@@ -35,7 +35,7 @@
 
 - truth:=mdl_user.lastaccess; !course_access,!mean,!lastlogin
 - record_key:=teacher_id; names!identity
-- population:=teachers_with_active_course@collection; scope only narrows population
+- NED_population:=teachers_with_active_course@collection; semester_population:=teachers_of_selected_semester_including_closed_courses
 - course_filter!change_global_access_fact
 - days:=civil_days(collection,lastaccess)
 - CURRENT:=0..7; ATTENTION:=8..14; CRITICAL:=15+
@@ -76,7 +76,9 @@
 - prod:=institutional_OIDC/proxy+server_NED_mapping
 - session:=HttpOnly+Secure+SameSite=Strict
 - mutations:=exact_origin+CSRF+RBAC
-- coordinator_backend_scope retained_for_report_isolation
+- auth_roles:=ned_admin|executive; retired_roles|old_retired_role_cookie=>!access
+- executive:=read_only(summary|details); NED:=write(prior_deadline|manual|collection|email)
+- coordinator_report_scope:=server_only; !login_profile
 - SQL:=READ_COMMITTED+verified_TLS+SELECT_only; !NOLOCK
 
 ## acceptance
@@ -99,3 +101,16 @@
 - UI_SSR:=content+values; !browser_interaction_proof
 - Moodle_real|SMTP|Docker_runtime|browser_visual=>institutional_validation_pending
 - live_rules:=PILOT until homologation; deadline_catalog initially empty
+
+## executive
+
+- route:=/gestao; detail:=/acompanhamento; NED_can_read_both
+- reference:=latest_available_snapshot_for_semester; !assumed_semester_end_state
+- filter:=semester|modality|bimester; bimester=>deliveries_only
+- KPI:=teachers|on_time_due|open_overdue|access_alerts
+- Top10:=late_due_ratio|on_time_due_ratio|absence_days|recent_access_days
+- ratio_base:=known+applicable+confirmed_owner+closed_deadline; tie=>larger_base
+- NEVER|unknown!zero; recency!access_frequency
+- drilldown:=same_snapshot+scope+teacher_or_activity+deadline_base; pinned_snapshot=>read_only
+- history:=up_to_26_weekly_references+same_rule_version+same_deadline_version; states:=exclusive
+- teacher_table:=server_search+sort+pagination; !300_row_cap

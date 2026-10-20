@@ -2,11 +2,17 @@
 
 ## Interface do NED
 
-Duas abas: **Acessos ao ambiente** e **Entregas**. `GET /api/monitoring` calcula as duas bases sobre a mesma coleta, aplica escopo e filtros compartilhados e pagina as listas no servidor. Cálculos e notificações usam `core/monitoring.js`; o relatório pede todas as linhas autorizadas.
+NED: quatro abas — **Acessos**, **Entregas**, **Prazos** e **Relatório por coordenador**. `GET /api/monitoring` calcula as duas bases sobre a mesma coleta, aplica escopo e filtros compartilhados e pagina as listas no servidor. Cálculos e notificações usam `core/monitoring.js`; o relatório pede todas as linhas autorizadas.
 
 O acesso global usa `mdl_user.lastaccess` e um registro por ID docente. `mdl_user_lastaccess` e logs continuam disponíveis como contexto da disciplina, sem substituir o acesso ao ambiente. Zero conhecido significa sem registro; campo ausente, futuro ou conflitante exige revisão. O validador independente confere faixas, datas e consistência entre disciplinas.
 
-O controle manual de UA/videoaulas fica dentro de Entregas, com o docente selecionado. As rotas antigas de consulta e seus escopos permanecem para compatibilidade; não há uma interface separada para coordenação ou gestão.
+O controle manual de UA/videoaulas fica dentro de Entregas, com o docente selecionado. Há somente dois perfis de login: NED e Alta Gestão. Coordenadores não acessam a aplicação; o servidor preserva o escopo por disciplinas nos relatórios enviados por e-mail. A API analítica anterior continua disponível para compatibilidade.
+
+## Alta Gestão
+
+`/gestao` consulta `GET /api/executive`, com panorama por semestre, modalidade e bimestre. A evolução é carregada separadamente em `GET /api/executive/history`; seleciona até 26 referências semanais compatíveis e retorna apenas agregados. O PostgreSQL possui índice por período. A tabela de docentes tem busca, ordenação e paginação no servidor; Top 10 e indicadores usam a base completa.
+
+Os gráficos abrem `/acompanhamento` com filtros e ID da coleta. `GET /api/monitoring` pode consultar essa referência, preservando a população semestral e a base de prazos encerrados. Referências fixadas ficam em leitura; Alta Gestão nunca recebe permissão de mutação. [Funcionamento e implantação](VISAO_GESTAO.md).
 
 ## Fluxo
 

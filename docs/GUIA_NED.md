@@ -1,8 +1,10 @@
 # Guia do Painel Docente da UNIFENAS
 
-Uso pelo NED e implantação pela TI • Revisão de 20 de outubro de 2026
+Uso pelo NED e Alta Gestão; implantação pela TI • Revisão de 20 de outubro de 2026
 
 O painel destaca problemas de acesso e entrega para o NED conferir e comunicar às coordenações. O teste atual usa dados fictícios. A conexão ao Moodle e o envio institucional ainda precisam ser homologados.
+
+A **Alta Gestão** possui um panorama próprio por semestre e abre os detalhes em leitura. Coordenadores recebem o relatório por e-mail; não têm login. Veja [Visão da Gestão](VISAO_GESTAO.md).
 
 ## Funcionalidades e teste rápido
 
@@ -25,7 +27,7 @@ npm --prefix backend ci
 npm run demo
 ```
 
-Abra http://localhost:8080 e clique em **Abrir demonstração do NED**. Confira o fundo branco dos detalhes, as dicas dos gráficos e a nova tela de entrada. Ctrl+C encerra. Os registros da demonstração são apagados ao encerrar.
+Abra http://localhost:8080 e clique em **Abrir demonstração do NED**. Confira as quatro abas e alterne para **Alta Gestão** na navegação. Para testar o perfil de consulta, saia e escolha **Abrir Alta Gestão**. Abra um docente para conferir a mesma referência detalhada, sem edição. Ctrl+C encerra. Os registros da demonstração são apagados ao encerrar.
 
 ## Regras para interpretar os resultados
 

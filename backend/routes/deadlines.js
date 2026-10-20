@@ -8,7 +8,7 @@ const saveSchema = changeSchema.extend({ reviewToken: z.string().regex(/^\d{13}\
 
 function deadlineRoutes({ auth, deadlineService }) {
   const router = express.Router();
-  router.use(auth.required, auth.requireRole('ned_admin', 'auditor'));
+  router.use(auth.required, auth.requireRole('ned_admin'));
   router.use((_request, response, next) => { response.set('Cache-Control', 'private, no-store'); next(); });
   router.get('/', asyncHandler(async (request, response) => {
     const parsed = querySchema.safeParse(request.query);

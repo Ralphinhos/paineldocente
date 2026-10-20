@@ -171,10 +171,11 @@ test('API exige autenticação, valida filtros, preserva escopo e aplica docente
   try {
     const app = createApp(runtime); const agent = request.agent(app);
     await agent.get('/api/monitoring').expect(401);
-    await agent.post('/api/auth/demo-login').set('Origin', 'http://localhost:8080').send({ profileId: 'coordenacao' }).expect(201);
+    await agent.post('/api/auth/demo-login').set('Origin', 'http://localhost:8080').send({ profileId: 'gestao' }).expect(201);
     const scoped = await agent.get('/api/monitoring?accessStatus=ALL&deliveryStatus=ALL').expect(200);
-    assert.deepEqual(scoped.body.filters.teachers.map((row) => row.value).sort(), ['501', '502']);
-    assert.ok(scoped.body.deliveries.rows.every((row) => ['1101', '1102'].includes(row.course.id)));
+    assert.ok(scoped.body.filters.teachers.some((row) => row.value === '501'));
+    assert.ok(scoped.body.deliveries.rows.some((row) => row.course.id === '1103'));
+    await agent.get('/api/operations/manual-deliveries').expect(403);
     await agent.get('/api/monitoring?accessStatus=INVALID').expect(400);
     await agent.get('/api/monitoring?pageSize=NaN').expect(400);
     await agent.post('/api/auth/demo-login').set('Origin', 'http://localhost:8080').send({ profileId: 'ned' }).expect(201);

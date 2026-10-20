@@ -33,7 +33,7 @@ test('datas civis rejeitam dia impossível e preservam o dia brasileiro', () => 
 });
 
 test('cadastro exige autenticação, papel NED, origem e proteção CSRF', async (t) => {
-  const { runtime, agent } = await setup(t, 'coordenacao');
+  const { runtime, agent } = await setup(t, 'gestao');
   await request(createApp(runtime)).get('/api/operations/deadlines').expect(401);
   await agent.get('/api/operations/deadlines').expect(403);
   const admin = request.agent(createApp(runtime));

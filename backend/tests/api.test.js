@@ -2,19 +2,24 @@ const test = require('node:test'); const assert = require('node:assert/strict');
 const env = { NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:8080', AUTH_MODE: 'demo', DEMO_AUTH_ENABLED: 'true', DATA_SOURCE: 'demo', SNAPSHOT_STORE: 'memory', RULES_APPROVED: 'false', EMAIL_SEND_ENABLED: 'false' };
 async function login(profileId) { const runtime = await createRuntime(env); const agent = request.agent(createApp(runtime)); const response = await agent.post('/api/auth/demo-login').set('Origin', env.APP_ORIGIN).send({ profileId }).expect(201); return { runtime, agent, csrf: response.body.csrfToken }; }
 test('anônimo não recebe dashboard', async () => { const runtime = await createRuntime(env); const app = createApp(runtime); await request(app).get('/api/auth/session').expect(200); await request(app).get('/api/dashboard').expect(401); await runtime.close(); });
-test('coordenação recebe somente cursos autorizados', async () => { const { runtime, agent } = await login('coordenacao'); const response = await agent.get('/api/dashboard').expect(200); assert.deepEqual([...new Set(response.body.rows.map((x) => x.course.id))].sort(), ['1101', '1102']); await runtime.close(); });
+test('coordenação não possui perfil de login', async () => {
+  const runtime = await createRuntime(env);
+  try {
+    const app = createApp(runtime);
+    const session = await request(app).get('/api/auth/session').expect(200);
+    assert.deepEqual(session.body.demoProfiles.map((profile) => profile.role).sort(), ['executive', 'ned_admin']);
+    await request(app).post('/api/auth/demo-login').set('Origin', env.APP_ORIGIN).send({ profileId: 'coordenacao' }).expect(401);
+  } finally { await runtime.close(); }
+});
 test('mutação exige origem e CSRF', async () => { const { runtime, agent, csrf } = await login('ned'); await agent.post('/api/operations/snapshots').set('x-csrf-token', csrf).expect(403).expect((r) => assert.equal(r.body.error.code, 'ORIGIN_REJECTED')); await agent.post('/api/operations/snapshots').set('Origin', env.APP_ORIGIN).expect(403).expect((r) => assert.equal(r.body.error.code, 'CSRF_REJECTED')); await runtime.close(); });
 test('demo bloqueia e-mail externo', async () => { const { runtime, agent, csrf } = await login('ned'); await agent.post('/api/reports/send').set('Origin', env.APP_ORIGIN).set('x-csrf-token', csrf).send({ audience: 'executive', snapshotId: (await runtime.services.store.latestSnapshot()).id }).expect(409).expect((r) => assert.equal(r.body.error.code, 'DEMO_SEND_BLOCKED')); await runtime.close(); });
 test('gestão não gera coleta', async () => { const { runtime, agent, csrf } = await login('gestao'); await agent.post('/api/operations/snapshots').set('Origin', env.APP_ORIGIN).set('x-csrf-token', csrf).expect(403); await runtime.close(); });
-test('coordenação não recebe prévias de outros destinatários', async () => {
-  const scopedEnv = { ...env, REPORT_RECIPIENTS_JSON: JSON.stringify([{ audience: 'coordinators', email: 'outra.coordenacao@example.invalid', name: 'Outra Coordenação', courseIds: ['1103'] }]) };
-  const runtime = await createRuntime(scopedEnv); const agent = request.agent(createApp(runtime));
-  await agent.post('/api/auth/demo-login').set('Origin', env.APP_ORIGIN).send({ profileId: 'coordenacao' }).expect(201);
-  const response = await agent.get('/api/reports/preview?audience=coordinators').expect(200);
-  assert.equal(response.body.reports.length, 1);
-  assert.equal(response.body.reports[0].recipient.email, 'coordenacao.demo@example.invalid');
-  assert.ok(!response.body.reports[0].text.includes('DD-SEM-40'));
-  await runtime.close();
+test('gestão consulta os dados, mas não recebe prévias dos destinatários', async () => {
+  const { runtime, agent } = await login('gestao');
+  try {
+    await agent.get('/api/monitoring').expect(200);
+    await agent.get('/api/reports/preview?audience=coordinators').expect(403);
+  } finally { await runtime.close(); }
 });
 test('proxy rejeita conta institucional sem mapeamento', async () => {
   const secret = 'proxy-test-secret-with-at-least-32-characters';
@@ -25,18 +30,18 @@ test('proxy rejeita conta institucional sem mapeamento', async () => {
 });
 test('proxy revalida identidade e permissão mesmo com cookie de sessão válido', async () => {
   const secret = 'proxy-test-secret-with-at-least-32-characters';
-  const runtime = await createRuntime({ ...env, AUTH_MODE: 'proxy', DEMO_AUTH_ENABLED: 'false', AUTH_PROXY_SHARED_SECRET: secret, AUTH_USERS_JSON: JSON.stringify([{ email: 'ned@unifenas.br', name: 'NED', role: 'ned_admin', courseIds: [] }, { email: 'auditoria@unifenas.br', name: 'Auditoria', role: 'auditor', courseIds: [] }]) });
+  const runtime = await createRuntime({ ...env, AUTH_MODE: 'proxy', DEMO_AUTH_ENABLED: 'false', AUTH_PROXY_SHARED_SECRET: secret, AUTH_USERS_JSON: JSON.stringify([{ email: 'ned@unifenas.br', name: 'NED', role: 'ned_admin', courseIds: [] }, { email: 'gestao@unifenas.br', name: 'Gestão', role: 'executive', courseIds: [] }]) });
   try {
     const agent = request.agent(createApp(runtime));
     const signedIn = await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'ned@unifenas.br').expect(200);
     assert.equal(signedIn.body.user.role, 'ned_admin');
     await agent.get('/api/monitoring').expect(401);
-    const switched = await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'auditoria@unifenas.br').expect(200);
-    assert.equal(switched.body.user.role, 'auditor');
+    const switched = await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'gestao@unifenas.br').expect(200);
+    assert.equal(switched.body.user.role, 'executive');
     assert.notEqual(switched.body.csrfToken, signedIn.body.csrfToken);
-    await agent.post('/api/operations/snapshots').set('Origin', env.APP_ORIGIN).set('x-panel-auth-secret', secret).set('x-auth-request-email', 'auditoria@unifenas.br').set('x-csrf-token', switched.body.csrfToken).expect(403);
+    await agent.post('/api/operations/snapshots').set('Origin', env.APP_ORIGIN).set('x-panel-auth-secret', secret).set('x-auth-request-email', 'gestao@unifenas.br').set('x-csrf-token', switched.body.csrfToken).expect(403);
     runtime.config.auth.users.splice(1, 1);
-    await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'auditoria@unifenas.br').expect(403);
+    await agent.get('/api/auth/session').set('x-panel-auth-secret', secret).set('x-auth-request-email', 'gestao@unifenas.br').expect(403);
   } finally { await runtime.close(); }
 });
 test('cookie malformado não derruba consulta de sessão', async () => {
@@ -54,8 +59,8 @@ test('NED recebe um pacote de UAs e videoaulas conforme a carga horária', async
   assert.equal(response.body.items.filter((item) => item.course.id === '1101' && item.requirement.baseId === 'videos').length, 4);
   await runtime.close();
 });
-test('coordenação não altera controle manual do NED', async () => {
-  const { runtime, agent } = await login('coordenacao');
+test('gestão não altera controle manual do NED', async () => {
+  const { runtime, agent } = await login('gestao');
   await agent.get('/api/operations/manual-deliveries').expect(403);
   await runtime.close();
 });
