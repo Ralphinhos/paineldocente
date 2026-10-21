@@ -111,6 +111,52 @@ test('evolução seleciona uma referência por semana e não mistura versões de
   for (const point of history.points) assert.equal(point.total, point.onTime + point.overdue + point.deliveredLate + point.pending + point.validation);
   assert.equal(history.points.at(-1).snapshotId, data.meta.snapshotId);
 });
+test('período inclui os dois dias em Brasília e filtra antes de escolher a coleta da semana', async () => {
+  const store = new MemoryStore();
+  const stamps = ['2026-10-06T02:59:59Z', '2026-10-06T03:00:00Z', '2026-10-14T02:59:59Z', '2026-10-14T03:00:00Z', at];
+  const snapshots = stamps.map((generatedAt) => snapshot([row('a')], { generatedAt }));
+  for (const item of snapshots) await store.saveSnapshot(item);
+  const service = new ExecutiveService({ store, snapshotIntervalMinutes: 1440 });
+  const scope = { period: '2026/2', snapshotId: snapshots.at(-1).id };
+  const filtered = await service.getHistory({ ...scope, dateFrom: '2026-10-06', dateTo: '2026-10-13' });
+  assert.deepEqual(filtered.points.map((point) => point.snapshotId), [snapshots[1].id, snapshots[2].id]);
+  assert.deepEqual(filtered.range, { dateFrom: '2026-10-06', dateTo: '2026-10-13' });
+  const sameDay = await service.getHistory({ ...scope, dateFrom: '2026-10-13', dateTo: '2026-10-13' });
+  assert.deepEqual(sameDay.points.map((point) => point.snapshotId), [snapshots[2].id]);
+  const until = await service.getHistory({ ...scope, dateTo: '2026-10-05' });
+  assert.deepEqual(until.points.map((point) => point.snapshotId), [snapshots[0].id]);
+  const since = await service.getHistory({ ...scope, dateFrom: '2026-10-14' });
+  assert.deepEqual(since.points.map((point) => point.snapshotId), [snapshots[3].id, snapshots[4].id]);
+  const empty = await service.getHistory({ ...scope, dateFrom: '2026-11-01' });
+  assert.deepEqual(empty.points, []);
+  const cleared = await service.getHistory(scope);
+  assert.deepEqual(cleared.points.map((point) => point.snapshotId), [snapshots[1].id, snapshots[3].id, snapshots[4].id]);
+  assert.deepEqual((await service.getHistory({ ...scope, dateFrom: '2026-10-13', dateTo: '2026-10-13' })).points, sameDay.points);
+});
+test('filtro alcança períodos antigos anteriores às últimas 26 semanas sem buscar coletas futuras da referência', async () => {
+  const store = new MemoryStore(); const snapshots = [];
+  for (let index = 0; index < 35; index++) {
+    const item = snapshot([row('a')], { generatedAt: new Date(Date.parse('2026-01-06T15:00:00Z') + index * 7 * 86400000).toISOString() });
+    snapshots.push(item); await store.saveSnapshot(item);
+  }
+  const service = new ExecutiveService({ store, snapshotIntervalMinutes: 1440 });
+  const scope = { period: '2026/2', snapshotId: snapshots.at(-1).id };
+  assert.equal((await service.getHistory(scope)).points.length, 26);
+  const old = await service.getHistory({ ...scope, dateFrom: '2026-01-01', dateTo: '2026-02-28' });
+  assert.deepEqual(old.points.map((point) => point.snapshotId), snapshots.slice(0, 8).map((item) => item.id));
+  const pinned = await service.getHistory({ ...scope, snapshotId: snapshots[3].id });
+  assert.deepEqual(pinned.points.map((point) => point.snapshotId), snapshots.slice(0, 4).map((item) => item.id));
+});
+test('coleta incompatível na mesma semana não oculta a última coleta comparável do período', async () => {
+  const store = new MemoryStore();
+  const comparable = snapshot([row('a')], { generatedAt: '2026-10-13T15:00:00Z' });
+  await store.saveSnapshot(comparable);
+  await store.saveSnapshot(snapshot([row('a')], { generatedAt: '2026-10-14T15:00:00Z', rulesVersion: 'outra-versao' }));
+  const reference = snapshot([row('a')]); await store.saveSnapshot(reference);
+  const service = new ExecutiveService({ store, snapshotIntervalMinutes: 1440 });
+  const history = await service.getHistory({ period: '2026/2', snapshotId: reference.id });
+  assert.deepEqual(history.points.map((point) => point.snapshotId), [comparable.id, reference.id]);
+});
 test('semestre/modo vazios não são apresentados como docentes regulares', () => {
   const result = semesterAnalysis(sample(), { period: '2099/1' });
   assert.equal(result.summary.teachers, 0); assert.equal(result.summary.due, 0); assert.deepEqual(result.topRecent, []);
@@ -137,4 +183,20 @@ test('Gestão consulta resumo, histórico e detalhes, mas não acessa operaçõe
   await agent.get('/api/executive?snapshotId=invalido').expect(400);
   await agent.get('/api/executive?sort=desconhecido').expect(400);
   await agent.get('/api/executive/history').expect(400);
+});
+test('API valida datas inexistentes, formato, intervalo invertido e mantém consulta autorizada', async (t) => {
+  const runtime = await createRuntime({ NODE_ENV: 'test', AUTH_MODE: 'demo', DATA_SOURCE: 'demo' }); t.after(() => runtime.close());
+  const app = createApp(runtime); const agent = request.agent(app);
+  await agent.post('/api/auth/demo-login').set('Origin', 'http://localhost:8080').send({ profileId: 'gestao' }).expect(201);
+  const overview = await agent.get('/api/executive').expect(200);
+  const scope = { period: overview.body.meta.period, snapshotId: overview.body.meta.snapshotId };
+  for (const dates of [
+    { dateFrom: '2026-02-30' }, { dateTo: '21/10/2026' }, { dateFrom: '0000-01-01' },
+    { dateFrom: '2026-10-20', dateTo: '2026-10-01' }, { dateTo: ['2026-10-01', '2026-10-02'] },
+  ]) await agent.get('/api/executive/history').query({ ...scope, ...dates }).expect(400);
+  await request(app).get('/api/executive/history').query({ ...scope, dateFrom: '2026-01-01' }).expect(401);
+  const empty = await agent.get('/api/executive/history').query({ ...scope, dateFrom: '2099-01-01', dateTo: '2099-12-31' }).expect(200).expect('Cache-Control', 'private, no-store');
+  assert.deepEqual(empty.body.points, []);
+  const full = await agent.get('/api/executive/history').query(scope).expect(200);
+  assert.ok(full.body.points.length > 0);
 });

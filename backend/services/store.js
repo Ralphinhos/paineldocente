@@ -21,10 +21,15 @@ class MemoryStore {
     return found ? { ...snapshotMeta(found), rows: structuredClone(found.rows.filter((row) => !period || row.course.period === period)) } : null;
   }
   async listSemesterPeriods() { return [...new Set(this.snapshots.flatMap((snapshot) => snapshot.rows.map((row) => row.course.period)))].filter(Boolean).sort().reverse(); }
-  async listSemesterSnapshotMetas(period) {
+  async listSemesterSnapshotMetas(period, options = {}) {
     const weeks = new Map();
-    for (const snapshot of [...this.snapshots].reverse()) {
+    for (const snapshot of [...this.snapshots].sort((a, b) => new Date(b.generatedAt) - new Date(a.generatedAt) || b.id.localeCompare(a.id))) {
       if (!snapshot.rows.some((row) => row.course.period === period)) continue;
+      const day = saoPauloDate(snapshot.generatedAt);
+      if (options.dateFrom && day < options.dateFrom || options.dateTo && day > options.dateTo) continue;
+      if (options.asOf && new Date(snapshot.generatedAt) > new Date(options.asOf)) continue;
+      if (options.rulesVersion && snapshot.rulesVersion !== options.rulesVersion || options.source && snapshot.source !== options.source) continue;
+      if ('deadlineVersionId' in options && (snapshot.deadlineVersionId || null) !== (options.deadlineVersionId || null)) continue;
       const week = semesterWeek(snapshot.generatedAt);
       if (!weeks.has(week)) weeks.set(week, snapshotMeta(snapshot));
     }
@@ -95,13 +100,21 @@ class PostgresStore {
     const result = await this.pool.query("SELECT DISTINCT payload->'course'->>'period' AS period FROM pd_snapshot_rows WHERE payload->'course'->>'period' IS NOT NULL ORDER BY period DESC");
     return result.rows.map((row) => row.period).filter(Boolean);
   }
-  async listSemesterSnapshotMetas(period) {
+  async listSemesterSnapshotMetas(period, options = {}) {
     const result = await this.pool.query(`SELECT * FROM (
       SELECT DISTINCT ON (date_trunc('week', s.generated_at AT TIME ZONE 'America/Sao_Paulo')) s.*
-      FROM pd_snapshots s WHERE EXISTS (
+      FROM pd_snapshots s WHERE
+        ($2::date IS NULL OR s.generated_at >= ($2::date::timestamp AT TIME ZONE 'America/Sao_Paulo'))
+        AND ($3::date IS NULL OR s.generated_at < (($3::date + INTERVAL '1 day') AT TIME ZONE 'America/Sao_Paulo'))
+        AND ($4::timestamptz IS NULL OR s.generated_at <= $4)
+        AND ($5::text IS NULL OR s.rules_version=$5)
+        AND ($6::text IS NULL OR s.source=$6)
+        AND (NOT $7::boolean OR s.deadline_version_id IS NOT DISTINCT FROM $8::uuid)
+        AND EXISTS (
         SELECT 1 FROM pd_snapshot_rows r WHERE r.snapshot_id=s.id AND r.payload->'course'->>'period'=$1
       ) ORDER BY date_trunc('week', s.generated_at AT TIME ZONE 'America/Sao_Paulo') DESC, s.generated_at DESC, s.id DESC
-    ) weekly ORDER BY generated_at DESC LIMIT 26`, [period]);
+    ) weekly ORDER BY generated_at DESC LIMIT 26`, [period, options.dateFrom || null, options.dateTo || null, options.asOf || null,
+      options.rulesVersion || null, options.source || null, 'deadlineVersionId' in options, options.deadlineVersionId || null]);
     return result.rows.map((row) => snapshotMeta(rowToSnapshot(row, [])));
   }
   async listSnapshots(limit = 12) { const metas = await this.pool.query('SELECT * FROM pd_snapshots ORDER BY generated_at DESC LIMIT $1', [Math.max(1, Math.min(Number(limit) || 12, 52))]); const snapshots = []; for (const meta of metas.rows) { const rows = await this.pool.query('SELECT payload FROM pd_snapshot_rows WHERE snapshot_id=$1', [meta.id]); snapshots.push(rowToSnapshot(meta, rows.rows)); } return snapshots; }

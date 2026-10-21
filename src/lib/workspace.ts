@@ -1,8 +1,22 @@
 import { EMPTY_MONITORING_FILTERS } from './monitoring';
 import type { MonitoringFilters } from '@/types/monitoring';
-import type { ExecutiveFilters } from '@/types/executive';
+import type { EvolutionDateRange, ExecutiveFilters } from '@/types/executive';
+import { formatDate } from './presentation';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function initialEvolutionRange(search: string): EvolutionDateRange {
+  const params = new URLSearchParams(search);
+  const date = (key: string) => {
+    const value = params.get(key) || '';
+    return /^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value) && formatDate(value) !== '—' ? value : '';
+  };
+  return { dateFrom: date('dateFrom'), dateTo: date('dateTo') };
+}
+
+export function evolutionRangeError(range: EvolutionDateRange) {
+  return range.dateFrom && range.dateTo && range.dateFrom > range.dateTo ? 'A data final deve ser igual ou posterior à inicial.' : '';
+}
+
 export function initialExecutiveFilters(search: string): ExecutiveFilters {
   const params = new URLSearchParams(search);
   return { period: params.get('period')?.slice(0, 50) || '', modality: ['SEMESTRAL', 'MODULAR', 'GRADUACAO_EAD'].includes(params.get('modality') || '') ? params.get('modality')! : '',
@@ -35,6 +49,6 @@ export function detailHref(scope: { period: string; modality?: string; bimester?
 
 export function summaryHref(search: string) {
   const from = new URLSearchParams(search); const params = new URLSearchParams();
-  for (const key of ['period', 'modality', 'bimester', 'snapshotId']) { const value = from.get(key); if (value) params.set(key, value); }
+  for (const key of ['period', 'modality', 'bimester', 'snapshotId', 'dateFrom', 'dateTo']) { const value = from.get(key); if (value) params.set(key, value); }
   return '/gestao' + (params.size ? '?' + params.toString() : '');
 }

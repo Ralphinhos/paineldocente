@@ -6,12 +6,13 @@ import { SemesterOverview } from '@/components/dashboard/SemesterOverview';
 import { SemesterTeacherTable } from '@/components/dashboard/SemesterTeacherTable';
 import { SemesterEvolution } from '@/components/dashboard/SemesterEvolution';
 import { MonitoringChart } from '@/components/dashboard/MonitoringChart';
-import { detailHref, initialExecutiveFilters } from '@/lib/workspace';
+import { detailHref, evolutionRangeError, initialEvolutionRange, initialExecutiveFilters } from '@/lib/workspace';
 import { formatDate } from '@/lib/presentation';
-import type { ExecutiveData, ExecutiveFilters, ExecutiveHistory } from '@/types/executive';
+import type { EvolutionDateRange, ExecutiveData, ExecutiveFilters, ExecutiveHistory } from '@/types/executive';
 
 export function ExecutivePage() {
   const [filters, setFilters] = useState<ExecutiveFilters>(() => initialExecutiveFilters(typeof window === 'undefined' ? '' : window.location.search));
+  const [historyRange, setHistoryRange] = useState<EvolutionDateRange>(() => initialEvolutionRange(typeof window === 'undefined' ? '' : window.location.search));
   const [data, setData] = useState<ExecutiveData | null>(null);
   const [history, setHistory] = useState<ExecutiveHistory | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,13 +49,15 @@ export function ExecutivePage() {
   const loadHistory = useCallback(async (signal: AbortSignal) => {
     if (!snapshotId || !period) return;
     setHistoryLoading(true); setHistoryError(null); setHistory(null);
+    const invalidRange = evolutionRangeError(historyRange);
+    if (invalidRange) { setHistoryError(invalidRange); setHistoryLoading(false); return; }
     try {
-      const result = await apiRequest<ExecutiveHistory>('/api/executive/history' + toQueryString({ snapshotId, period, modality, bimester }), { signal });
+      const result = await apiRequest<ExecutiveHistory>('/api/executive/history' + toQueryString({ snapshotId, period, modality, bimester, ...historyRange }), { signal });
       if (!signal.aborted) setHistory(result);
     } catch (caught) {
       if (!signal.aborted) setHistoryError(caught instanceof Error ? caught.message : 'Histórico indisponível.');
     } finally { if (!signal.aborted) setHistoryLoading(false); }
-  }, [snapshotId, period, modality, bimester]);
+  }, [snapshotId, period, modality, bimester, historyRange]);
   useEffect(() => {
     const controller = new AbortController(); void loadHistory(controller.signal);
     return () => controller.abort();
@@ -66,8 +69,10 @@ export function ExecutivePage() {
     if (data.meta.modality) params.set('modality', data.meta.modality);
     if (data.meta.bimester) params.set('bimester', data.meta.bimester);
     if (filters.snapshotId) params.set('snapshotId', filters.snapshotId);
+    if (historyRange.dateFrom) params.set('dateFrom', historyRange.dateFrom);
+    if (historyRange.dateTo) params.set('dateTo', historyRange.dateTo);
     window.history.replaceState(null, '', '/gestao?' + params.toString());
-  }, [data, filters.snapshotId]);
+  }, [data, filters.snapshotId, historyRange]);
 
   const changeScope = useCallback((change: Partial<ExecutiveFilters>) => {
     setData(null); setHistory(null); setQuery('');
@@ -93,7 +98,7 @@ export function ExecutivePage() {
       <SemesterOverview data={data} disabled={loading} />
       <div className="executive-section-title"><h2>Histórico e prioridades</h2><span>Do panorama ao problema específico</span></div>
       <div className="monitoring-charts executive-history-grid">
-        <SemesterEvolution points={history?.points || []} loading={historyLoading} error={historyError} onRetry={() => setHistoryRetry((current) => current + 1)} onSelect={(id) => window.location.assign(detailHref({ ...data.meta, snapshotId: id }, { section: 'deliveries' }))} />
+        <SemesterEvolution points={history?.points || []} loading={historyLoading} error={historyError} range={historyRange} onRangeChange={setHistoryRange} onRetry={() => setHistoryRetry((current) => current + 1)} onSelect={(id) => window.location.assign(detailHref({ ...data.meta, snapshotId: id }, { section: 'deliveries', ...historyRange }))} />
         <MonitoringChart title="Onde estão as pendências" description="Top 10 atividades com mais itens vencidos ainda abertos" unit="pendências vencidas" disabled={loading} compact actionLabel="Abrir detalhamento" empty="Nenhuma pendência vencida neste recorte" footnote="Modalidade e atividade identificadas. Entregas já resolvidas com atraso não entram nesta lista."
           bars={data.activities.map((item) => ({ id: item.id, label: `${item.modality} · ${item.label}`, value: item.overdue, detail: `${item.overdue} vencida(s) · maior atraso aberto: ${item.maxDaysLate} dias`, tone: 'rose' as const }))}
           onSelect={(activityKey) => window.location.assign(detailHref(data.meta, { section: 'deliveries', deliveryStatus: 'OVERDUE', activityKey }))} />

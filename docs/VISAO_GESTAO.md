@@ -28,7 +28,11 @@ Percentuais mostram numerador e denominador; empates das comparações de entreg
 
 Selecionar um semestre recupera sua última coleta disponível. O acesso é o último acesso ao ambiente **na data daquela coleta**, incluindo docentes de disciplinas já encerradas do semestre. Não é uma média de acessos nem uma reconstrução do estado no último dia do semestre. A referência fica explícita no cabeçalho.
 
-A evolução usa até 26 referências, uma por semana, com as mesmas versões de regras e calendário. Mudanças de versão podem reduzir o histórico comparável. Cada referência preserva seus próprios quantitativos; a quantidade de itens pode variar. Não há série estimada quando falta outra coleta comparável.
+A evolução é um **gráfico de linhas**, com uma série por situação de entrega. Os pontos mostram valores no tooltip, por mouse ou teclado, e abrem o detalhamento da referência. A escala horizontal respeita o intervalo real entre as coletas; uma única coleta aparece como pontos, sem inventar uma evolução.
+
+Use **Data inicial**, **Data final** e **Aplicar** junto ao gráfico para consultar um período. Os limites incluem os dois dias, no horário de Brasília; é possível informar somente uma das datas. **Limpar** volta ao histórico disponível. Esse filtro afeta somente a evolução por data de coleta: os demais indicadores continuam usando a referência do panorama, e não um total de entregas realizadas entre as datas. O intervalo fica na URL e é recuperado ao recarregar ou voltar do detalhamento de um ponto.
+
+A evolução usa até 26 referências no período escolhido, uma por semana, com as mesmas versões de regras e calendário e até a coleta do panorama. As datas e a compatibilidade são aplicadas antes da seleção semanal. Mudanças de versão podem reduzir o histórico comparável. Cada referência preserva seus próprios quantitativos; a quantidade de itens pode variar. Um período sem coletas mostra essa ausência, sem acrescentar a referência atual fora do filtro.
 
 Os gráficos e a tabela abrem `/acompanhamento` com semestre, modalidade, bimestre, docente/atividade e ID da coleta. A base de prazos encerrados é preservada quando necessária. A consulta histórica é somente leitura, inclusive para o NED; o NED pode escolher **Abrir dados atuais para editar**. Isso impede que um clique mostre números diferentes por trocar silenciosamente a coleta.
 

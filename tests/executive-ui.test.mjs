@@ -57,11 +57,44 @@ test('detalhamento em leitura mostra evidências, mas não oferece registro de U
 test('evolução tem uma ação acessível por referência e nenhuma série duplica os totais', async () => {
   const data = await runtime.services.executiveService.getOverview();
   const history = await runtime.services.executiveService.getHistory({ period: data.meta.period, snapshotId: data.meta.snapshotId });
-  const html = render(evolution.SemesterEvolution, { points: history.points, loading: false, error: null, onRetry: noop, onSelect: noop });
+  const html = render(evolution.SemesterEvolution, { points: history.points, range: history.range, onRangeChange: noop, loading: false, error: null, onRetry: noop, onSelect: noop });
   assert.equal((html.match(/role="button"/g) || []).length, history.points.length);
+  assert.equal((html.match(/<polyline/g) || []).length, 5);
   assert.match(html, /Pendente vencida/); assert.match(html, /Entregue com atraso/);
   for (const point of history.points) assert.equal(point.total, point.onTime + point.overdue + point.deliveredLate + point.pending + point.validation);
   assert.ok(!html.includes('NaN'));
+});
+test('período da evolução permanece na URL e no retorno dos detalhes; datas inválidas são descartadas', () => {
+  const range = workspace.initialEvolutionRange('?dateFrom=2026-10-01&dateTo=2026-10-20');
+  assert.deepEqual(range, { dateFrom: '2026-10-01', dateTo: '2026-10-20' });
+  assert.equal(workspace.evolutionRangeError(range), '');
+  assert.ok(workspace.evolutionRangeError({ dateFrom: '2026-10-20', dateTo: '2026-10-01' }));
+  assert.deepEqual(workspace.initialEvolutionRange('?dateFrom=2026-02-30&dateTo=0000-01-01'), { dateFrom: '', dateTo: '' });
+  const href = workspace.detailHref({ period: '2026/2', snapshotId: '11111111-1111-4111-8111-111111111111' }, { ...range, section: 'deliveries' });
+  const returned = new URL(workspace.summaryHref(new URL(href, 'http://localhost').search), 'http://localhost');
+  assert.deepEqual(workspace.initialEvolutionRange(returned.search), range);
+});
+test('evolução oferece datas rotuladas e estados de período vazio, único ponto e erro', () => {
+  const props = { range: { dateFrom: '2026-10-01', dateTo: '2026-10-20' }, onRangeChange: noop, points: [], loading: false, error: null, onRetry: noop, onSelect: noop };
+  const empty = render(evolution.SemesterEvolution, props);
+  assert.match(empty, /Data inicial/); assert.match(empty, /Data final/); assert.match(empty, /Aplicar/); assert.match(empty, /Limpar/);
+  assert.match(empty, /value="2026-10-01"/); assert.match(empty, /somente as datas das coletas/);
+  assert.match(empty, /Nenhuma coleta comparável neste período/); assert.ok(!empty.includes('<polyline'));
+  const single = render(evolution.SemesterEvolution, { ...props, points: [{ snapshotId: 'coleta', generatedAt: '2026-10-15T15:00:00Z', total: 0, onTime: 0, overdue: 0, deliveredLate: 0, pending: 0, validation: 0 }] });
+  assert.match(single, /outra coleta é necessária/); assert.match(single, /Total de itens: 0/);
+  assert.ok(!single.includes('NaN')); assert.ok(!single.includes('Infinity'));
+  const invalid = render(evolution.SemesterEvolution, { ...props, range: { dateFrom: '2026-10-20', dateTo: '2026-10-01' } });
+  assert.match(invalid, /role="alert"/); assert.match(invalid, /aria-invalid="true"/); assert.match(invalid, /type="submit" class="primary-button" disabled/);
+  const failed = render(evolution.SemesterEvolution, { ...props, error: 'Histórico indisponível.' });
+  assert.match(failed, /Recarregar evolução/); assert.match(failed, /Histórico indisponível/);
+});
+test('linhas respeitam intervalos reais entre datas em vez de dar o mesmo espaço a semanas ausentes', () => {
+  const points = ['2026-10-01', '2026-10-08', '2026-10-22'].map((day, i) => ({ snapshotId: String(i), generatedAt: day + 'T15:00:00Z', total: i + 1, onTime: i + 1, overdue: 0, deliveredLate: 0, pending: 0, validation: 0 }));
+  const html = render(evolution.SemesterEvolution, { points, range: { dateFrom: '', dateTo: '' }, onRangeChange: noop, loading: false, error: null, onRetry: noop, onSelect: noop });
+  const coordinates = /<polyline[^>]*points="([^"]+)"/.exec(html)[1].split(' ').map((pair) => pair.split(',').map(Number));
+  const ratio = (coordinates[1][0] - coordinates[0][0]) / (coordinates[2][0] - coordinates[0][0]);
+  assert.ok(Math.abs(ratio - 1 / 3) < 1e-9);
+  assert.ok(coordinates[0][1] > coordinates[1][1] && coordinates[1][1] > coordinates[2][1]);
 });
 test('entrada oferece somente NED e Alta Gestão; navegação da Gestão é de consulta', () => {
   const state = { user: null, demoEnabled: true, demoProfiles: runtime.config.auth.demoProfiles, loginDemo: noop, error: null };

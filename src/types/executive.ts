@@ -27,4 +27,5 @@ export interface SemesterPoint {
   snapshotId: string; generatedAt: string; total: number; onTime: number;
   overdue: number; deliveredLate: number; pending: number; validation: number;
 }
-export interface ExecutiveHistory { snapshotId: string; points: SemesterPoint[] }
+export interface EvolutionDateRange { dateFrom: string; dateTo: string }
+export interface ExecutiveHistory { snapshotId: string; range: EvolutionDateRange; points: SemesterPoint[] }

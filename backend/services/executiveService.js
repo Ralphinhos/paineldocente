@@ -40,20 +40,21 @@ class ExecutiveService {
     };
   }
   async getHistory(filters) {
-    const cacheKey = JSON.stringify([filters.snapshotId, filters.period || '', filters.modality || '', filters.bimester || '']);
+    const cacheKey = JSON.stringify([filters.snapshotId, filters.period || '', filters.modality || '', filters.bimester || '', filters.dateFrom || '', filters.dateTo || '']);
     if (this.historyCache.has(cacheKey)) return structuredClone(this.historyCache.get(cacheKey));
-    const { period, snapshot, metas } = await this.context(filters);
-    const compatible = metas.filter((meta) => new Date(meta.generatedAt) <= new Date(snapshot.generatedAt)
-      && meta.rulesVersion === snapshot.rulesVersion && meta.source === snapshot.source
-      && (meta.deadlineVersionId || null) === (snapshot.deadlineVersionId || null));
+    const { period, snapshot } = await this.context(filters);
+    // Restrict dates and versions before choosing each week's reference or applying the limit.
+    const compatible = await this.store.listSemesterSnapshotMetas(period, {
+      dateFrom: filters.dateFrom, dateTo: filters.dateTo, asOf: snapshot.generatedAt,
+      rulesVersion: snapshot.rulesVersion, source: snapshot.source, deadlineVersionId: snapshot.deadlineVersionId || null,
+    });
     const points = [];
     // Read one collection at a time: the response retains aggregates, never 26 full payloads.
     for (const meta of compatible.reverse()) {
       const current = meta.id === snapshot.id ? snapshot : await this.store.getSnapshot(meta.id, period);
       if (current) points.push(weeklyPoint(current, { ...filters, period }));
     }
-    if (!points.some((point) => point.snapshotId === snapshot.id)) points.push(weeklyPoint(snapshot, { ...filters, period }));
-    const result = { snapshotId: snapshot.id, points: points.sort((a, b) => new Date(a.generatedAt) - new Date(b.generatedAt)) };
+    const result = { snapshotId: snapshot.id, range: { dateFrom: filters.dateFrom || '', dateTo: filters.dateTo || '' }, points: points.sort((a, b) => new Date(a.generatedAt) - new Date(b.generatedAt)) };
     this.historyCache.set(cacheKey, structuredClone(result));
     if (this.historyCache.size > 8) this.historyCache.delete(this.historyCache.keys().next().value);
     return result;

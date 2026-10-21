@@ -28,6 +28,16 @@
 .executive-evolution .ned-plot-scroll { padding-bottom: 0; }
 .executive-evolution svg { display: block; margin: 0 auto; }
 .executive-evolution .ned-chart-legend { gap: 8px 16px; padding: 0 18px; }
+.executive-evolution-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 0 18px 10px; }
+.executive-evolution-filters label { display: grid; flex: 1 1 140px; min-width: 0; gap: 6px; color: #425c83; font-size: .75rem; }
+.executive-evolution-filters input { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid #cfdeef; border-radius: 6px; background: #fff; color: #264168; font: inherit; }
+.executive-evolution-filters button { min-height: 44px; }
+.executive-evolution-filters > p { flex: 1 1 100%; margin: 0; color: #61748f; font-size: .6875rem; line-height: 1.5; }
+.executive-evolution-filters > .executive-evolution-error { color: #b63a55; }
+.executive-evolution-filters [aria-invalid='true'] { border-color: #b63a55; }
+.executive-evolution-filters :focus-visible { outline: 3px solid #3694ff; outline-offset: 3px; }
+.executive-evolution-caption { margin: 2px 18px 0; color: #526787; font-size: .75rem; line-height: 1.5; }
+.executive-line-legend svg { flex-shrink: 0; margin: 0; }
 .executive-chart-message { display: flex; min-height: 280px; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 24px; color: #61748f; text-align: center; font-size: .8125rem; }
 .executive-chart-message strong { color: #425c83; }
 .executive-chart-message p { max-width: 340px; margin: 0; line-height: 1.6; }
