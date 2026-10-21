@@ -37,7 +37,6 @@
 .executive-evolution-filters [aria-invalid='true'] { border-color: #b63a55; }
 .executive-evolution-filters :focus-visible { outline: 3px solid #3694ff; outline-offset: 3px; }
 .executive-evolution-caption { margin: 2px 18px 0; color: #526787; font-size: .75rem; line-height: 1.5; }
-.executive-line-legend svg { flex-shrink: 0; margin: 0; }
 .executive-chart-message { display: flex; min-height: 280px; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 24px; color: #61748f; text-align: center; font-size: .8125rem; }
 .executive-chart-message strong { color: #425c83; }
 .executive-chart-message p { max-width: 340px; margin: 0; line-height: 1.6; }

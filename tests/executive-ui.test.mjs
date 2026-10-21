@@ -59,7 +59,8 @@ test('evolução tem uma ação acessível por referência e nenhuma série dupl
   const history = await runtime.services.executiveService.getHistory({ period: data.meta.period, snapshotId: data.meta.snapshotId });
   const html = render(evolution.SemesterEvolution, { points: history.points, range: history.range, onRangeChange: noop, loading: false, error: null, onRetry: noop, onSelect: noop });
   assert.equal((html.match(/role="button"/g) || []).length, history.points.length);
-  assert.equal((html.match(/<polyline/g) || []).length, 5);
+  assert.ok(!html.includes('<polyline'));
+  assert.match(html, /barras empilhadas/);
   assert.match(html, /Pendente vencida/); assert.match(html, /Entregue com atraso/);
   for (const point of history.points) assert.equal(point.total, point.onTime + point.overdue + point.deliveredLate + point.pending + point.validation);
   assert.ok(!html.includes('NaN'));
@@ -88,13 +89,14 @@ test('evolução oferece datas rotuladas e estados de período vazio, único pon
   const failed = render(evolution.SemesterEvolution, { ...props, error: 'Histórico indisponível.' });
   assert.match(failed, /Recarregar evolução/); assert.match(failed, /Histórico indisponível/);
 });
-test('linhas respeitam intervalos reais entre datas em vez de dar o mesmo espaço a semanas ausentes', () => {
+test('barras empilhadas preservam totais e não criam referências para semanas sem coleta', () => {
   const points = ['2026-10-01', '2026-10-08', '2026-10-22'].map((day, i) => ({ snapshotId: String(i), generatedAt: day + 'T15:00:00Z', total: i + 1, onTime: i + 1, overdue: 0, deliveredLate: 0, pending: 0, validation: 0 }));
   const html = render(evolution.SemesterEvolution, { points, range: { dateFrom: '', dateTo: '' }, onRangeChange: noop, loading: false, error: null, onRetry: noop, onSelect: noop });
-  const coordinates = /<polyline[^>]*points="([^"]+)"/.exec(html)[1].split(' ').map((pair) => pair.split(',').map(Number));
-  const ratio = (coordinates[1][0] - coordinates[0][0]) / (coordinates[2][0] - coordinates[0][0]);
-  assert.ok(Math.abs(ratio - 1 / 3) < 1e-9);
-  assert.ok(coordinates[0][1] > coordinates[1][1] && coordinates[1][1] > coordinates[2][1]);
+  assert.equal((html.match(/role="button"/g) || []).length, points.length);
+  assert.ok(!html.includes('15/10'));
+  const totals = [...html.matchAll(/class="ned-bar-value" aria-hidden="true">(\d+)<\/text>/g)].map((match) => Number(match[1]));
+  assert.deepEqual(totals, points.map((point) => point.total));
+  assert.ok(!html.includes('<polyline')); assert.ok(!html.includes('NaN'));
 });
 test('entrada oferece somente NED e Alta Gestão; navegação da Gestão é de consulta', () => {
   const state = { user: null, demoEnabled: true, demoProfiles: runtime.config.auth.demoProfiles, loginDemo: noop, error: null };
