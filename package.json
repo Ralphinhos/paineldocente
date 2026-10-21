@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "demo": "node scripts/demo.mjs",
+    "piloto:conexao": "node scripts/piloto.mjs --connection-only",
+    "piloto": "node scripts/piloto.mjs",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",

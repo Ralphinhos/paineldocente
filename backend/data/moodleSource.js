@@ -73,7 +73,31 @@ class MoodleSource {
     if (this.pool) return this.pool; const ca = this.config.caFile ? fs.readFileSync(this.config.caFile, 'utf8') : undefined;
     this.pool = await new sql.ConnectionPool({ server: this.config.server, port: this.config.port, database: this.config.database, user: this.config.user, password: this.config.password, connectionTimeout: this.config.requestTimeoutMs, requestTimeout: this.config.requestTimeoutMs, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 }, options: { encrypt: true, trustServerCertificate: false, enableArithAbort: true, ...(ca ? { cryptoCredentialsDetails: { ca } } : {}) } }).connect(); return this.pool;
   }
-  async fetch(deadlineCatalog = this.deadlines) { const generatedAt = new Date().toISOString(); const pool = await this.connect(); const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-snapshot.sql'), 'utf8'); const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot).input('teacherRoleId', sql.Int, this.config.teacherRoleId).input('logFrom', sql.BigInt, Math.floor((Date.now() - this.config.queryWindowDays * 86400000) / 1000)).query(query); return normalizeRows(result.recordset, generatedAt, deadlineCatalog); }
+  async testConnection() {
+    const pool = await this.connect();
+    const result = await pool.request().input('courseIds', sql.NVarChar(sql.MAX), JSON.stringify(this.config.courseIds || [])).query(`
+      SELECT CONVERT(varchar(20), id) AS id FROM dbo.mdl_course
+      WHERE id IN (SELECT CONVERT(bigint, [value]) FROM OPENJSON(@courseIds))`);
+    const found = new Set(result.recordset.map((row) => String(row.id)));
+    const missing = (this.config.courseIds || []).filter((id) => !found.has(id));
+    if (missing.length) throw Object.assign(new Error('Alguns IDs da amostra não foram encontrados no banco selecionado. Confira MOODLE_COURSE_IDS.'), { code: 'PILOT_COURSES_MISSING' });
+    return { courses: found.size };
+  }
+  async fetch(deadlineCatalog = this.deadlines) {
+    const generatedAt = new Date().toISOString(); const pool = await this.connect();
+    const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-snapshot.sql'), 'utf8');
+    const requested = this.config.courseIds || [];
+    const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot)
+      .input('teacherRoleId', sql.Int, this.config.teacherRoleId)
+      .input('logFrom', sql.BigInt, Math.floor((Date.now() - this.config.queryWindowDays * 86400000) / 1000))
+      .input('courseIds', sql.NVarChar(sql.MAX), requested.length ? JSON.stringify(requested) : null).query(query);
+    if (requested.length) {
+      const found = new Set(result.recordset.map((row) => String(row.course_id)));
+      if ([...found].some((id) => !requested.includes(id))) throw Object.assign(new Error('A coleta retornou uma disciplina fora da amostra. O piloto foi interrompido.'), { code: 'COURSE_SCOPE_VIOLATION' });
+      if (requested.some((id) => !found.has(id))) throw Object.assign(new Error('Amostra incompleta. Confira categoria, visibilidade e docente com papel configurado para cada disciplina.'), { code: 'COURSE_SCOPE_INCOMPLETE' });
+    }
+    return normalizeRows(result.recordset, generatedAt, deadlineCatalog);
+  }
   async close() { if (this.pool) await this.pool.close(); this.pool = null; }
 }
 module.exports = { MoodleSource, classifyRequirement, normalizeRows, officialDeadline };

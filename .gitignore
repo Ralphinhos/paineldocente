@@ -16,6 +16,7 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.production.example
+!.env.piloto.example
 google-credentials.json
 *.pem
 *.key
