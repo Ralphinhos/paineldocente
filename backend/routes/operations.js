@@ -99,12 +99,14 @@ function listManualItems(snapshot, query, records = []) {
   const all = snapshot.rows.filter((row) => row.requirement.manualControl && row.requirement.responsibility !== 'OTHER_TEACHER').map((row) => manualItem(row, history.get(manualDeliveryKey(row.course.id, row.teacher.id, row.requirement.baseId, row.requirement.itemNumber)) || []));
   const options = {
     periods: [...new Set(all.map((item) => item.course.period))].sort(),
-    courses: [...new Map(all.map((item) => [item.course.id, { value: item.course.id, label: item.course.shortName }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
+    courses: [...new Map(all.map((item) => [item.course.id, { value: item.course.id, label: item.course.name + (item.course.shortName !== item.course.name ? ' · ' + item.course.shortName : '') }])).values()].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')),
   };
   const text = String(query.query || '').trim().toLocaleLowerCase('pt-BR');
   const filtered = all.filter((item) =>
     !(query.period && item.course.period !== query.period)
     && !(query.courseId && item.course.id !== String(query.courseId))
+    && !(query.teacherId && item.teacher.id !== String(query.teacherId))
+    && !(query.modality && item.course.modality !== query.modality)
     && !(query.requirementId && item.requirement.baseId !== query.requirementId)
     && !(query.status && item.status !== query.status)
     && !(text && !`${item.course.name} ${item.course.shortName} ${item.teacher.name} ${item.requirement.label}`.toLocaleLowerCase('pt-BR').includes(text))
@@ -116,7 +118,7 @@ function listManualItems(snapshot, query, records = []) {
 
 function operationsRoutes({ auth, store, snapshotService }) {
   const router = express.Router();
-  router.use(auth.required, auth.requireRole('ned_admin', 'auditor'));
+  router.use(auth.required, auth.requireRole('ned_admin'));
   router.get('/snapshots', asyncHandler(async (_request, response) => {
     const snapshots = await store.listSnapshots(12);
     response.json({ snapshots: snapshots.map((snapshot) => ({ id: snapshot.id, generatedAt: snapshot.generatedAt, source: snapshot.source, rulesVersion: snapshot.rulesVersion, qualityStatus: snapshot.qualityStatus, publishAllowed: snapshot.publishAllowed, rows: snapshot.rows.length })) });

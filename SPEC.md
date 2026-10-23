@@ -1,110 +1,116 @@
-# SPEC — Painel Docente
+# SPEC — Acompanhamento Docente NED
+
+## product
+
+- P1 users:=NED|executive; coordinator:=email_recipient,!login; workflow:=collect>review>notify_coordinator
+- P2 NED_UI:=access_tab|delivery_tab|deadline_tab|coordinator_report_tab; executive_UI:=semester_overview; !weighted_score_UI
+- P3 scope_filters:=teacher_id|period|modality|Moodle_course; affect(summary|chart|list)
+- P4 status_filter|activity_key|pagination=>list_only; default:=access.issues + deliveries.overdue
+- P5 regular:=summary+show_all; unknown!=regular
+- P6 identity:=approved_images@2026-10-19; single_header+pastel_KPIs+circle_icons+donuts+horizontal_bars+table/priority_grid
+- P7 chart_axis:=zero_based+integer_ticks+visible_units; unknown!=zero
+- P8 access.panorama:=all_scoped_authorized_teachers; !list_pagination
+- P9 top10:=absence_days|overdue_teacher|overdue_activity; regular_comparisons:=collapsed
+- P10 report_scope:=recipient.courseIds; analytical_filters hidden@report_tab
 
 ## invariants
 
-- V1 Moodle:=SELECT-only; browser!query Moodle
-- V2 browser!authority(status|scope|recipients); server:=authority
-- V3 row_key:=(snapshot_id,course_id,teacher_id,requirement_key)
-- V4 result=>{rule_version,reason,evidence,calculated_at}
-- V5 quality.CRITICAL=>publish=false,email=false
-- V6 INHERITED_READY=>structure=met; teacher_delivery=exempt; access=assessed
-- V7 evidence.insufficient=>NOT_VERIFIABLE; !guess
-- V8 structure@course; access@(course,teacher); co-teaching!duplicate_blame
-- V9 report:=immutable_snapshot
-- V10 email.default:=PREVIEW_ONLY; recipients:=server_config
-- V11 moodle.log!define delivery_time; snapshot_ready:=timing proof
-- V12 UA:=manual/package/course; video:=manual/item; video.qty:=workload_h/10
-- V13 published_date:=operational_only; !teacher_KPI
-- V14 NOT_APPLICABLE=>justification+actor+timestamp; excluded_KPI
-- V15 material_revision=>append_only+reason+own_deadline+actor+timestamp; current:=max(revision)
-- V16 unchanged_inherited=>exempt; revision_requested=>affected_item.reopened
-- V17 substitutiva=>excluded(requirements|KPI|ranking|report)
-- V18 delay:=calendar_days(America/Sao_Paulo); pending@collection; delivered@evidence
-- V19 observed_ready_date=>upper_bound; !exact_delay; unknown=>no_composite_score
-- V20 delivery_owner:=catalog>sole_teacher>unique_manual_owner; ambiguous=>unconfirmed
-- V21 course_item counted_once; other_teacher=>!delivery_score,!manual_edit
+- V1 Moodle:=SELECT-only; browser!Moodle_credentials
+- V2 server:=authority(status|scope|recipients)
+- V3 evidence.insufficient=>NOT_VERIFIABLE; !guess
+- V4 snapshot:=immutable+rule_version+reasons+evidence
+- V5 quality.CRITICAL|demo|stale=>!email
+- V6 structure@course_requirement; responsibility:=catalog>sole_teacher>unique_manual_owner
+- V7 OTHER_TEACHER=>!charge,!manual_edit; UNCONFIRMED=>review,!charge
+- V8 UA:=manual/package; video:=manual/item; quantity:=workload_h/10
+- V9 UA_date:=teacher_sent; video_date:=teacher_recorded; publish_date:=informative
+- V10 revision=>reason+own_deadline+actor+timestamp+preserved_history
+- V11 inherited_verified=>on_time; replacement=>affected_item.reopened
+- V12 substitutiva=>excluded
+- V13 delay:=calendar_days(America/Sao_Paulo); pending@collection; delivered@evidence
+- V14 observed_ready=>upper_bound,!exact_delivery_date,!early_claim
+- V15 absent_deadline|unclear_owner=>review; !overdue_charge
 
-## ranking
+## access
 
-- snapshot.policy:=versioned; old_snapshot!recomputed
-- base:=assigned+required+deadline_day_passed; exclude(NA|inherited|substitutiva)
-- punctuality:=mean_course(on_time/due)*50
-- delay:=mean_course_with_late(mean_late_item_days); bands(0:20,>0..3:15,>3..7:10,>7..14:5,>14:0)
-- access:=mean_active_course(0..7:30,8..14:15,15+|never:0)
-- score:=punctuality+delay+access; require(all_components+complete_evidence)
-- access_only:=separate_scale(0..100); !composite_competition
-- priority:=score_ASC; regularity:=score_DESC; current_incidents remain_visible
-- scope_filters=>KPI+ranking+list; status_filter=>list_only; pagination!ranking_base
-- summary.avg_delay:=completed_exact_only; ranking.delay includes_overdue_pending
+- truth:=mdl_user.lastaccess; !course_access,!mean,!lastlogin
+- record_key:=teacher_id; names!identity
+- NED_population:=teachers_with_active_course@collection; semester_population:=teachers_of_selected_semester_including_closed_courses
+- course_filter!change_global_access_fact
+- days:=civil_days(collection,lastaccess)
+- CURRENT:=0..7; ATTENTION:=8..14; CRITICAL:=15+
+- SQL_zero=>NEVER; missing|future|conflict=>NOT_VERIFIABLE
+- same_teacher repeated@courses=>one_access_record
+- course_access retained@legacy/evidence; !notification_access_metric
 
-## workspace
+## deliveries
 
-- NED:=tracking|manual_materials|quality_reports; dirty_manual=>save_or_discard_before_switch
-- executive:=four_metrics+ranking+current_incidents+weekly_trend
-- details:=on_demand; dialog:=native_modal+keyboard; report:=preview+HTML_download
-- report.scope:=all_rows; executive.incidents:=top5+remaining_count
-- report.batch:=pinned_snapshot; preview_changed=>409; demo!send
-- trend:=latest_per_week+same_rules+same_source+scope; points<2=>empty_state
+- key:=(course_id,requirement_id); skip OTHER_TEACHER
+- display:=OVERDUE|PENDING|EARLY|ON_TIME|DELIVERED_LATE|INHERITED_READY|NOT_APPLICABLE|NOT_VERIFIABLE
+- PENDING + deadline_passed=>OVERDUE; accrue until delivered
+- DELIVERED_LATE=>resolved_history; !open_incident
+- EARLY=>exact_date<deadline; !offset_other_lateness
+- COMPLIANT_filter:=EARLY|ON_TIME|INHERITED_READY
+- ON_TIME_OR_INHERITED_filter:=ON_TIME|INHERITED_READY; matches_green_donut_slice
+- teacher_chart:=exclusive_states; UNCONFIRMED_owner=>!teacher_attribution
+- overdue_percent_base:=applicable+known_state+confirmed_owner+calendar_days(collection,deadline)>0
+- future|NOT_APPLICABLE|NOT_VERIFIABLE=>!percent_base; resolved_late=>!open_delay_max
+- total:=sum(exclusive_states)-NOT_APPLICABLE
+- bimestres:=separate_requirements
+- module_updated|completion_changed|viewed!alone_delivery_proof
 
-## roles
+## notifications
 
-- ned_admin: all+collect+preview+gated_send
-- coordinator: scoped_courses+detail+preview
-- executive: all+summary
-- auditor: all+read_only
+- scope:=server_recipient.courseIds; !browser_authority
+- source:=same_monitoring_rules+full_scoped_snapshot; !top5_truncation
+- body:=confirmed_access_issues+open_overdue_items+verified_remainder+review_needed
+- resolved_late=>summary; !open_charge
+- review:=To+Cc+subject+text+HTML
+- UI_send:=selected_recipient_only+configured_Cc
+- changed_snapshot=>409; demo!send; idempotency:=(snapshot,audience,recipient)
+- no_mapped_courses|unverified|stale=>blocked
+- worker_default_audience:=coordinators
 
-## auth
+## security
 
-- prod:=institutional OIDC/proxy + server mapping
-- demo:=dev only
+- prod:=institutional_OIDC/proxy+server_NED_mapping
 - session:=HttpOnly+Secure+SameSite=Strict
-- mutation:=exact_origin+CSRF+RBAC
-
-## status
-
-- structure:=PENDING|DELIVERED_LATE|DELIVERED_ON_TIME|INHERITED_READY|NOT_APPLICABLE|NOT_VERIFIABLE
-- access:=CURRENT(0..7d)|ATTENTION(8..14d)|CRITICAL(>=15d)|NEVER|OUTSIDE_WINDOW
-- provenance:=INHERITED_VERIFIED|RESTORED_NOT_EXEMPT|CREATED_FOR_PERIOD
-
-## evidence
-
-- truth.structure:=current module state + approved requirement/deadline catalog
-- log.course_module_updated:=interaction support; !delivery_time
-- log.course_module_completion_updated:=access/interaction only; !delivery
-- log.*course_module_viewed:=interaction only; !delivery
-- truth.access:=user_lastaccess + viewed|updated|completion_changed by teacher
-- historical timing unknown=>NOT_VERIFIABLE
-- ready_snapshot<=deadline=>DELIVERED_ON_TIME
-- pending_snapshot>=deadline + later_ready=>DELIVERED_LATE
-- manual UA|video evidence_date vs active_revision_deadline=>on_time|late
-- revision>1 without reason|deadline=>NOT_VERIFIABLE
-- manual pending + deadline passed=>PENDING.overdue
-
-## quality gates
-
-- rules_not_approved | deadline_missing | modality_unmapped | workload_unmapped | duplicate_key | source_error => BLOCKED
-- blocked=>dashboard visible + warning; email disabled
+- mutations:=exact_origin+CSRF+RBAC
+- auth_roles:=ned_admin|executive; retired_roles|old_retired_role_cookie=>!access
+- executive:=read_only(summary|details); NED:=write(prior_deadline|manual|collection|email)
+- coordinator_report_scope:=server_only; !login_profile
+- SQL:=READ_COMMITTED+verified_TLS+SELECT_only; !NOLOCK
 
 ## acceptance
 
-- completion_changed + incomplete Tarefa=>PENDING
-- viewed + incomplete Tarefa=>PENDING
-- UA sent date|video recorded date=>manual evidence; Moodle label edit!delivery
-- UA rows/course/teacher:=1; video rows/course/teacher:=workload_h/10
-- date correction=>same revision; material replacement=>new revision+old preserved
-- inherited + replacement=>new revision PENDING; untouched requirements stay INHERITED_READY
-- published_date change!status
-- NOT_APPLICABLE without reason=>reject
-- updated_log + ready_current + no_snapshot=>NOT_VERIFIABLE
-- inherited complete before teacher assignment=>INHERITED_READY + independent access
-- coordinator A!receive coordinator B courses
-- access summary dedupe(course,teacher)
-- demo!send external email
-- unsafe origin|missing CSRF=>403
+- global_access 2d + course_access 16d=>CURRENT(2d)
+- teacher in two disciplines=>one_global_access
+- filter_teacher=>both_tabs+manual_scope
+- pending_days 7>10; delivered@10=>freeze10+resolved
+- unknown_owner|missing_date!charge
+- same_name,different_ids=>separate
+- contradictory_global_facts=>block
+- empty_query!all_regular
+- manual_revision preserves_prior; publication!delivery_status
+- selected_coordinator!other_courses; configured_Cc included
+- snapshot_changed|demo|stale=>email_blocked
 
-## pilot limits
+## validation
 
-- live email remains gated until NED+TI validation
-- exact institutional OIDC metadata required
-- live Moodle requires read-only credential + verified TLS
-- business catalog remains PILOT until signed checklist
+- npm run check; npm --prefix backend run validate:data -- --fresh
+- UI_SSR:=content+values; !browser_interaction_proof
+- Moodle_real|SMTP|Docker_runtime|browser_visual=>institutional_validation_pending
+- live_rules:=PILOT until homologation; deadline_catalog initially empty
+
+## executive
+
+- route:=/gestao; detail:=/acompanhamento; NED_can_read_both
+- reference:=latest_available_snapshot_for_semester; !assumed_semester_end_state
+- filter:=semester|modality|bimester; bimester=>deliveries_only
+- KPI:=teachers|on_time_due|open_overdue|access_alerts
+- Top10:=late_due_ratio|on_time_due_ratio|absence_days|recent_access_days
+- ratio_base:=known+applicable+confirmed_owner+closed_deadline; tie=>larger_base
+- NEVER|unknown!zero; recency!access_frequency
+- drilldown:=same_snapshot+scope+teacher_or_activity+deadline_base; pinned_snapshot=>read_only
+- history:=up_to_26_weekly_references+same_rule_version+same_deadline_version; states:=exclusive
+- teacher_table:=server_search+sort+pagination; !300_row_cap

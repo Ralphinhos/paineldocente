@@ -1,5 +1,19 @@
 # Arquitetura e segurança
 
+## Interface do NED
+
+NED: quatro abas — **Acessos**, **Entregas**, **Prazos** e **Relatório por coordenador**. `GET /api/monitoring` calcula as duas bases sobre a mesma coleta, aplica escopo e filtros compartilhados e pagina as listas no servidor. Cálculos e notificações usam `core/monitoring.js`; o relatório pede todas as linhas autorizadas.
+
+O acesso global usa `mdl_user.lastaccess` e um registro por ID docente. `mdl_user_lastaccess` e logs continuam disponíveis como contexto da disciplina, sem substituir o acesso ao ambiente. Zero conhecido significa sem registro; campo ausente, futuro ou conflitante exige revisão. O validador independente confere faixas, datas e consistência entre disciplinas.
+
+O controle manual de UA/videoaulas fica dentro de Entregas, com o docente selecionado. Há somente dois perfis de login: NED e Alta Gestão. Coordenadores não acessam a aplicação; o servidor preserva o escopo por disciplinas nos relatórios enviados por e-mail. A API analítica anterior continua disponível para compatibilidade.
+
+## Alta Gestão
+
+`/gestao` consulta `GET /api/executive`, com panorama por semestre, modalidade e bimestre. A evolução é carregada separadamente em `GET /api/executive/history`; seleciona até 26 referências semanais compatíveis e retorna apenas agregados. O PostgreSQL possui índice por período. A tabela de docentes tem busca, ordenação e paginação no servidor; Top 10 e indicadores usam a base completa.
+
+Os gráficos abrem `/acompanhamento` com filtros e ID da coleta. `GET /api/monitoring` pode consultar essa referência, preservando a população semestral e a base de prazos encerrados. Referências fixadas ficam em leitura; Alta Gestão nunca recebe permissão de mutação. [Funcionamento e implantação](VISAO_GESTAO.md).
+
 ## Fluxo
 
 ```mermaid
@@ -58,7 +72,7 @@ Chave de resultado: `snapshot_id + course_id + teacher_id + requirement_key`. Pa
 
 ## Disciplina restaurada
 
-A estrutura vira `INHERITED_READY` apenas quando todas as condições são verdadeiras:
+A estrutura geral vira `INHERITED_READY` quando todas as condições são verdadeiras:
 
 - Moodle informa curso de origem;
 - restauração ocorreu antes da atribuição do docente;
@@ -67,6 +81,8 @@ A estrutura vira `INHERITED_READY` apenas quando todas as condições são verda
 - mapeamento não é ambíguo.
 
 Isso isenta a entrega da estrutura. O acesso do docente continua independente e pode ficar crítico.
+
+Para avaliações reais do Moodle, a comprovação é individual: curso de origem/restauração anterior ao vínculo, questões prontas e evidência de preparo até antes da responsabilidade do docente. A situação de UAs/vídeos não impede reconhecer essa avaliação como reaproveitada. Questões antigas sem vínculo histórico suficiente permanecem a validar. Uma comprovação válida é preservada nas coletas seguintes para o mesmo prazo e versão de regras. A primeira resposta dos alunos não define a entrega.
 
 ## Evento de Tarefa
 
@@ -85,7 +101,7 @@ Isso isenta a entrega da estrutura. O acesso do docente continua independente e 
 - TLS verificado no SQL Server; `trustServerCertificate=false`.
 - Consulta `READ COMMITTED`, sem `NOLOCK`.
 - Limite de conexões e tempo máximo de consulta.
-- E-mail com idempotência por fotografia, público e destinatário.
+- E-mail com idempotência por coleta, público e destinatário. Prévia informa Para/Cc; a interface envia somente para a coordenação selecionada. Dados desatualizados e mudanças após a prévia bloqueiam o envio.
 - Dados demonstrativos não podem ser enviados.
 - Falha crítica de qualidade bloqueia publicação.
 - Alteração manual usa origem exata, CSRF, papel NED e validação de item contra a fotografia atual.

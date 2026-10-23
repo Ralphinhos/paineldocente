@@ -49,7 +49,8 @@ teacher_courses AS (
     cc.name AS category_name, cf.modality_field_value, cf.category_field_value,
     COALESCE(cf.modality_field_value, cf.category_field_value) AS modality_value, cf.workload_value,
     u.id AS teacher_id, CONCAT(u.firstname, ' ', u.lastname) AS teacher_name, u.email AS teacher_email,
-    MIN(ra.timemodified) AS assigned_at
+    MIN(ra.timemodified) AS assigned_at,
+    MAX(u.lastaccess) AS environment_last_access_at
   FROM dbo.mdl_course c
   INNER JOIN category_tree ct ON ct.id = c.category
   INNER JOIN dbo.mdl_course_categories cc ON cc.id = c.category
@@ -57,47 +58,150 @@ teacher_courses AS (
   INNER JOIN dbo.mdl_role_assignments ra ON ra.contextid = ctx.id AND ra.roleid = @teacherRoleId
   INNER JOIN dbo.mdl_user u ON u.id = ra.userid AND u.deleted = 0
   LEFT JOIN course_fields cf ON cf.course_id = c.id
-  WHERE c.visible = 1
+  WHERE (c.visible = 1 OR (@includeHiddenCourses = 1 AND @courseIds IS NOT NULL))
+    AND (@courseIds IS NULL OR c.id IN (SELECT CONVERT(bigint, [value]) FROM OPENJSON(@courseIds)))
   GROUP BY c.id, c.fullname, c.shortname, c.startdate, c.enddate, c.originalcourseid, c.timecreated,
     cc.name, cf.modality_field_value, cf.category_field_value, cf.workload_value, u.id, u.firstname, u.lastname, u.email
 ),
 activity_instances AS (
-  SELECT 'assign' AS module_name, id AS instance_id, name FROM dbo.mdl_assign
-  UNION ALL SELECT 'forum', id, name FROM dbo.mdl_forum
-  UNION ALL SELECT 'quiz', id, name FROM dbo.mdl_quiz
-  UNION ALL SELECT 'page', id, name FROM dbo.mdl_page
-  UNION ALL SELECT 'url', id, name FROM dbo.mdl_url
-  UNION ALL SELECT 'resource', id, name FROM dbo.mdl_resource
-  UNION ALL SELECT 'label', id, name FROM dbo.mdl_label
-  UNION ALL SELECT 'h5pactivity', id, name FROM dbo.mdl_h5pactivity
-  UNION ALL SELECT 'lti', id, name FROM dbo.mdl_lti
+  SELECT 'assign' AS module_name, id AS instance_id, name, timemodified AS modified_at,
+    CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0
+      OR LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), activity), N'')))) > 0 THEN 1 ELSE 0 END AS description_present,
+    CONCAT(CONVERT(nvarchar(max), intro), N' ', CONVERT(nvarchar(max), activity)) AS content_text
+  FROM dbo.mdl_assign
+  UNION ALL SELECT 'forum', id, name, timemodified,
+    CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0 THEN 1 ELSE 0 END,
+    CONVERT(nvarchar(max), intro) FROM dbo.mdl_forum
+  UNION ALL SELECT 'quiz', id, name, timemodified,
+    CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0 THEN 1 ELSE 0 END,
+    CONVERT(nvarchar(max), intro) FROM dbo.mdl_quiz
+  UNION ALL SELECT 'page', id, name, NULL, NULL, NULL FROM dbo.mdl_page
+  UNION ALL SELECT 'url', id, name, NULL, NULL, NULL FROM dbo.mdl_url
+  UNION ALL SELECT 'resource', id, name, NULL, NULL, NULL FROM dbo.mdl_resource
+  UNION ALL SELECT 'label', id, name, NULL, NULL, NULL FROM dbo.mdl_label
+  UNION ALL SELECT 'h5pactivity', id, name, NULL, NULL, NULL FROM dbo.mdl_h5pactivity
+  UNION ALL SELECT 'lti', id, name, NULL, NULL, NULL FROM dbo.mdl_lti
 ),
 course_activities AS (
-  SELECT cm.id AS cm_id, cm.course AS course_id, m.name AS module_name, ai.name AS activity_name, cm.visible
+  SELECT cm.id AS cm_id, cm.course AS course_id, cm.added AS cm_created_at,
+    m.name AS module_name, ai.instance_id, ai.name AS activity_name, cm.visible,
+    ai.modified_at AS activity_modified_at, ai.description_present AS activity_description_present, ai.content_text AS activity_content
   FROM dbo.mdl_course_modules cm
   INNER JOIN dbo.mdl_modules m ON m.id = cm.module
   INNER JOIN activity_instances ai ON ai.module_name = m.name AND ai.instance_id = cm.instance
   INNER JOIN (SELECT DISTINCT course_id FROM teacher_courses) scoped ON scoped.course_id = cm.course
   WHERE cm.deletioninprogress = 0
 ),
+quiz_structure AS (
+  SELECT ca.cm_id, COUNT_BIG(slots.id) AS question_slot_count
+  FROM course_activities ca
+  LEFT JOIN dbo.mdl_quiz_slots slots ON slots.quizid = ca.instance_id
+  WHERE ca.module_name = 'quiz'
+  GROUP BY ca.cm_id
+),
+quiz_slot_logs AS (
+  SELECT ca.cm_id, slots.id AS slot_id,
+    MIN(CASE WHEN l.eventname = '\mod_quiz\event\slot_created' THEN l.timecreated END) AS added_log_at,
+    MAX(CASE WHEN l.eventname = '\mod_quiz\event\slot_version_updated' THEN l.timecreated END) AS version_log_at
+  FROM course_activities ca
+  INNER JOIN dbo.mdl_quiz_slots slots ON slots.quizid = ca.instance_id
+  INNER JOIN dbo.mdl_logstore_standard_log l ON l.courseid = ca.course_id
+    AND l.contextlevel = 70 AND l.contextinstanceid = ca.cm_id
+    AND l.objecttable = 'quiz_slots' AND l.objectid = slots.id
+    AND l.eventname IN ('\mod_quiz\event\slot_created', '\mod_quiz\event\slot_version_updated')
+    AND l.timecreated >= @logFrom
+  WHERE ca.module_name = 'quiz'
+  GROUP BY ca.cm_id, slots.id
+),
+quiz_questions AS (
+  SELECT ca.cm_id, slots.id AS slot_id, resolved.question_id, resolved.status,
+    resolved.qtype, resolved.created_at, resolved.modified_at, resolved.content_text,
+    history.added_log_at, history.version_log_at, creation.created_log_at, creation.created_log_user_id
+  FROM course_activities ca
+  INNER JOIN dbo.mdl_quiz_slots slots ON slots.quizid = ca.instance_id
+  LEFT JOIN dbo.mdl_context quiz_context ON quiz_context.contextlevel = 70 AND quiz_context.instanceid = ca.cm_id
+  LEFT JOIN dbo.mdl_question_references qref ON qref.usingcontextid = quiz_context.id
+    AND qref.component = 'mod_quiz' AND qref.questionarea = 'slot' AND qref.itemid = slots.id
+  -- A pinned version must match exactly; NULL means the latest non-draft version.
+  OUTER APPLY (
+    SELECT TOP (1) q.id AS question_id, qversion.status, q.qtype,
+      q.timecreated AS created_at, q.timemodified AS modified_at,
+      CONVERT(nvarchar(max), q.questiontext) AS content_text
+    FROM dbo.mdl_question_versions qversion
+    INNER JOIN dbo.mdl_question q ON q.id = qversion.questionid
+    WHERE qversion.questionbankentryid = qref.questionbankentryid
+      AND ((qref.version IS NOT NULL AND qversion.version = qref.version)
+        OR (qref.version IS NULL AND qversion.status <> 'draft'))
+    ORDER BY qversion.version DESC
+  ) resolved
+  OUTER APPLY (
+    SELECT TOP (1) l.timecreated AS created_log_at, l.userid AS created_log_user_id
+    FROM dbo.mdl_logstore_standard_log l
+    WHERE l.courseid = ca.course_id AND l.contextlevel = 70 AND l.contextinstanceid = ca.cm_id
+      AND l.eventname = '\core\event\question_created' AND l.objecttable = 'question'
+      AND l.objectid = resolved.question_id AND l.timecreated >= @logFrom
+    ORDER BY l.timecreated, l.id
+  ) creation
+  LEFT JOIN quiz_slot_logs history ON history.cm_id = ca.cm_id AND history.slot_id = slots.id
+  WHERE ca.module_name = 'quiz'
+),
+forum_structure AS (
+  SELECT ca.cm_id, COUNT_BIG(discussions.id) AS discussion_count
+  FROM course_activities ca
+  LEFT JOIN dbo.mdl_forum_discussions discussions ON discussions.forum = ca.instance_id
+  WHERE ca.module_name = 'forum'
+  GROUP BY ca.cm_id
+),
 relevant_logs AS (
-  SELECT l.courseid, l.userid, l.contextinstanceid AS cm_id,
-    MIN(CASE WHEN l.eventname = '\core\event\course_module_updated' THEN l.timecreated END) AS module_updated_at,
-    MAX(CASE WHEN l.eventname = '\core\event\course_module_completion_updated' THEN l.timecreated END) AS completion_updated_at,
-    MAX(CASE WHEN l.eventname = '\core\event\course_module_completion_updated' THEN l.relateduserid END) AS completion_related_user_id,
-    MAX(CASE WHEN l.eventname LIKE '%course_module_viewed' THEN l.timecreated END) AS module_viewed_at
+  SELECT l.courseid, tc.teacher_id AS userid, l.contextinstanceid AS cm_id,
+    MIN(CASE WHEN l.userid = tc.teacher_id AND l.eventname = '\core\event\course_module_updated' THEN l.timecreated END) AS module_updated_at,
+    MAX(CASE WHEN l.userid = tc.teacher_id AND l.eventname = '\core\event\course_module_completion_updated' THEN l.timecreated END) AS completion_updated_at,
+    MAX(CASE WHEN l.userid = tc.teacher_id AND l.eventname = '\core\event\course_module_completion_updated' THEN l.relateduserid END) AS completion_related_user_id,
+    MAX(CASE WHEN l.userid = tc.teacher_id AND l.eventname LIKE '%course_module_viewed' THEN l.timecreated END) AS module_viewed_at,
+    -- Technical history from any actor; these timestamps do not prove delivery.
+    MIN(CASE WHEN l.eventname = '\core\event\course_module_created' THEN l.timecreated END) AS creation_log_at,
+    MIN(CASE WHEN l.eventname = '\core\event\course_module_updated' THEN l.timecreated END) AS first_update_log_at,
+    MAX(CASE WHEN l.eventname = '\core\event\course_module_updated' THEN l.timecreated END) AS last_update_log_at
   FROM dbo.mdl_logstore_standard_log l
-  INNER JOIN teacher_courses tc ON tc.course_id = l.courseid AND tc.teacher_id = l.userid
+  INNER JOIN teacher_courses tc ON tc.course_id = l.courseid
+  INNER JOIN course_activities ca ON ca.course_id = l.courseid AND ca.cm_id = l.contextinstanceid
   WHERE l.timecreated >= @logFrom
     AND l.contextlevel = 70
-    AND (l.eventname IN ('\core\event\course_module_updated','\core\event\course_module_completion_updated') OR l.eventname LIKE '%course_module_viewed')
-  GROUP BY l.courseid, l.userid, l.contextinstanceid
+    AND (l.eventname IN ('\core\event\course_module_created', '\core\event\course_module_updated')
+      OR (l.userid = tc.teacher_id AND (l.eventname = '\core\event\course_module_completion_updated' OR l.eventname LIKE '%course_module_viewed')))
+  GROUP BY l.courseid, tc.teacher_id, l.contextinstanceid
 )
 SELECT tc.*, ca.cm_id, ca.module_name, ca.activity_name, ca.visible AS activity_visible,
+  ca.cm_created_at, ca.activity_modified_at, ca.activity_description_present,
+  ca.activity_content,
+  qs.question_slot_count, fs.discussion_count,
+  questions.details AS quiz_question_details,
+  starter.post_id AS forum_starter_id, starter.author_id AS forum_starter_author_id,
+  starter.created_at AS forum_starter_created_at, starter.modified_at AS forum_starter_modified_at, starter.content_text AS forum_starter_content,
+  rl.creation_log_at, rl.first_update_log_at, rl.last_update_log_at,
   ula.timeaccess AS last_access_at, rl.module_updated_at, rl.completion_updated_at,
   rl.completion_related_user_id, rl.module_viewed_at
 FROM teacher_courses tc
 LEFT JOIN course_activities ca ON ca.course_id = tc.course_id
+LEFT JOIN quiz_structure qs ON qs.cm_id = ca.cm_id
+LEFT JOIN forum_structure fs ON fs.cm_id = ca.cm_id
 LEFT JOIN dbo.mdl_user_lastaccess ula ON ula.courseid = tc.course_id AND ula.userid = tc.teacher_id
 LEFT JOIN relevant_logs rl ON rl.courseid = tc.course_id AND rl.userid = tc.teacher_id AND rl.cm_id = ca.cm_id
+OUTER APPLY (
+  SELECT (SELECT CONVERT(varchar(20), question.slot_id) AS slot_id,
+      CONVERT(varchar(20), question.question_id) AS question_id, question.status, question.qtype,
+      question.created_at, question.modified_at, question.content_text,
+      question.added_log_at, question.version_log_at, question.created_log_at,
+      CONVERT(varchar(20), question.created_log_user_id) AS created_log_user_id
+    FROM quiz_questions question WHERE question.cm_id = ca.cm_id FOR JSON PATH) AS details
+) questions
+OUTER APPLY (
+  SELECT TOP (1) fp.id AS post_id, fp.userid AS author_id, fp.created AS created_at, fp.modified AS modified_at,
+    CONVERT(nvarchar(max), fp.message) AS content_text
+  FROM dbo.mdl_forum_discussions discussion
+  INNER JOIN dbo.mdl_forum_posts fp ON fp.id = discussion.firstpost AND fp.discussion = discussion.id
+  WHERE ca.module_name = 'forum' AND discussion.forum = ca.instance_id AND fp.deleted = 0 AND fp.privatereplyto = 0
+  ORDER BY CASE WHEN fp.userid = tc.teacher_id THEN 0 ELSE 1 END,
+    CASE WHEN fp.modified > fp.created THEN fp.modified ELSE fp.created END, fp.id
+) starter
 OPTION (MAXRECURSION 100);

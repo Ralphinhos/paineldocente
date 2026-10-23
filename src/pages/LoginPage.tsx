@@ -1,16 +1,19 @@
-import { ArrowRight, Building2, CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
-import { useAuth } from "@/contexts/auth";
-import type { Role } from "@/types/dashboard";
-
-const PROFILE_TEXT: Record<Role, string> = { ned_admin: "Operação, qualidade e relatórios", coordinator: "Disciplinas sob sua coordenação", executive: "Indicadores e pontos críticos", auditor: "Consulta e trilha de evidências" };
+import { ArrowRight, ChartNoAxesCombined, ClipboardCheck, LockKeyhole, Mail } from 'lucide-react';
+import { UnderlinedLink } from '@/components/ui/UnderlinedLink';
+import { useAuth } from '@/contexts/auth';
 export function LoginPage() {
   const { demoEnabled, demoProfiles, loginDemo, error } = useAuth();
-  return <main className="login-page">
-    <section className="login-intro"><img src="/logo_branca.png" alt="UNIFENAS" /><div><span className="login-kicker">Núcleo de Educação a Distância</span><h1>Acompanhamento docente com evidências claras.</h1><p>Um painel para separar entrega de estrutura, acesso do docente e qualidade dos dados — sem apontamentos frágeis.</p></div><ul><li><CheckCircle2 size={18} />Regras rastreáveis</li><li><CheckCircle2 size={18} />Visões por responsabilidade</li><li><CheckCircle2 size={18} />Envio protegido por validação</li></ul><small><ShieldCheck size={15} />Ambiente interno · acesso controlado</small></section>
-    <section className="login-panel"><div className="login-card"><div className="login-icon"><Building2 /></div><span className="eyebrow">Painel Docente</span><h2>{demoEnabled ? "Escolha uma visão demonstrativa" : "Acesso institucional"}</h2><p>{demoEnabled ? "Dados abaixo são fictícios e servem apenas para homologação." : "Entre com sua conta institucional para acessar seu perfil."}</p>
-      {error && <div className="login-error" role="alert">{error}</div>}
-      {demoEnabled ? <div className="profile-list">{demoProfiles.map((profile) => <button type="button" onClick={() => void loginDemo(profile.id)} key={profile.id}><span><strong>{profile.name}</strong><small>{PROFILE_TEXT[profile.role]}</small></span><ArrowRight size={18} /></button>)}</div> : <a className="primary-button login-action" href="/oauth2/start?rd=/"><LockKeyhole size={17} />Entrar com conta institucional</a>}
-      {demoEnabled && <div className="demo-notice"><strong>Modo demonstração</strong><span>Não usa senha, pessoas reais ou banco Moodle.</span></div>}
-    </div><small className="support-line">Dificuldade de acesso? Procure o NED ou a TI institucional.</small></section>
-  </main>;
+  return <div className="ned-workspace ned-login">
+    <header className="ned-app-header"><div className="ned-header-inner"><div className="ned-wordmark" aria-label="NED UNIFENAS"><strong>NED</strong><span>UNIFENAS</span></div><span className="ned-login-label">Monitoramento Docente</span></div></header>
+    <main className="ned-login-content">
+      <section className="ned-login-intro"><span className="eyebrow">NÚCLEO DE EDUCAÇÃO A DISTÂNCIA</span><h1>O que precisa de atenção, em um só lugar.</h1><p>Acompanhe os docentes e prepare os avisos para cada coordenação.</p>
+        <ul className="ned-login-features"><li><span className="login-feature-icon login-feature-blue"><ChartNoAxesCombined size={21} aria-hidden="true" /></span>Acessos ao ambiente</li><li><span className="login-feature-icon login-feature-green"><ClipboardCheck size={21} aria-hidden="true" /></span>Entregas e prazos</li><li><span className="login-feature-icon login-feature-amber"><Mail size={21} aria-hidden="true" /></span>Relatórios por coordenação</li></ul>
+      </section>
+      <section className="ned-login-card" aria-labelledby="login-title"><h2 id="login-title">{demoEnabled ? 'Escolha uma visão' : 'NED e Alta Gestão'}</h2><p>{demoEnabled ? 'Resumo do semestre para a gestão. Acompanhamento e registros para o NED.' : 'Entre com sua conta institucional autorizada.'}</p>
+      {error && <div className="page-error" role="alert">{error}</div>}
+      {demoEnabled ? <div className="demo-view-options">{demoProfiles.map((profile) => <button className={profile.role === 'ned_admin' ? 'primary-button' : 'secondary-button'} type="button" onClick={() => void loginDemo(profile.id)} key={profile.id}>{profile.role === 'ned_admin' ? 'Abrir demonstração do NED' : 'Abrir Alta Gestão'}<ArrowRight size={18} aria-hidden="true" /></button>)}</div> : <UnderlinedLink className="primary-button" href="/oauth2/start?rd=/"><LockKeyhole size={17} aria-hidden="true" />Entrar com conta institucional</UnderlinedLink>}
+      {demoEnabled && <p className="demo-notice"><strong>Dados fictícios.</strong> O envio de e-mails está desabilitado.</p>}
+      <small className="support-line">Dificuldade de acesso? Procure o NED.</small></section>
+    </main><footer className="app-footer"><span>UNIFENAS · Núcleo de Educação a Distância</span></footer>
+  </div>;
 }

@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ profileId }),
       });
+      window.history.replaceState(null, "", session.user.role === "executive" ? "/gestao" : "/acompanhamento");
       applySession({ ...session, authMode: "demo", demoEnabled: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Não foi possível entrar.");

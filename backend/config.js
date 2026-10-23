@@ -28,6 +28,7 @@ const envSchema = z.object({
   MOODLE_DB_USER: z.string().optional(),
   MOODLE_DB_PASSWORD: z.string().optional(),
   MOODLE_DB_CA_FILE: z.string().optional(),
+  MOODLE_COURSE_IDS: z.string().optional(),
   MOODLE_CATEGORY_ROOT: z.coerce.number().int().positive().default(109),
   MOODLE_TEACHER_ROLE_ID: z.coerce.number().int().positive().default(3),
   MOODLE_QUERY_WINDOW_DAYS: z.coerce.number().int().min(30).max(1095).default(400),
@@ -46,19 +47,19 @@ const envSchema = z.object({
   SNAPSHOT_INTERVAL_MINUTES: z.coerce.number().int().min(15).max(10080).default(1440),
 });
 
-const roleSchema = z.enum(['ned_admin', 'coordinator', 'executive', 'auditor']);
+const roleSchema = z.enum(['ned_admin', 'executive']);
 const userSchema = z.object({
   email: z.string().email(), name: z.string().min(1).max(120), role: roleSchema,
   courseIds: z.array(z.union([z.string(), z.number()])).default([]),
 });
 const recipientSchema = z.object({
   audience: z.enum(['coordinators', 'executive']), email: z.string().email(), name: z.string().min(1).max(120),
+  cc: z.array(z.string().email()).max(20).default([]),
   courseIds: z.array(z.union([z.string(), z.number()])).default([]),
 });
 
 const DEMO_PROFILES = Object.freeze([
   { id: 'ned', email: 'ned.demo@example.invalid', name: 'Equipe NED — Demonstração', role: 'ned_admin', courseIds: [] },
-  { id: 'coordenacao', email: 'coordenacao.demo@example.invalid', name: 'Coordenação — Demonstração', role: 'coordinator', courseIds: ['1101', '1102'] },
   { id: 'gestao', email: 'gestao.demo@example.invalid', name: 'Alta Gestão — Demonstração', role: 'executive', courseIds: [] },
 ]);
 
@@ -75,6 +76,8 @@ function loadConfig(environment = process.env) {
   const parsed = envSchema.safeParse(environment);
   if (!parsed.success) throw new Error(`Configuração inválida: ${parsed.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
   const env = parsed.data;
+  const courseIds = [...new Set((env.MOODLE_COURSE_IDS || '').split(',').map((value) => value.trim()).filter(Boolean))];
+  if (courseIds.length > 10 || courseIds.some((value) => !/^[1-9]\d{0,18}$/.test(value) || BigInt(value) > 9223372036854775807n)) throw new Error('MOODLE_COURSE_IDS deve conter até 10 IDs numéricos positivos separados por vírgula.');
   const production = env.NODE_ENV === 'production';
   const jwtSecret = env.JWT_SECRET || (!production ? crypto.randomBytes(48).toString('base64url') : null);
   if (!jwtSecret) throw new Error('JWT_SECRET é obrigatório em produção.');
@@ -93,9 +96,9 @@ function loadConfig(environment = process.env) {
     trustProxy: env.TRUST_PROXY,
     auth: { mode: env.AUTH_MODE, proxySharedSecret: env.AUTH_PROXY_SHARED_SECRET, demoEnabled: env.DEMO_AUTH_ENABLED, jwtSecret, cookieSecure: env.COOKIE_SECURE, users: parseJsonArray(env.AUTH_USERS_JSON, userSchema, 'AUTH_USERS_JSON'), demoProfiles: DEMO_PROFILES },
     dataSource: env.DATA_SOURCE, snapshotStore: env.SNAPSHOT_STORE, appDatabaseUrl: env.APP_DATABASE_URL,
-    moodle: { server: env.MOODLE_DB_SERVER, port: env.MOODLE_DB_PORT, database: env.MOODLE_DB_DATABASE, user: env.MOODLE_DB_USER, password: env.MOODLE_DB_PASSWORD, caFile: env.MOODLE_DB_CA_FILE, categoryRoot: env.MOODLE_CATEGORY_ROOT, teacherRoleId: env.MOODLE_TEACHER_ROLE_ID, queryWindowDays: env.MOODLE_QUERY_WINDOW_DAYS, requestTimeoutMs: env.MOODLE_REQUEST_TIMEOUT_MS, deadlineCatalogPath: env.MOODLE_DEADLINE_CATALOG_PATH },
+    moodle: { server: env.MOODLE_DB_SERVER, port: env.MOODLE_DB_PORT, database: env.MOODLE_DB_DATABASE, user: env.MOODLE_DB_USER, password: env.MOODLE_DB_PASSWORD, caFile: env.MOODLE_DB_CA_FILE, courseIds, categoryRoot: env.MOODLE_CATEGORY_ROOT, teacherRoleId: env.MOODLE_TEACHER_ROLE_ID, queryWindowDays: env.MOODLE_QUERY_WINDOW_DAYS, requestTimeoutMs: env.MOODLE_REQUEST_TIMEOUT_MS, deadlineCatalogPath: env.MOODLE_DEADLINE_CATALOG_PATH },
     rules: { catalogPath: env.RULE_CATALOG_PATH, approved: env.RULES_APPROVED },
-    reports: { emailEnabled: env.EMAIL_SEND_ENABLED, recipients: parseJsonArray(env.REPORT_RECIPIENTS_JSON, recipientSchema, 'REPORT_RECIPIENTS_JSON'), smtp: { host: env.SMTP_HOST, port: env.SMTP_PORT, secure: env.SMTP_SECURE, user: env.SMTP_USER, password: env.SMTP_PASSWORD, from: env.SMTP_FROM } },
+    reports: { emailEnabled: env.EMAIL_SEND_ENABLED, recipients: parseJsonArray(env.REPORT_RECIPIENTS_JSON, recipientSchema, 'REPORT_RECIPIENTS_JSON') .concat(!env.REPORT_RECIPIENTS_JSON && env.DATA_SOURCE === 'demo' ? [{ audience: 'coordinators', name: 'Coordenação Tecnologia (demo)', email: 'tecnologia.demo@example.invalid', courseIds: ['1101', '1102'], cc: ['reitoria.demo@example.invalid', 'proreitoria.demo@example.invalid', 'graduacao.demo@example.invalid'] }, { audience: 'coordinators', name: 'Coordenação Graduação (demo)', email: 'graduacao.coord.demo@example.invalid', courseIds: ['1103', '1104', '1105'], cc: ['reitoria.demo@example.invalid', 'proreitoria.demo@example.invalid', 'graduacao.demo@example.invalid'] }] : []), smtp: { host: env.SMTP_HOST, port: env.SMTP_PORT, secure: env.SMTP_SECURE, user: env.SMTP_USER, password: env.SMTP_PASSWORD, from: env.SMTP_FROM } },
     snapshotIntervalMinutes: env.SNAPSHOT_INTERVAL_MINUTES,
   });
 }

@@ -1,4 +1,4 @@
-export type Role = "ned_admin" | "coordinator" | "executive" | "auditor";
+export type Role = "ned_admin" | "executive";
 export interface User { id: string; name: string; email: string; role: Role }
 export interface DemoProfile { id: string; name: string; role: Role }
 export type SessionResponse = { authenticated: false; authMode: "demo" | "proxy"; demoEnabled: boolean; demoProfiles: DemoProfile[] } | { authenticated: true; user: User; csrfToken: string; authMode: "demo" | "proxy"; demoEnabled: boolean };
@@ -19,7 +19,7 @@ export interface RankingData {
   policy: { version: string; weights: { onTime: number; delay: number; access: number }; delayBands: Array<{ maxDays: number; points: number }>; accessPoints: Record<string, number> } | null;
   regularity: RankingEntry[]; priority: RankingEntry[]; access: RankingEntry[]; incomplete: RankingEntry[]; teachers: RankingEntry[]; needsValidation: number;
 }
-export interface Requirement extends DelayFacts { responsibleTeacherId: string | null; responsibility: "ASSIGNED" | "OTHER_TEACHER" | "UNCONFIRMED"; id: string; baseId: string; label: string; manualControl: boolean; itemNumber: number | null; evidenceType: "SENT_BY_TEACHER" | "RECORDED_BY_TEACHER" | null; status: StructureStatus; reasonCode: string; reason: string; overdue: boolean; deadlineAt: string | null; deadlineSource: string | null; configuredAt: string | null; timingSource: "DEMO_TRUSTED" | "SNAPSHOT_OBSERVED" | "MANUAL_NED" | null; expectedQuantity: number | null; observedQuantity: number; evidence: Evidence[]; manualEvidenceDate?: string | null; publishedDate?: string | null; manualJustification?: string | null; manualUpdatedBy?: string | null; manualUpdatedAt?: string | null; manualVersion?: number; manualReplacementReason?: string | null; manualRevisionDeadlineDate?: string | null }
+export interface Requirement extends DelayFacts { responsibleTeacherId: string | null; responsibility: "ASSIGNED" | "OTHER_TEACHER" | "UNCONFIRMED"; id: string; baseId: string; label: string; manualControl: boolean; itemNumber: number | null; evidenceType: "SENT_BY_TEACHER" | "RECORDED_BY_TEACHER" | null; status: StructureStatus; reasonCode: string; reason: string; overdue: boolean; deadlineAt: string | null; deadlineSource: string | null; configuredAt: string | null; readyByAt?: string | null; timingSource: "DEMO_TRUSTED" | "SNAPSHOT_OBSERVED" | "MANUAL_NED" | "MOODLE_READY_BY_BOUND" | null; expectedQuantity: number | null; observedQuantity: number; evidence: Evidence[]; manualEvidenceDate?: string | null; publishedDate?: string | null; manualJustification?: string | null; manualUpdatedBy?: string | null; manualUpdatedAt?: string | null; manualVersion?: number; manualReplacementReason?: string | null; manualRevisionDeadlineDate?: string | null }
 export interface AssignmentRow {
   id: string;
   course: { id: string; name: string; shortName: string; period: string; modality: string; modalityLabel: string; workloadHours: number; startsAt: string; endsAt: string };
@@ -30,21 +30,23 @@ export interface AssignmentRow {
 }
 export interface QualityIssue { code: string; message: string; severity: "INFO" | "WARNING" | "CRITICAL"; courseId?: string }
 export interface DashboardData {
-  meta: { snapshotId: string; generatedAt: string; source: "demo" | "moodle"; isDemo: boolean; rulesVersion: string; rulesStatus: string; qualityStatus: "VALID" | "WARNING" | "BLOCKED"; publishAllowed: boolean; stale: boolean; qualityIssues: QualityIssue[] };
+  meta: { snapshotId: string; generatedAt: string; source: "demo" | "moodle"; isDemo: boolean; rulesVersion: string; rulesStatus: string; qualityStatus: "VALID" | "WARNING" | "BLOCKED"; publishAllowed: boolean; stale: boolean; qualityIssues: QualityIssue[]; deadlineVersionId?: string | null; currentDeadlineVersionId?: string | null; deadlinesChanged?: boolean };
   ranking: RankingData;
   visuals: {
     access: { total: number; items: Array<{ key: "CURRENT" | "ATTENTION" | "CRITICAL"; label: string; count: number; detail: string; percent: number }> };
     overdue: { totalDue: number; totalOverdue: number; unverified: number; items: Array<{ key: string; label: string; due: number; overdue: number; percent: number }> };
+    activities: Array<{ key: string; requirementId: string; requirementGroup: string; label: string; modality: string; modalityLabel: string; total: number; overdue: number; deliveredLate: number }>;
   };
   summary: { averageDaysLate: number | null; measuredLateItems: number; unmeasuredLateItems: number; monitoredTeachers: number; courses: number; requirements: { total: number; pending: number; overdue: number; deliveredLate: number; deliveredOnTime: number; inheritedReady: number; notApplicable: number; notVerifiable: number }; access: { current: number; attention: number; critical: number; never: number; outsideWindow: number } };
-  trend: Array<{ generatedAt: string; critical: number; attention: number }>;
+  trend: Array<{ generatedAt: string; critical: number; attention: number; delivered: number; pending: number; deliveredLate: number; overdue: number; notVerifiable: number }>;
   modalityBreakdown: Array<{ modality: string; label: string; total: number; issues: number; compliant: number }>;
   rows: AssignmentRow[];
   filters: { periods: string[]; modalities: Array<{ value: string; label: string }>; courses: Array<{ value: string; label: string }> };
   pagination: { page: number; pageSize: number; total: number; pages: number };
 }
-export interface DashboardFilters { teacherId?: string; requirementGroup?: string; period: string; modality: string; courseId: string; status: string; query: string; page: number }
-export interface ReportPreview { audience: "coordinators" | "executive"; reports: Array<{ snapshotId: string; publishAllowed: boolean; recipient: { name: string; email: string } | null; subject: string; text: string; html: string; blocker: string | null }> }
+export interface DashboardFilters { teacherId?: string; requirementGroup?: string; requirementId?: string; period: string; modality: string; courseId: string; status: string; query: string; page: number }
+export interface VisualSelection { label: string; status: string; requirementGroup?: string; requirementId?: string; modality?: string }
+export interface ReportPreview { audience: "coordinators" | "executive"; reports: Array<{ snapshotId: string; publishAllowed: boolean; recipient: { name: string; email: string; cc?: string[] } | null; subject: string; text: string; html: string; blocker: string | null }> }
 export type ManualDeliveryDisposition = "PENDING" | "DELIVERED" | "NOT_APPLICABLE";
 export interface ManualDeliveryHistory {
   version: number;

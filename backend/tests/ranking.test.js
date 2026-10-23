@@ -4,8 +4,10 @@ const { teacherRanking, delayPoints } = require('../core/ranking');
 const { calendarDays, delayFacts } = require('../core/timing');
 const { buildSnapshot } = require('../core/rules');
 const { DashboardService, groupAssignments, summarize } = require('../services/dashboardService');
+const { MonitoringService } = require('../services/monitoringService');
 const { buildReport, ReportService } = require('../services/reportService');
 const { MemoryStore } = require('../services/store');
+const { distinctStructureRows, executiveVisuals } = require('../services/dashboardService');
 const { createDemoSource } = require('../data/demoSource');
 const catalog = require('../config/rules.json');
 const at = '2026-09-11T12:00:00Z';
@@ -83,13 +85,34 @@ test('ranking respeita escopo, período e base inteira; não depende de página 
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
   await store.saveSnapshot(buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries }));
   const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
-  const user = { role: 'coordinator', courseIds: ['1101', '1102'] };
+  const user = { role: 'executive', scope: 'report_courses', courseIds: ['1101', '1102'] };
   const first = await service.getDashboard(user, { pageSize: 5 });
   const filtered = await service.getDashboard(user, { pageSize: 50, status: 'DELIVERED_LATE' });
   assert.deepEqual(first.ranking, filtered.ranking);
   assert.deepEqual(first.visuals, filtered.visuals);
   assert.deepEqual(first.ranking.teachers.map((entry) => entry.teacher.id).sort(), ['501', '502']);
   assert.equal((await service.getDashboard(user, { period: '2099/1' })).ranking.teachers.length, 0);
+});
+test('filtro pendente no prazo exige prazo conhecido, preserva escopo e não muda indicadores', async () => {
+  const raw = createDemoSource(new Date(at));
+  const snapshot = buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries });
+  const assignments = groupAssignments(snapshot.rows);
+  const future = assignments.find((row) => row.requirements.some((requirement) => requirement.status === 'PENDING' && !requirement.overdue && requirement.deadlineAt));
+  assert.ok(future, 'a amostra deve conter uma pendência no prazo');
+  const store = new MemoryStore(); await store.saveSnapshot(snapshot);
+  const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
+  const user = { role: 'executive', scope: 'report_courses', courseIds: [future.course.id] };
+  const overview = await service.getDashboard(user, { pageSize: 50 });
+  const within = await service.getDashboard(user, { pageSize: 50, status: 'WITHIN_DEADLINE' });
+  assert.ok(within.rows.length);
+  assert.ok(within.rows.every((row) => row.course.id === future.course.id && row.requirements.some((requirement) => requirement.responsibility !== 'OTHER_TEACHER' && requirement.status === 'PENDING' && !requirement.overdue && requirement.deadlineAt)));
+  assert.deepEqual(within.summary, overview.summary);
+  assert.deepEqual(within.ranking, overview.ranking);
+  const pending = snapshot.rows.filter((row) => row.structureStatus === 'PENDING');
+  for (const row of pending) { row.deadlineAt = null; row.overdue = false; }
+  const unknownStore = new MemoryStore(); await unknownStore.saveSnapshot(snapshot);
+  const unknownService = new DashboardService({ store: unknownStore, snapshotIntervalMinutes: 60 });
+  assert.equal((await unknownService.getDashboard(user, { status: 'WITHIN_DEADLINE' })).rows.length, 0);
 });
 test('gráficos executivos usam bases explícitas e o clique por tipo retorna só itens relacionados', async () => {
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
@@ -118,25 +141,28 @@ test('substitutiva sai de todas as linhas; evolução nunca mistura versões', a
   assert.equal(data.trend.length, 1); assert.equal(data.trend[0].generatedAt, current.generatedAt);
   assert.equal((await store.listSnapshots())[1].rulesVersion, 'old');
 });
-test('relatório detalhado usa todas as ocorrências e identifica limite do resumo executivo', async () => {
+test('notificação lista todas as pendências pontuais sem cortar ocorrências ou incluir ranking', async () => {
   const store = new MemoryStore(); const raw = createDemoSource(new Date(at));
   const template = raw.courses[0];
   raw.courses = Array.from({ length: 65 }, (_, index) => ({ ...structuredClone(template), id: `c${index}`, shortName: `Curso ${index}`, teachers: [{ ...template.teachers[0], id: `t${index}` }] }));
   const snapshot = buildSnapshot(raw, catalog); await store.saveSnapshot(snapshot);
-  const dashboardService = new DashboardService({ store, snapshotIntervalMinutes: 60 });
-  const service = new ReportService({ store, dashboardService, config: { reports: { emailEnabled: false, recipients: [] } } });
+  const monitoringService = new MonitoringService({ store, snapshotIntervalMinutes: 60 });
+  const service = new ReportService({ store, monitoringService, config: { reports: { emailEnabled: false, recipients: [] } } });
   const [report] = await service.preview('coordinators', { role: 'ned_admin' });
-  assert.equal(report.details.length, 65);
-  const full = await dashboardService.getDashboard({ role: 'executive' }, {}, { snapshot, allRows: true });
+  const full = await monitoringService.getMonitoring({ role: 'ned_admin' }, {}, { allRows: true });
+  assert.equal(report.details.length, full.deliveries.summary.overdue);
+  assert.equal(new Set(report.details.map((row) => row.course)).size, 65);
   const executive = buildReport('executive', full);
-  assert.equal(executive.details.length, 5); assert.match(executive.text, /60 outras ocorrências/);
+  assert.equal(executive.details.length, report.details.length);
   assert.ok(!executive.text.includes('substitutiva'));
+  assert.ok(!executive.text.includes('Ranking'));
+  assert.ok(!executive.text.includes('outras ocorrências disponíveis'));
 });
-test('relatórios de múltiplos destinatários preservam uma única fotografia', async () => {
+test('relatórios de múltiplos destinatários preservam uma única coleta', async () => {
   let lookups = 0; const captures = [];
   const snapshot = { id: 'fixed' };
-  const fakeData = { meta: { snapshotId: 'fixed', generatedAt: at, rulesVersion: 'v', publishAllowed: false }, summary: { courses: 0, monitoredTeachers: 0, requirements: { overdue: 0 }, access: { critical: 0, never: 0 }, averageDaysLate: 0, measuredLateItems: 0 }, rows: [] };
-  const service = new ReportService({ store: { latestSnapshot: async () => { lookups++; return snapshot; } }, dashboardService: { getDashboard: async (_user, _filters, options) => { captures.push(options.snapshot); return fakeData; } }, config: { reports: { emailEnabled: false, recipients: [{ audience: 'executive', name: 'A', email: 'a@example.invalid' }, { audience: 'executive', name: 'B', email: 'b@example.invalid' }] } } });
+  const fakeData = { meta: { snapshotId: 'fixed', generatedAt: at, rulesVersion: 'v', publishAllowed: false }, filters: { courses: [] }, access: { summary: { current: 0, attention: 0, critical: 0, never: 0, validation: 0 }, rows: [] }, deliveries: { summary: { overdue: 0, pendingInTime: 0, early: 0, onTime: 0, inherited: 0, deliveredLate: 0, notApplicable: 0, validation: 0 }, rows: [] } };
+  const service = new ReportService({ store: { latestSnapshot: async () => { lookups++; return snapshot; } }, monitoringService: { getMonitoring: async (_user, _filters, options) => { captures.push(options.snapshot); return fakeData; } }, config: { reports: { emailEnabled: false, recipients: [{ audience: 'executive', name: 'A', email: 'a@example.invalid' }, { audience: 'executive', name: 'B', email: 'b@example.invalid' }] } } });
   await service.preview('executive', { role: 'ned_admin' });
   assert.equal(lookups, 1); assert.deepEqual(captures, [snapshot, snapshot]);
 });
@@ -160,12 +186,51 @@ test('envio rejeita fotografia diferente daquela conferida na prévia', async ()
 test('HTML do relatório escapa nomes e mantém somente entregas do responsável', async () => {
   const raw = createDemoSource(new Date(at)); const snapshot = buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries });
   const store = new MemoryStore(); await store.saveSnapshot(snapshot);
-  const data = await new DashboardService({ store, snapshotIntervalMinutes: 60 }).getDashboard({ role: 'ned_admin' }, {}, { allRows: true });
-  data.rows[0].teacher.name = '<img src=x onerror=alert(1)>';
-  data.rows[0].severity = 'CRITICAL';
-  data.rows[0].requirements.push(item('PENDING', 10, { label: 'Item de outro docente', responsibility: 'OTHER_TEACHER' }));
+  const data = await new MonitoringService({ store, snapshotIntervalMinutes: 60 }).getMonitoring({ role: 'ned_admin' }, {}, { allRows: true });
+  const overdue = data.deliveries.rows.find((row) => row.displayStatus === 'OVERDUE');
+  overdue.teacher.name = '<img src=x onerror=alert(1)>';
   const report = buildReport('coordinators', data, '<script>bad</script>');
   assert.ok(!report.html.includes('<script>')); assert.ok(!report.html.includes('<img'));
   assert.ok(report.html.includes('&lt;script&gt;bad&lt;/script&gt;'));
-  assert.ok(!report.details[0].reason.includes('Item de outro docente'));
+  assert.ok(report.html.includes('&lt;img'));
+  assert.equal(report.details.length, data.access.summary.critical + data.access.summary.attention + data.access.summary.never + data.deliveries.summary.overdue);
+});
+test('atividades dos gráficos deduplicam material compartilhado e excluem outro responsável', () => {
+  const raw = createDemoSource(new Date(at));
+  const snapshot = buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries });
+  const structures = distinctStructureRows(snapshot.rows).filter((row) => !['NOT_APPLICABLE', 'INHERITED_READY', 'NOT_VERIFIABLE'].includes(row.structureStatus) && row.requirement.responsibility === 'ASSIGNED');
+  const graphics = executiveVisuals(snapshot.rows, at).activities;
+  assert.equal(graphics.reduce((sum, item) => sum + item.total, 0), structures.length);
+  assert.equal(graphics.reduce((sum, item) => sum + item.overdue, 0), structures.filter((row) => row.structureStatus === 'PENDING' && row.overdue).length);
+  assert.equal(graphics.reduce((sum, item) => sum + item.deliveredLate, 0), structures.filter((row) => row.structureStatus === 'DELIVERED_LATE').length);
+  const owned = snapshot.rows.find((row) => row.course.id === '1104' && row.requirement.baseId === 'videos' && row.requirement.responsibility === 'ASSIGNED');
+  const other = snapshot.rows.find((row) => row.course.id === '1104' && row.requirement.id === owned.requirement.id && row.requirement.responsibility === 'OTHER_TEACHER');
+  owned.structureStatus = 'DELIVERED_ON_TIME';
+  other.structureStatus = 'DELIVERED_LATE';
+  assert.equal(executiveVisuals([owned, other], at).activities[0].deliveredLate, 0);
+});
+test('clique de atividade filtra o bimestre correto e mantém a base dos gráficos e do ranking', async () => {
+  const raw = createDemoSource(new Date(at)); const store = new MemoryStore();
+  await store.saveSnapshot(buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries }));
+  const service = new DashboardService({ store, snapshotIntervalMinutes: 60 });
+  const user = { role: 'executive', scope: 'report_courses', courseIds: ['1103'] };
+  const full = await service.getDashboard(user);
+  const first = await service.getDashboard(user, { requirementGroup: 'ASSESSMENT', requirementId: 'avaliacao_bimestral_1' });
+  assert.ok(first.rows.length);
+  assert.ok(first.rows.every((row) => row.requirements.length > 0 && row.requirements.every((item) => item.baseId === 'avaliacao_bimestral_1')));
+  assert.deepEqual(first.visuals, full.visuals);
+  assert.deepEqual(first.ranking, full.ranking);
+  assert.deepEqual(first.trend, full.trend);
+  assert.equal((await service.getDashboard(user, { requirementId: 'inexistente' })).rows.length, 0);
+});
+test('evolução usa contagens da coleta, inclui atrasadas no total entregue e mantém pendências separadas', async () => {
+  const raw = createDemoSource(new Date(at)); const store = new MemoryStore();
+  await store.saveSnapshot(buildSnapshot(raw, catalog, { manualDeliveries: raw.manualDeliveries }));
+  const data = await new DashboardService({ store, snapshotIntervalMinutes: 60 }).getDashboard({ role: 'executive' });
+  const latest = data.trend[0]; const req = data.summary.requirements;
+  assert.equal(latest.delivered, req.deliveredOnTime + req.deliveredLate + req.inheritedReady);
+  assert.equal(latest.deliveredLate, req.deliveredLate);
+  assert.equal(latest.pending, req.pending);
+  assert.equal(latest.notVerifiable, req.notVerifiable);
+  assert.ok(latest.delivered >= latest.deliveredLate);
 });

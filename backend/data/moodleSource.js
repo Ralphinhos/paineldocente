@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const sql = require('mssql');
+const { officialDeadline } = require('../core/deadlines');
+const { activityFacts, metadataEvents, expectedModuleFor, readyBy, readinessConfirmed } = require('../core/moodle-evidence');
 
 function fromUnix(value) { const n = Number(value); return n > 0 ? new Date(n * 1000).toISOString() : null; }
 function normalize(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
@@ -27,11 +29,40 @@ function classifyRequirement(name, modality) {
 }
 function derivePeriod(shortName, startsAt) { const match = String(shortName || '').match(/(20\d{2})[^0-9]?([12])/); if (match) return `${match[1]}/${match[2]}`; const date = new Date(startsAt); return Number.isNaN(date.getTime()) ? null : `${date.getUTCFullYear()}/${date.getUTCMonth() < 6 ? 1 : 2}`; }
 function deriveWorkload(value, shortName, courseName) { const match = `${value || ''} ${shortName} ${courseName}`.match(/(?:^|\D)(20|40|60|80)\s*h?(?:\D|$)/i); return match ? Number(match[1]) : null; }
-function officialDeadline(catalog, period, modality, courseId, requirementId) {
-  const scope = catalog?.periods?.[period]?.[modality];
-  return scope?.courses?.[courseId]?.[requirementId] || scope?.defaults?.[requirementId] || null;
-}
 function buildEvents(row, teacherId) { return [row.module_updated_at && { name: '\\core\\event\\course_module_updated', occurredAt: fromUnix(row.module_updated_at), actorId: teacherId, origin: 'web' }, row.completion_updated_at && { name: '\\core\\event\\course_module_completion_updated', occurredAt: fromUnix(row.completion_updated_at), actorId: teacherId, relatedUserId: row.completion_related_user_id ? String(row.completion_related_user_id) : undefined, origin: 'web' }, row.module_viewed_at && { name: `\\mod_${row.module_name}\\event\\course_module_viewed`, occurredAt: fromUnix(row.module_viewed_at), actorId: teacherId, origin: 'web' }].filter(Boolean); }
+
+function selectActivities(course, deadlineCatalog) {
+  const activities = [];
+  for (const [requirementId, candidates] of course.groups) {
+    const expectedModule = expectedModuleFor(requirementId);
+    const preferred = expectedModule ? candidates.filter(({ row }) => row.module_name === expectedModule) : candidates;
+    const selected = preferred.length ? preferred : candidates;
+    const supported = !expectedModule || preferred.length > 0;
+    const selectedIds = new Set(selected.map(({ row }) => String(row.cm_id)));
+    for (const candidate of candidates) candidate.facts.selection = !supported ? 'unsupported' : selectedIds.has(String(candidate.row.cm_id)) ? 'selected' : 'excluded';
+    const observedIds = new Set(selected.filter(({ row }) => Number(row.activity_visible) === 1).map(({ row }) => String(row.cm_id)));
+    const deadline = officialDeadline(deadlineCatalog, course.period, course.modality, course.id, requirementId);
+    const deadlineAt = Array.isArray(deadline) ? deadline[0] || null : deadline;
+    const events = []; const metadataKeys = new Set();
+    for (const { row, facts } of selected) {
+      events.push(...buildEvents(row, String(row.teacher_id)));
+      for (const event of metadataEvents(facts)) {
+        const key = `${event.name}:${event.moduleId}:${event.occurredAt}`;
+        if (!metadataKeys.has(key)) { events.push(event); metadataKeys.add(key); }
+      }
+    }
+    const manual = ['unidades_aprendizagem', 'videos'].includes(requirementId);
+    const conflict = expectedModule && preferred.length && !observedIds.size && candidates.some(({ row }) => row.module_name !== expectedModule && Number(row.activity_visible) === 1);
+    const mappingConfidence = !supported ? 'UNSUPPORTED' : !manual && (selectedIds.size > 1 || conflict) ? 'AMBIGUOUS' : 'EXACT';
+    const readiness = manual ? [] : selected.map(({ facts }) => readinessConfirmed(facts));
+    const readinessValue = readiness.includes(true) ? true : readiness.includes(false) ? false : null;
+    const proofs = !manual && mappingConfidence === 'EXACT' ? selected.map(({ facts }) => readyBy(facts)).filter(Boolean).sort((a, b) => a.at.localeCompare(b.at)) : [];
+    activities.push({ id: `${course.id}:${requirementId}`, requirementId, label: selected[0].row.activity_name,
+      observedQuantity: observedIds.size, visible: observedIds.size > 0, configuredAt: null, configurationTimeSource: null,
+      deadlineAt, deadlineSource: deadlineAt ? 'OFFICIAL_CATALOG' : null, mappingConfidence, events, readyBy: proofs[0] || null, readinessConfirmed: readinessValue });
+  }
+  return activities;
+}
 
 function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }) {
   const courses = new Map(); const sourceIssues = [];
@@ -56,27 +87,65 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
       }
       course = { id: courseId, name: row.course_name, shortName: row.course_shortname, period, modality: modality || 'NAO_MAPEADA', workloadHours: workload || 1, startsAt, endsAt, originalCourseId: row.originalcourseid ? String(row.originalcourseid) : null, restoredAt: row.originalcourseid ? fromUnix(row.course_created_at) : null, requirementDeadlines, requirementOwners: deadlineCatalog?.periods?.[period]?.[modality]?.responsibleTeachers?.[courseId] || {}, teachers: new Map(), groups: new Map() }; courses.set(courseId, course);
     }
-    if (!course.teachers.has(teacherId)) course.teachers.set(teacherId, { id: teacherId, name: row.teacher_name, email: row.teacher_email || null, assignedAt: fromUnix(row.assigned_at), lastAccessAt: fromUnix(row.last_access_at), accessEvents: [] });
+    if (!course.teachers.has(teacherId)) course.teachers.set(teacherId, { id: teacherId, name: row.teacher_name, email: row.teacher_email || null, assignedAt: fromUnix(row.assigned_at), lastAccessAt: fromUnix(row.last_access_at), environmentLastAccessAt: fromUnix(row.environment_last_access_at), environmentAccessKnown: row.environment_last_access_at != null && Number.isFinite(Number(row.environment_last_access_at)) && Number(row.environment_last_access_at) >= 0, accessEvents: [] });
     const teacher = course.teachers.get(teacherId);
     if (!row.cm_id) continue;
     const requirementId = classifyRequirement(row.activity_name, course.modality); if (!requirementId) continue;
-    const configuredDeadline = officialDeadline(deadlineCatalog, course.period, course.modality, courseId, requirementId);
-    const group = course.groups.get(requirementId) || { id: `${courseId}:${requirementId}`, requirementId, label: row.activity_name, observedQuantity: 0, visible: false, configuredAt: null, configurationTimeSource: null, deadlineAt: Array.isArray(configuredDeadline) ? configuredDeadline[0] || null : configuredDeadline, deadlineSource: null, mappingConfidence: 'EXACT', events: [], moduleIds: new Set() };
-    if (group.deadlineAt) group.deadlineSource = 'OFFICIAL_CATALOG';
-    const moduleId = String(row.cm_id); if (!group.moduleIds.has(moduleId)) { group.observedQuantity += row.activity_visible ? 1 : 0; group.moduleIds.add(moduleId); }
-    group.visible = group.observedQuantity > 0;
-    const events = buildEvents(row, teacherId); group.events.push(...events); teacher.accessEvents.push(...events); course.groups.set(requirementId, group);
+    const facts = { ...activityFacts(row, generatedAt), requirementId };
+    course.moodleActivityFacts ||= [];
+    if (!course.moodleActivityFacts.some((item) => item.moduleId === facts.moduleId && item.teacherId === facts.teacherId)) course.moodleActivityFacts.push(facts);
+    const group = course.groups.get(requirementId) || [];
+    group.push({ row, facts }); course.groups.set(requirementId, group);
+    teacher.accessEvents.push(...buildEvents(row, teacherId));
   }
-  return { source: 'moodle', generatedAt, sourceIssues, courses: [...courses.values()].map((course) => ({ ...course, teachers: [...course.teachers.values()], activities: [...course.groups.values()].map(({ moduleIds, ...group }) => ({ ...group, mappingConfidence: !['unidades_aprendizagem', 'videos'].includes(group.requirementId) && moduleIds.size > 1 ? 'AMBIGUOUS' : group.mappingConfidence })), groups: undefined })) };
+  return { source: 'moodle', generatedAt, sourceIssues, courses: [...courses.values()].map((course) => {
+    const activities = selectActivities(course, deadlineCatalog);
+    return { ...course, teachers: [...course.teachers.values()], activities, groups: undefined };
+  }) };
 }
 
 class MoodleSource {
-  constructor(config) { this.config = config; this.pool = null; this.deadlines = JSON.parse(fs.readFileSync(config.deadlineCatalogPath, 'utf8')); }
+  constructor(config, options = {}) { this.config = config; this.trustServerCertificate = options.trustServerCertificate === true; this.includeHiddenCourses = options.includeHiddenCourses === true; this.pool = null; this.deadlines = JSON.parse(fs.readFileSync(config.deadlineCatalogPath, 'utf8')); }
   async connect() {
-    if (this.pool) return this.pool; const ca = this.config.caFile ? fs.readFileSync(this.config.caFile, 'utf8') : undefined;
-    this.pool = await new sql.ConnectionPool({ server: this.config.server, port: this.config.port, database: this.config.database, user: this.config.user, password: this.config.password, connectionTimeout: this.config.requestTimeoutMs, requestTimeout: this.config.requestTimeoutMs, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 }, options: { encrypt: true, trustServerCertificate: false, enableArithAbort: true, ...(ca ? { cryptoCredentialsDetails: { ca } } : {}) } }).connect(); return this.pool;
+    if (this.pool) return this.pool; const ca = !this.trustServerCertificate && this.config.caFile ? fs.readFileSync(this.config.caFile, 'utf8') : undefined;
+    this.pool = await new sql.ConnectionPool({ server: this.config.server, port: this.config.port, database: this.config.database, user: this.config.user, password: this.config.password, connectionTimeout: this.config.requestTimeoutMs, requestTimeout: this.config.requestTimeoutMs, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 }, options: { encrypt: true, trustServerCertificate: this.trustServerCertificate, enableArithAbort: true, ...(ca ? { cryptoCredentialsDetails: { ca } } : {}) } }).connect(); return this.pool;
   }
-  async fetch() { const generatedAt = new Date().toISOString(); const pool = await this.connect(); const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-snapshot.sql'), 'utf8'); const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot).input('teacherRoleId', sql.Int, this.config.teacherRoleId).input('logFrom', sql.BigInt, Math.floor((Date.now() - this.config.queryWindowDays * 86400000) / 1000)).query(query); return normalizeRows(result.recordset, generatedAt, this.deadlines); }
+  async testConnection() {
+    const pool = await this.connect();
+    const result = await pool.request().input('courseIds', sql.NVarChar(sql.MAX), JSON.stringify(this.config.courseIds || [])).query(`
+      SELECT CONVERT(varchar(20), id) AS id FROM dbo.mdl_course
+      WHERE id IN (SELECT CONVERT(bigint, [value]) FROM OPENJSON(@courseIds))`);
+    const found = new Set(result.recordset.map((row) => String(row.id)));
+    const missing = (this.config.courseIds || []).filter((id) => !found.has(id));
+    if (missing.length) throw Object.assign(new Error('Alguns IDs da amostra não foram encontrados no banco selecionado. Confira MOODLE_COURSE_IDS.'), { code: 'PILOT_COURSES_MISSING' });
+    return { courses: found.size };
+  }
+  async diagnoseCourseScope() {
+    const requested = this.config.courseIds || [];
+    if (!requested.length || requested.length > 10) throw Object.assign(new Error('O diagnóstico exige de 1 a 10 IDs em MOODLE_COURSE_IDS.'), { code: 'PILOT_CONFIG' });
+    const pool = await this.connect();
+    const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-course-scope.sql'), 'utf8');
+    const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot)
+      .input('teacherRoleId', sql.Int, this.config.teacherRoleId)
+      .input('courseIds', sql.NVarChar(sql.MAX), JSON.stringify(requested)).query(query);
+    return { categoryRoot: this.config.categoryRoot, teacherRoleId: this.config.teacherRoleId, includeHiddenCourses: this.includeHiddenCourses, rows: result.recordset };
+  }
+  async fetch(deadlineCatalog = this.deadlines) {
+    const generatedAt = new Date().toISOString(); const pool = await this.connect();
+    const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-snapshot.sql'), 'utf8');
+    const requested = this.config.courseIds || [];
+    const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot)
+      .input('teacherRoleId', sql.Int, this.config.teacherRoleId)
+      .input('includeHiddenCourses', sql.Bit, this.includeHiddenCourses && requested.length > 0)
+      .input('logFrom', sql.BigInt, Math.floor((Date.now() - this.config.queryWindowDays * 86400000) / 1000))
+      .input('courseIds', sql.NVarChar(sql.MAX), requested.length ? JSON.stringify(requested) : null).query(query);
+    if (requested.length) {
+      const found = new Set(result.recordset.map((row) => String(row.course_id)));
+      if ([...found].some((id) => !requested.includes(id))) throw Object.assign(new Error('A coleta retornou uma disciplina fora da amostra. O piloto foi interrompido.'), { code: 'COURSE_SCOPE_VIOLATION' });
+      if (requested.some((id) => !found.has(id))) throw Object.assign(new Error('Amostra incompleta. Execute npm run piloto:diagnostico para identificar os filtros de categoria, visibilidade e papel docente que excluem cada disciplina.'), { code: 'COURSE_SCOPE_INCOMPLETE' });
+    }
+    return normalizeRows(result.recordset, generatedAt, deadlineCatalog);
+  }
   async close() { if (this.pool) await this.pool.close(); this.pool = null; }
 }
 module.exports = { MoodleSource, classifyRequirement, normalizeRows, officialDeadline };

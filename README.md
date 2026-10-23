@@ -1,105 +1,115 @@
-# Painel Docente · UNIFENAS
+# Monitoramento Docente · NED / UNIFENAS
 
-Painel interno para acompanhar estrutura das disciplinas, acessos docentes e relatórios semanais com evidências rastreáveis.
+Aplicação interna com dois perfis: **NED**, que acompanha e registra informações, e **Alta Gestão**, que consulta o panorama semestral e os detalhes em leitura. Coordenadores recebem relatórios por e-mail e não possuem login. As duas visões usam a identidade visual aprovada em 19/10/2026; o panorama semestral aproveita as comparações do HTML **Análise Docente - Acessos e Atrasos(3).html**. Veja [Visão da Gestão](docs/VISAO_GESTAO.md).
 
-## O que está pronto
+## Testar sem Docker
 
-- Visões separadas para NED, coordenação e alta gestão.
-- Alta gestão com gráficos de faixas de acesso e entregas vencidas por tipo; cada faixa abre os casos relacionados.
-- NED organizado em Acompanhamento, UA e videoaulas, Qualidade e envios.
-- Ranking de regularidade com pesos 50/20/30 e cálculo consultável por docente.
-- Atrasos em dias por atividade, diferenciando duração comprovada e limite observado.
-- Avaliação substitutiva fora dos indicadores e relatórios.
-- Consulta direta ao Moodle SQL Server com usuário somente leitura.
-- Controle pelo NED: um pacote de UAs por disciplina e uma videoaula para cada 10h de carga horária.
-- Nova versão para troca de UAs ou regravação, com motivo, novo prazo e histórico preservado.
-- Regra específica para disciplinas restauradas: estrutura herdada pronta fica regular; acesso docente continua avaliado.
-- “Conclusão de atividade alterada” e visualização contam como interação, nunca como prova isolada de entrega.
-- Fotografias imutáveis no PostgreSQL, controle de qualidade e trilha de auditoria.
-- Prévia de e-mail para coordenações e resumo executivo.
-- Docker para demonstração e servidor interno.
+Com Node.js 22, encerre o teste anterior com Ctrl+C. Na pasta do projeto:
 
-> Produção inicia com envio de e-mail bloqueado. Só libere após homologar regras, prazos, amostra Moodle e destinatários.
+```bash
+npm ci
+npm --prefix backend ci
+npm run demo
+```
 
-## Teste rápido
+Abra [http://localhost:8080](http://localhost:8080) e escolha **Abrir demonstração do NED** ou **Abrir Alta Gestão**. No NED, o título é **Monitoramento Docente**, com as abas **Acessos**, **Entregas**, **Prazos** e **Relatório por coordenador**. Ctrl+C encerra os dois serviços.
+
+O teste usa dados fictícios em memória, coordenações fictícias e envio externo bloqueado. As portas 3001 e 8080 precisam estar livres. Registros de demonstração não persistem após encerrar.
+
+## Piloto local com SQL Server real
+
+Para autenticação SQL Server por usuário e senha, use [docs/PILOTO_LOCAL.md](docs/PILOTO_LOCAL.md). Copie `.env.piloto.example` para `.env.piloto`, preencha localmente a conexão e de 1 a 10 IDs reais do Moodle. `npm run piloto:conexao` testa a conexão TLS e os IDs; `npm run piloto:diagnostico` identifica filtros de entrada que excluem disciplinas; `npm run piloto` coleta a amostra e abre o NED em http://127.0.0.1:8080. A entrada local é automática, as duas portas ficam restritas ao computador, os e-mails e a publicação permanecem desligados. O piloto usa memória: prazos, materiais manuais e histórico se perdem ao encerrar. Implantação institucional continua exigindo PostgreSQL, autenticação institucional e homologação.
+
+## Quatro abas do NED
+
+| Aba | Unidade de acompanhamento | Conteúdo inicial |
+|---|---|---|
+| Acessos | Um docente, identificado pelo ID do Moodle | Atenção, críticos, sem registro e a validar |
+| Entregas | Uma atividade por disciplina e responsável | Somente pendências vencidas, com dias de atraso |
+| Prazos | Período e modalidade, com exceção por disciplina | Datas, conferência das alterações e histórico do NED |
+| Relatório por coordenador | Cursos vinculados ao destinatário no servidor | Prévia, Para/Cc, cópia do texto e download HTML |
+
+O filtro de docente, período, modalidade e disciplina afeta os números, gráficos e listas das duas abas analíticas. A busca permite selecionar o docente por nome e ID. Filtrar uma disciplina seleciona os docentes vinculados, preservando seu acesso global. A aba de acessos considera docentes com pelo menos uma disciplina ativa na data da coleta. O relatório usa os cursos da coordenação selecionada; os filtros analíticos ficam fora dessa aba para tornar o escopo explícito.
+
+As situações, a atividade selecionada e a paginação restringem a lista. Os indicadores e gráficos usam toda a base dos filtros compartilhados. Clicar numa barra de docente seleciona seu nome; clicar numa legenda da rosca filtra a situação; o Top 10 de atividades abre as pendências daquele item e modalidade. **Ver todos/Ver todas** permite conferir o restante.
+
+A aparência acompanha as imagens aprovadas: quatro cartões em azul, verde, âmbar e rosa, filtros compactos, painéis brancos e gráficos com valores e unidades. Acessos combina distribuição em rosca, os dez maiores intervalos e prioridades. Entregas combina rosca, barras empilhadas por docente e Top 10 de atividades com pendências. As comparações de acessos mais recentes e entregas no prazo ficam em **Ver comparações**. Valores ausentes não viram zero; entregas resolvidas não entram nas pendências vencidas.
+
+As barras empilhadas usam categorias exclusivas. O percentual de pendências usa somente itens aplicáveis, com responsável confirmado, situação conhecida e prazo em dia civil anterior à coleta. Pendências futuras, dados a validar e dispensas ficam fora dessa base. A quantidade e a base aparecem juntas; o maior atraso considera apenas pendências ainda abertas. A fatia “No prazo e replicadas” filtra esses dois estados; as antecipadas têm sua própria fatia.
+
+- Acessos: 0–7 dias em dia; 8–14 atenção; 15+ crítico. Sem registro e dado indisponível são distintos.
+- Entregas: antecipada, no prazo, replicada e conferida, pendente no prazo, pendente vencida, entregue com atraso, não aplicável e a validar.
+- Pendência vencida acumula dias até entregar. Entrega com atraso sai das cobranças abertas e permanece entre as resolvidas.
+- Antecipação exige data comprovada. Uma coleta observada não inventa a data exata de entrega.
+- Bimestres são requisitos separados. Substitutiva fica fora dos critérios.
+
+## Banco de dados e registro manual
+
+| Informação | Fonte |
+|---|---|
+| Último acesso ao ambiente | Moodle SQL Server: `mdl_user.lastaccess` |
+| Disciplinas, docentes, atividades e eventos | Consulta automática ao Moodle, usuário com SELECT apenas |
+| Prazo para o docente | Aba Prazos do NED, salva no PostgreSQL; não confundir com prazo do aluno |
+| Pacote de UAs | Data em que o docente enviou o pacote completo ao NED |
+| Videoaulas | Data da gravação de cada vídeo, registrada pelo NED |
+
+Na aba Entregas, **Registrar UA e videoaulas** abre o controle manual, respeitando o docente selecionado. Existe um pacote por disciplina e uma videoaula para cada 10h. Publicação é informativa. Correção mantém a versão; regravação/troca abre nova versão com motivo, novo prazo e histórico.
+
+O último acesso global não é média de semanas, acesso à disciplina nem data do último login. A consulta preserva esses conceitos separados. Um acesso antigo numa disciplina replicada não torna crítico um docente que acessou o ambiente recentemente. Referência primária: [campos de acesso na API Moodle](https://github.com/moodle/moodle/blob/main/public/enrol/externallib.php).
+
+A coleta usa estado atual e evidências homologadas. Visualizar atividade ou alterar conclusão não prova entrega. Data ou responsável sem comprovação fica **A validar**. Primeira coleta feita após o prazo pode não comprovar quando o material ficou pronto; o sistema mantém essa incerteza.
+
+## Notificar coordenação
+
+O botão **Preparar notificação** abre a aba **Relatório por coordenador**, com texto e HTML dos problemas confirmados e resumo dos demais itens verificados. Prévia e envio usam a mesma coleta. A prévia abrange todos os cursos vinculados ao destinatário no servidor.
+
+O NED confere **Para, Cópia, assunto e conteúdo**. O envio pela interface alcança somente a coordenação selecionada e suas cópias. O relatório não atribui nota nem mistura entregas resolvidas com pendências abertas. Há bloqueio para demonstração, dados incompletos, coleta desatualizada e mudança de coleta após a prévia. Repetir o envio de uma coleta já enviada não cria outra mensagem.
+
+Os destinatários são configurados no servidor. Exemplo com endereços que precisam ser substituídos e homologados:
+
+```json
+[{"audience":"coordinators","email":"coordenacao.exemplo@unifenas.br","name":"Coordenação Exemplo","courseIds":["1101","1102"],"cc":["reitoria.exemplo@unifenas.br","proreitoria.exemplo@unifenas.br","diretoria.exemplo@unifenas.br"]}]
+```
+
+Use esse JSON em `REPORT_RECIPIENTS_JSON`. `courseIds` são IDs das disciplinas Moodle, obtidos na integração. O sistema não adivinha a relação entre curso acadêmico, campus e coordenador. Ao configurá-la uma vez, a separação e composição dos relatórios são automáticas. O envio semanal por comando passa a usar coordenações por padrão; gestão recebe as cópias configuradas.
+
+A interface é de trabalho do NED. Coordenadores e gestão recebem os relatórios, sem necessidade de outra conta no painel. Permissões de consulta das integrações anteriores permanecem no backend para compatibilidade e isolamento dos relatórios; não há painéis separados na interface.
+
+## Cadastrar prazos pelo NED
+
+Na aba **Prazos**, escolha período, modalidade e todas as disciplinas do recorte ou uma disciplina específica. Altere as datas necessárias e informe o motivo. **Revisar alterações** mostra os valores anteriores e novos; **Confirmar e salvar prazos** grava uma versão com autor, data e motivo e solicita nova coleta.
+
+As videoaulas podem ter uma data comum. Ao selecionar uma disciplina, é possível definir uma data para cada vídeo previsto pela carga horária. UA continua como pacote único; avaliações do semestral têm campos separados para os dois bimestres. Datas de gravação/envio continuam em **Entregas → Registrar UA e videoaulas**.
+
+API e worker leem o calendário persistido em cada coleta, sem reiniciar. Edição concorrente ou coleta diferente exige nova conferência. Falha do recálculo preserva as datas salvas e bloqueia os relatórios até uma coleta com a versão atual. Novas versões de UA/vídeo mantêm seu prazo próprio. A demonstração continua sem persistência após encerrar.
+
+## Produção no servidor interno
+
+Guia direto para a equipe: [Funcionalidades e implantação](docs/GUIA_NED.md). O cadastro geral fica na aba **Prazos**, feito pelo NED: [operação, histórico e configuração inicial](docs/PRAZOS.md). O arquivo `backend/config/deadlines.json` serve como catálogo inicial da TI até existir uma versão salva pelo NED.
+
+Consulte [GUIA_DEPLOY.md](GUIA_DEPLOY.md) e `.env.production.example`. O servidor precisa de acesso ao SQL Server, PostgreSQL para coletas/histórico, autenticação institucional e SMTP. O navegador não recebe credenciais Moodle.
+
+`backend/config/rules.json` permanece PILOT. Cadastre e confira os prazos oficiais antes de homologar. Só habilite `RULES_APPROVED` e `EMAIL_SEND_ENABLED` após conferir a amostra real e os destinatários com o NED/TI. Não houve conexão ao banco ou SMTP institucional nesta implementação.
+
+Opcional para quem tem Docker instalado:
 
 ```bash
 docker compose -f compose.demo.yml up --build
 ```
 
-Abra [http://localhost:8080](http://localhost:8080) e escolha um dos três perfis fictícios. Para parar:
-
-```bash
-docker compose -f compose.demo.yml down
-```
-
-Na nova versão, confira:
-
-1. **Alta gestão:** clique numa faixa de acesso ou barra de entrega vencida para abrir os casos. No ranking, alterne Prioridade, Melhor regularidade e Acessos; as cores mostram os pesos 50/20/30.
-2. **NED → Acompanhamento:** abra “Detalhes” de uma pendência e confira prazo e dias de atraso.
-3. **NED → UA e videoaulas:** registre envio ou gravação; salve antes de trocar de aba. Publicação não altera a nota. Regravação continua em “Nova versão”.
-4. **Relatório semanal:** alterne público, confira a prévia e use “Baixar HTML”. A demonstração mantém o envio bloqueado.
-
-O filtro “Situação da lista” altera somente a lista de ocorrências; a nota e os indicadores usam a base completa dos filtros de período, modalidade, disciplina e docente. A evolução aparece após duas semanas de coletas com a mesma versão de regras. Coletas antigas continuam preservadas; clique em **Atualizar dados** no NED para aplicar a nova versão às próximas coletas.
-
-Sem Docker:
-
-```bash
-npm ci
-npm --prefix backend ci
-npm --prefix backend start
-npm run dev
-```
-
-## Como o painel decide
-
-| Dimensão | Prova principal | Não comprova |
-|---|---|---|
-| Estrutura | Estado atual, visibilidade, quantidade e prazo oficial | Abrir atividade ou alterar conclusão |
-| UA | Data em que o docente encaminhou o pacote completo ao NED | Data de publicação no Moodle |
-| Videoaula | Data em que o docente gravou cada vídeo | Data de edição do rótulo no Moodle |
-| Acesso | Último acesso no curso e eventos do próprio docente | Alteração feita por outra pessoa |
-| Estrutura herdada | Curso restaurado, pronto antes da atribuição | Apenas existir backup/restauração |
-| Atraso | Prazo do catálogo oficial homologado | Data de entrega configurada para o aluno |
-
-Faixas de acesso: **0–7 dias em dia**, **8–14 dias em atenção** e **15 dias ou mais crítico**.
-
-Ranking: até **50 pontos por entregas no prazo + 20 por duração do atraso + 30 por acesso**. Cada disciplina tem o mesmo peso dentro de cada componente. Só entram entregas cujo prazo já terminou. Base incompleta fica sem nota geral; material herdado e outras dispensas ficam fora das entregas. Acesso também tem classificação própria. Consulte a fórmula e os casos de teste em [Homologação das regras e dados](docs/VALIDACAO_REGRAS.md).
-
-“Publicado” é informação operacional e não altera o indicador docente. “Não aplicável” exige justificativa, fica registrado na auditoria e não entra no cálculo de entregas aplicáveis.
-
-Correção de data atualiza a versão vigente. Troca de material ou regravação abre uma nova versão com motivo e novo prazo; a anterior permanece disponível no histórico. A ação pode atingir uma videoaula ou todas as videoaulas da disciplina.
-
-## Perfis
-
-| Perfil | Visão | Ações |
-|---|---|---|
-| NED | Todos os detalhes e falhas de qualidade | Coletar, conferir, visualizar e enviar após liberação |
-| Coordenação | Somente disciplinas autorizadas | Filtrar, abrir evidências e visualizar relatório detalhado |
-| Alta gestão | Indicadores, tendência e prioridades | Visualizar resumo executivo |
-| Auditoria | Todos os dados, somente leitura | Conferir evidências e histórico |
-
-## Verificação
+## Conferência técnica
 
 ```bash
 npm run check
-npm audit --omit=dev
-npm --prefix backend audit --omit=dev
 npm --prefix backend run validate:data -- --fresh
 ```
 
-## Documentos
+A validação cobre limites de acesso, ausência de fonte, duplicidade, docentes com mesmo nome, escopo, prazos, bimestres, responsáveis, materiais manuais, relatórios e Cc. Os componentes reais são renderizados em Node com dados do serviço. Isso verifica conteúdo e números, não aparência ou interação no navegador.
 
-- [Implantação no servidor interno](GUIA_DEPLOY.md)
-- [Arquitetura e segurança](docs/ARQUITETURA.md)
-- [Homologação das regras e dados](docs/VALIDACAO_REGRAS.md)
-- [Especificação técnica compacta](SPEC.md)
+- [Conferência da interface e limites](docs/VALIDACAO_INTERFACE.md)
+- [Arquitetura](docs/ARQUITETURA.md)
+- [Homologação dos dados](docs/VALIDACAO_REGRAS.md)
+- [Referências e atribuições](docs/UI_REFERENCIAS.md)
+- [Especificação](SPEC.md)
 
-## Estado de homologação
-
-`backend/config/rules.json` está como `PILOT`. `backend/config/deadlines.json` está vazio. Enquanto isso:
-
-- painel funciona para conferência;
-- itens sem prazo ficam “Não verificável”;
-- `publishAllowed=false`;
-- e-mail externo permanece bloqueado.
+XLSX por coordenação, cadastro de destinatários na interface e exceções manuais para atividades Moodle não fazem parte desta alteração. O controle manual disponível é o de UA e videoaulas.

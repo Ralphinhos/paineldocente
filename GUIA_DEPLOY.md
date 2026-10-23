@@ -40,8 +40,8 @@ openssl rand -hex 24
 
 Regras:
 
-- `AUTH_USERS_JSON` define perfil e escopo; nunca vem do navegador.
-- `courseIds` da coordenação devem usar IDs reais do Moodle.
+- `AUTH_USERS_JSON` aceita somente os perfis de login `ned_admin` e `executive`; nunca vem do navegador. Remova cadastros antigos de coordenação/auditoria antes de reiniciar os serviços.
+- Coordenadores recebem e-mail e não possuem login. Seus `courseIds` em `REPORT_RECIPIENTS_JSON` usam IDs reais do Moodle.
 - `APP_DB_PASSWORD` deve ser alfanumérico ou codificado para URL.
 - `RULES_APPROVED=false` e `EMAIL_SEND_ENABLED=false` durante homologação.
 
@@ -61,10 +61,19 @@ GRANT SELECT ON OBJECT::dbo.mdl_course_modules TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_customfield_data TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_customfield_field TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_forum TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_forum_discussions TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_forum_posts TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_h5pactivity TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_label TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_logstore_standard_log TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_lti TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_modules TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_page TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_quiz TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_quiz_slots TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_question TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_question_references TO [painel_docente_ro];
+GRANT SELECT ON OBJECT::dbo.mdl_question_versions TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_resource TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_role_assignments TO [painel_docente_ro];
 GRANT SELECT ON OBJECT::dbo.mdl_url TO [painel_docente_ro];
@@ -98,7 +107,7 @@ docker compose --env-file .env.production run --rm api node scripts/validate-sna
 
 Somente após aprovação NED + TI:
 
-1. preencha `backend/config/deadlines.json`;
+1. cadastre as datas oficiais na aba **Prazos** do NED, ou importe o catálogo inicial em `backend/config/deadlines.json` antes do primeiro cadastro pela interface;
 2. altere o catálogo de regras para status homologado;
 3. defina `RULES_APPROVED=true`;
 4. recrie `api` e `worker`;
@@ -109,6 +118,8 @@ docker compose --env-file .env.production run --rm api node scripts/validate-sna
 ```
 
 Saída válida e `publishAllowed=true` são obrigatórias.
+
+O NED cadastra e confere os prazos na interface conforme [docs/PRAZOS.md](docs/PRAZOS.md). As versões ficam no PostgreSQL e são lidas por API e worker a cada coleta. O esquema cria `pd_deadline_catalogs` e o vínculo da coleta à versão utilizada. Antes de atualizar uma instalação existente, faça backup e homologue a migração em cópia do banco. O arquivo JSON continua como base inicial; depois do primeiro cadastro NED, o catálogo persistido prevalece. Alterações de variáveis de ambiente exigem recriar os serviços.
 
 ## 7. Habilitar e-mail semanal
 
@@ -121,10 +132,10 @@ EMAIL_SEND_ENABLED=true
 Recrie API e worker. Faça um envio controlado:
 
 ```bash
-docker compose --env-file .env.production run --rm -e REPORT_AUDIENCE=executive api node scripts/send-weekly-report.js
+docker compose --env-file .env.production run --rm -e REPORT_AUDIENCE=coordinators api node scripts/send-weekly-report.js
 ```
 
-Valores de `REPORT_AUDIENCE`: `coordinators`, `executive` ou vazio para ambos. O comando é idempotente por fotografia e destinatário.
+O fluxo atual usa `REPORT_AUDIENCE=coordinators` (também é o padrão quando vazio). Configure as cópias da gestão no campo `cc` de cada destinatário. O modo `executive` permanece apenas para compatibilidade com integrações anteriores. O comando é idempotente por fotografia e destinatário.
 
 Agende no cron do servidor somente após o teste:
 

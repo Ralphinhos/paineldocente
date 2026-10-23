@@ -1,71 +1,98 @@
-import { FileText, RefreshCw, ShieldAlert, X } from 'lucide-react';
+import { ArrowLeft, CalendarDays, RefreshCw, Send, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest, toQueryString } from '@/api/client';
 import { AppShell } from '@/components/layout/AppShell';
-import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
-import { DataGuardBanner } from '@/components/dashboard/DataGuardBanner';
-import { EvidenceDrawer } from '@/components/dashboard/EvidenceDrawer';
-import { ExceptionTable } from '@/components/dashboard/ExceptionTable';
-import { ExecutiveOverview } from '@/components/dashboard/ExecutiveOverview';
-import type { ExecutiveVisualSelection } from '@/components/dashboard/ExecutiveCharts';
-import { TeacherRanking } from '@/components/dashboard/TeacherRanking';
+import { WorkspaceTabs } from '@/components/ui/WorkspaceTabs';
+import { AccessOverview } from '@/components/dashboard/AccessOverview';
+import { DeliveryOverview } from '@/components/dashboard/DeliveryOverview';
+import { DeliveryDetails } from '@/components/dashboard/DeliveryDetails';
+import { MonitoringFilters } from '@/components/dashboard/MonitoringFilters';
 import { ManualDeliveryPanel } from '@/components/dashboard/ManualDeliveryPanel';
+import { DeadlinePanel } from '@/components/dashboard/DeadlinePanel';
+import { DataGuardBanner } from '@/components/dashboard/DataGuardBanner';
 import { ReportPreviewDialog } from '@/components/dashboard/ReportPreviewDialog';
-import { SummaryBar } from '@/components/dashboard/SummaryBar';
+import { initialDetailFilters } from '@/lib/workspace';
+import { formatDate } from '@/lib/presentation';
 import { useAuth } from '@/contexts/auth';
-import type { AssignmentRow, DashboardData, DashboardFilters as FilterState, RankingEntry } from '@/types/dashboard';
-const EMPTY_FILTERS: FilterState = { period: '', modality: '', courseId: '', status: '', requirementGroup: '', query: '', page: 1 };
-function formatGeneratedAt(value: string) { return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value)); }
+import type { DeliveryRecord, MonitoringData, MonitoringFilters as Filters } from '@/types/monitoring';
+
+const formatGeneratedAt = (value: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value));
+
 export function DashboardPage() {
   const { user, csrfToken } = useAuth();
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [selected, setSelected] = useState<AssignmentRow | null>(null);
-  const [selectedTeacher, setSelectedTeacher] = useState<string | null>(null);
-  const [selectedVisual, setSelectedVisual] = useState<string | null>(null);
-  const [section, setSection] = useState('tracking');
+  const ned = user?.role === 'ned_admin';
+  const [filters, setFilters] = useState<Filters>(() => initialDetailFilters(typeof window === 'undefined' ? '' : window.location.search));
+  const readOnly = !ned || Boolean(filters.snapshotId);
+  const [data, setData] = useState<MonitoringData | null>(null);
+  const [section, setSection] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('section') === 'deliveries' ? 'deliveries' : 'access');
+  const [selected, setSelected] = useState<DeliveryRecord | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
   const [manualDirty, setManualDirty] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
+  const [deadlineDirty, setDeadlineDirty] = useState(false);
+  const unsavedChanges = manualDirty || deadlineDirty;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [manualRefreshKey, setManualRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
   const load = useCallback(async (signal?: AbortSignal) => {
+    if (!user) return;
     setLoading(true); setError(null);
-    try { setData(await apiRequest<DashboardData>(`/api/dashboard${toQueryString({ ...filters, pageSize: user?.role === 'executive' ? 50 : 20 })}`, { signal })); }
-    catch (caught) { if ((caught as Error).name !== 'AbortError') setError(caught instanceof Error ? caught.message : 'Não foi possível carregar o painel.'); }
-    finally { if (!signal?.aborted) setLoading(false); }
-  }, [filters, user?.role]);
-  useEffect(() => { const controller = new AbortController(); const timeout = window.setTimeout(() => void load(controller.signal), filters.query ? 250 : 0); return () => { window.clearTimeout(timeout); controller.abort(); }; }, [load, filters.query]);
-  const refresh = async () => { setRefreshing(true); setError(null); try { await apiRequest('/api/operations/snapshots', { method: 'POST', csrfToken }); await load(); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Falha ao atualizar os dados.'); } finally { setRefreshing(false); } };
-  const executive = user?.role === 'executive';
-  const ned = user?.role === 'ned_admin';
-  const chooseTeacher = (entry: RankingEntry) => { setSelectedVisual(null); setSelectedTeacher(entry.teacher.name); setFilters((current) => ({ ...current, teacherId: entry.teacher.id, status: '', requirementGroup: '', page: 1 })); };
-  const chooseVisual = (selection: ExecutiveVisualSelection) => { setSelectedTeacher(null); setSelectedVisual(selection.label); setFilters((current) => ({ ...current, teacherId: '', status: selection.status, requirementGroup: selection.requirementGroup || '', page: 1 })); };
-  const patchFilters = (next: FilterState) => {
-    if (!next.teacherId) setSelectedTeacher(null);
-    if (next.status !== filters.status || next.requirementGroup !== filters.requirementGroup) setSelectedVisual(null);
-    setFilters(next);
+    try {
+      const result = await apiRequest<MonitoringData>('/api/monitoring' + toQueryString({ ...filters, pageSize: 20 }), { signal });
+      if (!signal?.aborted) setData(result);
+    } catch (caught) {
+      if ((caught as Error).name !== 'AbortError') setError(caught instanceof Error ? caught.message : 'Não foi possível carregar os dados.');
+    } finally { if (!signal?.aborted) setLoading(false); }
+  }, [filters, user]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  const refresh = async () => {
+    setRefreshing(true); setError(null);
+    try {
+      if (!readOnly) await apiRequest('/api/operations/snapshots', { method: 'POST', csrfToken });
+      await load(); setManualRefreshKey((current) => current + 1);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Não foi possível atualizar a coleta.'); }
+    finally { setRefreshing(false); }
   };
-  return <AppShell>
-    <div className="page-header"><div><h1>{executive ? 'Acompanhamento executivo' : user?.role === 'coordinator' ? 'Minhas disciplinas' : 'Acompanhamento docente'}</h1>{data && <p>Atualizado em {formatGeneratedAt(data.meta.generatedAt)}{loading ? ' · Atualizando…' : ''}</p>}</div><div className="header-actions">{ned && <button className="secondary-button" type="button" disabled={refreshing || manualDirty} onClick={() => void refresh()}><RefreshCw size={17} className={refreshing ? 'spin' : ''} />{refreshing ? 'Atualizando…' : 'Atualizar dados'}</button>}<button className="primary-button" type="button" disabled={!data || manualDirty} onClick={() => setReportOpen(true)}><FileText size={17} />Relatório semanal</button></div></div>
-    {error && <div className="page-error" role="alert"><ShieldAlert size={19} /><span>{error}</span><button type="button" onClick={() => void load()}>Tentar novamente</button></div>}
-    {loading && !data ? <div className="dashboard-skeleton" aria-label="Carregando acompanhamento"><div /><div /><div /></div> : data && <>
-      <DataGuardBanner meta={data.meta} />
-      {ned && <nav className="workspace-nav" aria-label="Áreas do NED">{[['tracking', 'Acompanhamento'], ['manual', 'UA e videoaulas'], ['quality', `Qualidade e envios${data.meta.qualityIssues.length ? ` (${data.meta.qualityIssues.length})` : ''}`]].map(([key, label]) => <button type="button" key={key} aria-pressed={section === key} disabled={manualDirty && section !== key} onClick={() => setSection(key)}>{label}</button>)}</nav>}
-      <div hidden={ned && section !== 'tracking'} aria-busy={loading}>
-        <DashboardFilters value={filters} options={data.filters} onChange={patchFilters} />
-        {selectedTeacher && <div className="selected-teacher"><span>Docente: <strong>{selectedTeacher}</strong></span><button className="link-button" type="button" onClick={() => { setSelectedTeacher(null); setFilters((current) => ({ ...current, teacherId: '', page: 1 })); }}><X size={16} />Voltar a todos</button></div>}
-        {selectedVisual && <div className="selected-teacher"><span>Detalhe: <strong>{selectedVisual}</strong></span><button className="link-button" type="button" onClick={() => { setSelectedVisual(null); setFilters((current) => ({ ...current, status: '', requirementGroup: '', page: 1 })); }}><X size={16} />Voltar aos gráficos</button></div>}
-        <SummaryBar summary={data.summary} />
-        {executive && !selectedTeacher && !selectedVisual ? <ExecutiveOverview data={data} onOpen={setSelected} onTeacher={chooseTeacher} onVisual={chooseVisual} /> : <>
-          {!selectedTeacher && <details className="coordinator-ranking"><summary>Ranking docente · 50 / 20 / 30</summary><TeacherRanking data={data.ranking} onSelect={chooseTeacher} /></details>}
-          <ExceptionTable data={data} filters={filters} onFilters={patchFilters} onOpen={setSelected} />
-        </>}
-      </div>
-      {ned && <div hidden={section !== 'manual'}><ManualDeliveryPanel active={section === 'manual'} onDirtyChange={setManualDirty} onUpdated={load} /></div>}
-      {ned && section === 'quality' && <section className="quality-section"><div className="section-heading compact"><div><h2>Validação e publicação</h2><p>{data.meta.publishAllowed ? 'Dados liberados para envio.' : 'Confira as ocorrências antes de publicar.'}</p></div><button className="secondary-button" type="button" onClick={() => setReportOpen(true)}>Conferir relatório</button></div><details className="source-details"><summary>Origem e regras desta coleta</summary><p>Coleta {data.meta.snapshotId} · Regra {data.meta.rulesVersion} · {data.meta.source === 'demo' ? 'Demonstração' : 'Moodle'}</p></details>{data.meta.qualityIssues.length ? <ul>{data.meta.qualityIssues.map((issue, index) => <li key={`${issue.code}-${index}`}><span className={`quality-dot dot-${issue.severity.toLowerCase()}`} /><div><strong>{issue.message}</strong></div></li>)}</ul> : <p className="empty-inline">Nenhum bloqueio localizado.</p>}</section>}
-      <EvidenceDrawer row={selected} onClose={() => setSelected(null)} />
-      <ReportPreviewDialog open={reportOpen} onClose={() => setReportOpen(false)} />
+  const chooseTeacher = (teacherId: string) => setFilters((current) => ({ ...current, teacherId, accessStatus: 'ALL', activityKey: '', page: 1 }));
+  const seeDeliveries = (teacherId: string) => {
+    setSection('deliveries'); setManualOpen(false);
+    setFilters((current) => ({ ...current, teacherId, deliveryStatus: 'OVERDUE', activityKey: '', page: 1 }));
+  };
+  const changeSection = (next: string) => {
+    if (unsavedChanges || readOnly && !['access', 'deliveries'].includes(next)) return;
+    setSection(next); setManualOpen(false); setFilters((current) => ({ ...current, page: 1 }));
+  };
+  const openManual = (row?: DeliveryRecord) => {
+    if (readOnly) return;
+    if (row) setFilters((current) => ({ ...current, teacherId: row.teacher.id, courseId: row.course.id, page: 1 }));
+    setManualOpen(true);
+  };
+  const disabled = loading || refreshing || unsavedChanges;
+
+  return <AppShell hasUnsavedChanges={unsavedChanges} header={<><div className="ned-page-heading"><h1>{readOnly ? 'Detalhamento Docente' : 'Monitoramento Docente'}</h1><p>{readOnly ? 'Consulta dos dados e evidências do semestre' : 'Área de trabalho do NED'}</p></div><div className="ned-header-actions"><span className="ned-collection-date" title={data ? 'Coleta de ' + formatGeneratedAt(data.meta.generatedAt) : undefined}><CalendarDays size={17} />{data ? 'Coleta: ' + formatDate(data.meta.generatedAt) : 'Carregando coleta…'}{loading && data && <span className="sr-only">Atualizando dados</span>}</span><button className="secondary-button" type="button" disabled={disabled} onClick={() => void refresh()}><RefreshCw size={16} className={refreshing ? 'spin' : ''} />{refreshing ? 'Atualizando…' : readOnly ? 'Recarregar consulta' : 'Atualizar dados'}</button>{!readOnly && <button className="primary-button" type="button" disabled={!data || disabled || manualOpen} onClick={() => changeSection('reports')}><Send size={16} />Preparar notificação</button>}</div></>}>
+    {error && <div className="page-error" role="alert"><ShieldAlert size={18} /><span>{error}{data && ' A coleta anterior permanece visível.'}</span><button type="button" onClick={() => void load()}>Tentar novamente</button></div>}
+    {!data && loading ? <div className="dashboard-skeleton" role="status" aria-label="Carregando acompanhamento docente"><div /><div /><div /><span className="sr-only">Carregando dados…</span></div> : data && <>
+      {!readOnly ? <DataGuardBanner meta={data.meta} /> : <div className="guard-banner guard-demo" role="note"><CalendarDays size={16} aria-hidden="true" /><span><strong>Consulta de {formatDate(data.meta.generatedAt)}.</strong> {data.meta.isDemo ? 'Dados fictícios. ' : ''}Alterações e envios são feitos pelo NED.{data.meta.qualityStatus !== 'VALID' && ' Existem resultados a validar.'}</span>{ned && <button type="button" className="text-action" onClick={() => setFilters((current) => ({ ...current, snapshotId: undefined }))}>Abrir dados atuais para editar</button>}</div>}
+      {(filters.bimester || filters.deadlineScope === 'closed' || filters.accessScope === 'semester') && <div className="detail-scope-note" role="status">{filters.bimester ? filters.bimester + 'º bimestre · ' : ''}{filters.deadlineScope === 'closed' ? 'Entregas com prazo encerrado · ' : ''}{filters.accessScope === 'semester' ? 'Acessos dos docentes do semestre, incluindo disciplinas encerradas.' : ''}</div>}
+      {['access', 'deliveries'].includes(section) && <MonitoringFilters value={filters} options={data.filters} disabled={unsavedChanges || refreshing} onChange={(next) => { setManualOpen(false); setFilters(next); }} />}
+      <WorkspaceTabs id="monitoring" label="Áreas do acompanhamento docente" value={section} onChange={changeSection} locked={unsavedChanges} tabs={[{ id: 'access', label: 'Acessos', icon: 'chart' }, { id: 'deliveries', label: 'Entregas', icon: 'table' }, ...(!readOnly ? [{ id: 'deadlines', label: 'Prazos', icon: 'calendar' as const }, { id: 'reports', label: 'Relatório por coordenador', icon: 'people' as const }] : [])]} />
+      <section id="monitoring-panel-access" role="tabpanel" aria-labelledby="monitoring-tab-access" hidden={section !== 'access'} aria-busy={loading}>
+        <AccessOverview data={data.access} filters={filters} disabled={disabled} onChange={setFilters} onTeacher={chooseTeacher} onDeliveries={seeDeliveries} />
+      </section>
+      <section id="monitoring-panel-deliveries" role="tabpanel" aria-labelledby="monitoring-tab-deliveries" hidden={section !== 'deliveries'} aria-busy={loading}>
+        {manualOpen ? <><button className="text-action back-to-deliveries" type="button" disabled={manualDirty} onClick={() => setManualOpen(false)}><ArrowLeft size={17} />Voltar às entregas</button><ManualDeliveryPanel key={[filters.teacherId, filters.courseId, filters.period, filters.modality].join(':')} initialFilters={{ teacherId: filters.teacherId, courseId: filters.courseId, period: filters.period, modality: filters.modality }} active={section === 'deliveries'} refreshKey={manualRefreshKey} onDirtyChange={setManualDirty} onUpdated={load} /></> : <DeliveryOverview data={data.deliveries} filters={filters} disabled={disabled} onChange={setFilters} onTeacher={chooseTeacher} onOpen={setSelected} onManual={openManual} canManage={!readOnly} />}
+      </section>
+      {!readOnly && <section id="monitoring-panel-deadlines" role="tabpanel" aria-labelledby="monitoring-tab-deadlines" hidden={section !== 'deadlines'}><DeadlinePanel active={section === 'deadlines'} refreshKey={manualRefreshKey} onDirtyChange={setDeadlineDirty} onUpdated={load} /></section>}
+      {!readOnly && <section id="monitoring-panel-reports" role="tabpanel" aria-labelledby="monitoring-tab-reports" hidden={section !== 'reports'}><ReportPreviewDialog key={data.meta.snapshotId + ':' + (data.meta.currentDeadlineVersionId || '')} inline open={section === 'reports'} onClose={() => changeSection('access')} /></section>}
+      <details className="criteria-help"><summary>Critérios do acompanhamento</summary><div className="criteria-grid"><div><h3>Acessos ao ambiente</h3><p>0–7 dias em dia · 8–14 atenção · 15+ crítico. Um registro por docente, independentemente do número de disciplinas.</p><p>{filters.accessScope === 'semester' ? 'Inclui docentes de disciplinas encerradas no semestre. ' : 'Considera docentes com disciplinas ativas. '}Sem registro e dados a validar são identificados separadamente. A contagem usa a data desta coleta.</p></div><div><h3>Entregas</h3><p>Pendente vencida acumula atraso até entregar. Entregue com atraso fica no histórico de resolvidas. Pendência dentro do prazo permanece em acompanhamento.</p><p>UA: envio do pacote completo. Vídeo: gravação, uma aula por 10h. Materiais replicados e conferidos contam no prazo. Bimestres separados; substitutiva fora dos critérios.</p></div></div></details>
+      {data.meta.qualityIssues.length > 0 && <details className="quality-details"><summary>Conferir dados · {data.meta.qualityIssues.length} ocorrência(s)</summary><ul className="quality-issue-list">{data.meta.qualityIssues.map((issue, index) => <li key={issue.code + index}>{issue.message}</li>)}</ul></details>}
+      <DeliveryDetails row={selected} onClose={() => setSelected(null)} />
     </>}
   </AppShell>;
 }
