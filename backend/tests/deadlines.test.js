@@ -213,3 +213,108 @@ test('relatório não sai com calendário alterado mesmo se a coleta anterior es
   await assert.rejects(reportService.send('coordinators', actor, 'blocked', before.id, ['tecnologia.demo@example.invalid']), (error) => error.code === 'QUALITY_GATE_BLOCKED');
   assert.equal(sends, 0);
 });
+
+test('módulo começa sem vínculos e oferece somente as datas do print correspondente', async (t) => {
+  const { runtime, agent } = await setup(t);
+  const first = await agent.get('/api/operations/deadlines').query({ period: '2026/2', modality: 'GRADUACAO_EAD', calendarGroup: 'M1' }).expect(200);
+  assert.equal(first.body.scope.length, 0);
+  assert.equal(first.body.filters.courses.find((course) => course.id === '1101').calendarGroup, null);
+  assert.equal(first.body.referenceDates.avaliacao_final, '2026-09-21');
+  const second = await runtime.services.deadlineService.view({ period: '2026/2', modality: 'GRADUACAO_EAD', calendarGroup: 'M2' });
+  assert.equal(second.referenceDates.avaliacao_final, '2026-11-09');
+  assert.equal(second.referenceDates.forum_diagnostico, '2026-09-28');
+  assert.ok(!('videos' in second.referenceDates));
+  assert.equal(await runtime.services.store.latestDeadlineCatalog(), null);
+  const otherSemester = await runtime.services.deadlineService.view({ period: '2027/1', modality: 'GRADUACAO_EAD', calendarGroup: 'M1' });
+  assert.deepEqual(otherSemester.referenceDates, {});
+});
+
+test('Modular mantém M1 e M2 independentes e preserva as demais disciplinas', async (t) => {
+  const { runtime, actor } = await setup(t); const service = runtime.services.deadlineService;
+  const before = await runtime.services.store.latestSnapshot();
+  for (const [courseId, calendarGroup, date] of [['1102', 'M1', '2026-08-31'], ['1104', 'M2', '2026-11-03']]) {
+    const input = { ...await draft(runtime, 'avaliacao_final', courseId), calendarGroup, changes: [{ requirementId: 'avaliacao_final', dates: [date] }] };
+    const preview = await service.preview(input, actor);
+    assert.equal((await service.view({ period: input.period, modality: 'MODULAR', calendarGroup })).scope.length, 0);
+    await service.save(input, preview.reviewToken, actor, 'module-' + calendarGroup);
+  }
+  const first = await service.view({ period: '2026/2', modality: 'MODULAR', calendarGroup: 'M1' });
+  const second = await service.view({ period: '2026/2', modality: 'MODULAR', calendarGroup: 'M2' });
+  assert.deepEqual(first.scope.map((course) => course.id), ['1102']); assert.deepEqual(second.scope.map((course) => course.id), ['1104']);
+  assert.deepEqual(first.requirements.find((item) => item.id === 'avaliacao_final').dates, ['2026-08-31']);
+  assert.deepEqual(second.requirements.find((item) => item.id === 'avaliacao_final').dates, ['2026-11-03']);
+  const after = await runtime.services.store.latestSnapshot();
+  for (const row of after.rows.filter((item) => !['1102', '1104'].includes(item.course.id))) {
+    assert.deepEqual(civilDates(row.deadlineAt), civilDates(before.rows.find((item) => item.course.id === row.course.id && item.teacher.id === row.teacher.id && item.requirement.id === row.requirement.id).deadlineAt));
+  }
+});
+
+test('Semestral separa bimestres e modelos sem criar novos critérios de cobrança', async (t) => {
+  const { runtime, actor } = await setup(t); const service = runtime.services.deadlineService;
+  const first = await service.view({ period: '2026/2', modality: 'SEMESTRAL', calendarGroup: 'COM_EGI', bimester: '1' });
+  const second = await service.view({ period: '2026/2', modality: 'SEMESTRAL', calendarGroup: 'COM_EGI', bimester: '2' });
+  assert.ok(first.requirements.some((item) => item.id === 'avaliacao_bimestral_1'));
+  assert.ok(!first.requirements.some((item) => item.id === 'avaliacao_bimestral_2' || item.id === 'desafio'));
+  assert.ok(second.requirements.some((item) => item.id === 'avaliacao_bimestral_2'));
+  assert.ok(!second.requirements.some((item) => item.id === 'avaliacao_bimestral_1'));
+  assert.ok(!('agenda_quiz_1' in first.referenceDates));
+  const withoutEgi = await service.view({ period: '2026/2', modality: 'SEMESTRAL', calendarGroup: 'SEM_EGI', bimester: '2' });
+  assert.equal(withoutEgi.referenceDates.agenda_quiz_2, '2026-09-28');
+  assert.equal(withoutEgi.requirements.find((item) => item.id === 'agenda_quiz_2').agendaOnly, true);
+  for (const [bimester, id, date] of [['1', 'avaliacao_bimestral_1', '2026-09-21'], ['2', 'avaliacao_bimestral_2', '2026-10-26']]) {
+    const input = { ...await draft(runtime, id, '1103'), calendarGroup: 'COM_EGI', bimester, changes: [{ requirementId: id, dates: [date] }] };
+    const preview = await service.preview(input, actor); await service.save(input, preview.reviewToken, actor, 'bimester-' + bimester);
+  }
+  const current = await runtime.services.store.latestSnapshot();
+  assert.equal(current.rows.find((row) => row.course.id === '1103' && row.requirement.id === 'avaliacao_bimestral_1').deadlineAt, civilDateToIso('2026-09-21'));
+  assert.equal(current.rows.find((row) => row.course.id === '1103' && row.requirement.id === 'avaliacao_bimestral_2').deadlineAt, civilDateToIso('2026-10-26'));
+});
+
+test('agenda de substitutiva e fechamento não altera entregas, prazos avaliados ou quantidade de requisitos', async (t) => {
+  const { runtime, actor } = await setup(t); const service = runtime.services.deadlineService;
+  const before = await runtime.services.store.latestSnapshot();
+  const input = { ...await draft(runtime, 'avaliacao_final', '1104'), calendarGroup: 'M2', changes: [
+    { requirementId: 'substitutiva', dates: ['2026-11-27'] }, { requirementId: 'agenda_fechamento', dates: ['2026-12-04'] },
+  ] };
+  const preview = await service.preview(input, actor); await service.save(input, preview.reviewToken, actor, 'agenda');
+  const after = await runtime.services.store.latestSnapshot();
+  const facts = (snapshot) => snapshot.rows.map((row) => [row.course.id, row.teacher.id, row.requirement.id, row.structureStatus, civilDates(row.deadlineAt)]);
+  assert.deepEqual(facts(after), facts(before));
+  const view = await service.view({ period: input.period, modality: input.modality, calendarGroup: 'M2' });
+  assert.deepEqual(view.requirements.find((item) => item.id === 'substitutiva').dates, ['2026-11-27']);
+});
+
+test('vínculo pode ser salvo sem alterar datas e reclassificação aparece na conferência', async (t) => {
+  const { runtime, actor } = await setup(t); const service = runtime.services.deadlineService;
+  for (const calendarGroup of ['M1', 'M2']) {
+    const input = { ...await draft(runtime), calendarGroup, changes: [] };
+    const preview = await service.preview(input, actor);
+    assert.equal(preview.impact.length, 1); assert.equal(preview.impact[0].kind, 'GROUP');
+    assert.match(preview.impact[0].after[0], new RegExp(calendarGroup));
+    if (calendarGroup === 'M2') assert.match(preview.impact[0].before[0], /M1/);
+    await service.save(input, preview.reviewToken, actor, 'classify-' + calendarGroup);
+  }
+  assert.equal((await service.view({ period: '2026/2', modality: 'GRADUACAO_EAD', calendarGroup: 'M1' })).scope.length, 0);
+  assert.equal((await service.view({ period: '2026/2', modality: 'GRADUACAO_EAD', calendarGroup: 'M2' })).scope.length, 1);
+});
+
+test('módulo, modelo, bimestre e atividade incompatíveis são recusados pela API', async (t) => {
+  const { runtime, agent, csrf } = await setup(t);
+  const base = await draft(runtime); const sem = await draft(runtime, 'avaliacao_bimestral_1', '1103');
+  for (const input of [
+    { ...base, calendarGroup: 'COM_EGI' }, { ...base, calendarGroup: 'M1', bimester: '1' },
+    { ...sem, calendarGroup: 'M1', bimester: '1' }, { ...sem, calendarGroup: 'COM_EGI' },
+    { ...sem, calendarGroup: 'COM_EGI', bimester: '2' },
+    { ...sem, calendarGroup: 'COM_EGI', bimester: '1', changes: [{ requirementId: 'agenda_quiz_1', dates: ['2026-08-10'] }] },
+  ]) await post(agent, csrf, '/api/operations/deadlines/preview').send(input).expect(400);
+  await agent.get('/api/operations/deadlines').query({ calendarGroup: 'M1' }).expect(400);
+  assert.equal(await runtime.services.store.latestDeadlineCatalog(), null);
+});
+
+test('conferência é vinculada ao módulo e aos bimestres antes de salvar', async (t) => {
+  const { runtime, actor } = await setup(t); const service = runtime.services.deadlineService;
+  const input = { ...await draft(runtime), calendarGroup: 'M1' };
+  const preview = await service.preview(input, actor);
+  await assert.rejects(service.save({ ...input, calendarGroup: 'M2' }, preview.reviewToken, actor, 'other-module'), (error) => error.code === 'DEADLINES_REVIEW_REQUIRED');
+  assert.equal(await runtime.services.store.latestDeadlineCatalog(), null);
+});

@@ -14,7 +14,7 @@ const noop = () => {};
 before(async () => {
   runtime = await createRuntime({ NODE_ENV: 'test', DATA_SOURCE: 'demo', AUTH_MODE: 'demo', EMAIL_SEND_ENABLED: 'false' });
   vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
-  modules = await Promise.all(['AccessOverview', 'DeliveryOverview', 'MonitoringFilters', 'DeliveryDetails', 'MonitoringChart'].map((name) => vite.ssrLoadModule(`/src/components/dashboard/${name}.tsx`)));
+  modules = await Promise.all(['AccessOverview', 'DeliveryOverview', 'MonitoringFilters', 'DeliveryDetails', 'MonitoringChart', 'DeadlinePanel'].map((name) => vite.ssrLoadModule(`/src/components/dashboard/${name}.tsx`)));
 });
 after(async () => { await vite?.close(); await runtime?.close(); });
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
@@ -100,4 +100,22 @@ test('Top 10 limita o desenho mesmo ao receber mil docentes sem cortar nomes ace
   assert.ok(!html.includes('identificação 10:'));
   assert.match(html, /viewBox="0 0 640 448"/);
   assert.ok(!html.includes('NaN')); assert.ok(!html.includes('Infinity'));
+});
+
+test('prazos apresentam M1 e M2 separados com seleção identificada para leitura assistiva', async () => {
+  for (const modality of ['GRADUACAO_EAD', 'MODULAR']) {
+    const data = await runtime.services.deadlineService.view({ period: '2026/2', modality, calendarGroup: 'M2' });
+    const html = render(modules[5].AcademicCalendarSelector, { groups: data.filters.calendarGroups, value: 'M2', bimester: '1', semestral: false, disabled: false, onGroup: noop, onBimester: noop });
+    assert.match(html, /Módulo 1 · M1/); assert.match(html, /Módulo 2 · M2/);
+    assert.equal((html.match(/aria-pressed="true"/g) || []).length, 1);
+    assert.doesNotMatch(html, /Período completo|bimestre/);
+  }
+});
+
+test('prazos semestrais permitem modelo com/sem EGI e bimestre sem opção de período completo', async () => {
+  const data = await runtime.services.deadlineService.view({ period: '2026/2', modality: 'SEMESTRAL', calendarGroup: 'SEM_EGI', bimester: '2' });
+  const html = render(modules[5].AcademicCalendarSelector, { groups: data.filters.calendarGroups, value: 'SEM_EGI', bimester: '2', semestral: true, disabled: true, onGroup: noop, onBimester: noop });
+  assert.match(html, /Com EGI/); assert.match(html, /Sem EGI/);
+  assert.match(html, /1º bimestre/); assert.match(html, /value="2" selected=""/);
+  assert.match(html, /disabled=""/); assert.doesNotMatch(html, /Período completo/);
 });

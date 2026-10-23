@@ -3,7 +3,8 @@ const { z } = require('zod');
 const { HttpError, asyncHandler } = require('../core/http');
 const { changeSchema } = require('../services/deadlineService');
 
-const querySchema = z.object({ period: z.string().max(50).optional(), modality: z.enum(['SEMESTRAL', 'MODULAR', 'GRADUACAO_EAD']).optional(), courseId: z.string().max(50).optional() }).strict();
+const querySchema = z.object({ period: z.string().max(50).optional(), modality: z.enum(['SEMESTRAL', 'MODULAR', 'GRADUACAO_EAD']).optional(), courseId: z.string().max(50).optional(),
+  calendarGroup: z.enum(['M1', 'M2', 'COM_EGI', 'SEM_EGI']).optional(), bimester: z.enum(['1', '2']).optional() }).strict();
 const saveSchema = changeSchema.extend({ reviewToken: z.string().regex(/^\d{13}\.[A-Za-z0-9_-]{43}$/) });
 
 function deadlineRoutes({ auth, deadlineService }) {

@@ -2,12 +2,21 @@
 
 O NED define as datas na aba **Prazos**. A aplicação grava versões no PostgreSQL e usa o calendário salvo em cada coleta. Não use a data de entrega do aluno como prazo de preparação do docente.
 
+No piloto local, os prazos e vínculos são temporários em memória e se perdem ao encerrar. O PostgreSQL é usado na implantação institucional.
+
 ## Operação na interface
 
-1. Abra **Prazos** e escolha período, modalidade e todas as disciplinas do recorte ou uma disciplina específica.
-2. Altere as datas necessárias. UA é um pacote; avaliações do semestral têm dois campos de bimestre. Para vídeos, use uma data comum ou selecione uma disciplina e marque **Definir um prazo para cada videoaula**.
-3. Informe o motivo e clique em **Revisar alterações**. Confira disciplinas, valores anteriores e novos. A prévia não grava nada e vale por 15 minutos para o mesmo usuário e conteúdo.
-4. Use **Confirmar e salvar prazos**. O calendário recebe versão, autor e data; a trilha de auditoria guarda o impacto. A API solicita nova coleta. Confira os resultados e uma nova prévia antes de enviar relatórios.
+1. Abra **Prazos**, escolha semestre e modalidade. Graduação EaD e Modular têm **M1/M2** independentes. Semestral tem **Com EGI/Sem EGI** e **1º/2º bimestre**.
+2. Na primeira configuração, abra **Vincular disciplinas** e selecione as que pertencem ao módulo/modelo. As já vinculadas aparecem automaticamente nesse recorte. Para uma exceção ou reclassificação, use a seleção individual de disciplina.
+3. Altere as datas. Em 2026/2, **Usar datas dos prints** preenche uma proposta conforme o calendário enviado pelo NED; ainda é necessário revisar e salvar. Não preenche vídeos, pois seus prazos não aparecem nos prints. UA continua como pacote único; vídeos aceitam uma data comum ou datas individuais ao selecionar uma disciplina.
+4. Informe o motivo e clique em **Revisar alterações**. Confira também o vínculo anterior e novo da disciplina. A prévia não grava nada e vale por 15 minutos para o mesmo usuário e conteúdo.
+5. Use **Confirmar e salvar prazos**. O calendário recebe versão, autor e data; a trilha de auditoria guarda o impacto. A API solicita nova coleta. Confira os resultados e uma nova prévia antes de enviar relatórios.
+
+O semestre identifica o conjunto de calendários; não aplica um prazo único aos dois módulos. Datas de início, nomes ou nomes curtos das disciplinas não classificam automaticamente M1/M2 ou EGI. Somente as disciplinas selecionadas são vinculadas e recebem os campos de prazo alterados. Novas disciplinas precisam ser vinculadas e ter seus prazos aplicados. Reclassificar uma disciplina preserva as datas existentes até que seus campos sejam alterados.
+
+No Semestral, o 1º bimestre reúne material/pacote de UAs, vídeos, fórum e avaliação bimestral 1; o 2º reúne desafio e avaliação bimestral 2. O modelo Sem EGI também mostra as datas informativas de Quiz dos dois bimestres. Essas divisões seguem os prints fornecidos.
+
+**Outras datas da agenda** reúne bônus, substitutiva, exame e fechamento/lançamento de notas conforme a modalidade. São datas informativas: não criam requisitos, pendências, notas de ranking ou advertências docentes. A consulta automática de entregas continua usando os critérios definidos no catálogo de regras, sujeitos à homologação.
 
 Edição concorrente ou coleta diferente invalida a conferência. Os relatórios ficam bloqueados enquanto a coleta não usa o calendário atual. Falha de coleta não perde as datas salvas: use **Atualizar dados** e confira novamente. Coletas e relatórios anteriores permanecem com os valores usados na geração. O histórico da tela mostra as últimas 20 versões; todas ficam no banco.
 
@@ -19,7 +28,9 @@ Somente NED altera. A API exige autenticação, origem e CSRF. O limite é 1.000
 
 ## Estrutura
 
-A procura é `periods[período][modalidade].courses[idMoodle][requisito]`; se não houver valor específico, usa `defaults[requisito]`. Período segue `2026/2`; modalidades: `SEMESTRAL`, `MODULAR`, `GRADUACAO_EAD`. IDs de disciplinas e docentes são strings do Moodle.
+A procura é `periods[período][modalidade].courses[idMoodle][requisito]`; se não houver valor específico, usa `defaults[requisito]`. Os vínculos ficam em `courseGroups[idMoodle]`, no mesmo escopo, com `M1`/`M2` ou `COM_EGI`/`SEM_EGI`. Datas continuam específicas da disciplina, permitindo exceções. Período segue `2026/2`; modalidades: `SEMESTRAL`, `MODULAR`, `GRADUACAO_EAD`. IDs de disciplinas e docentes são strings do Moodle.
+
+As requisições da nova interface incluem `calendarGroup`; no Semestral, incluem também `bimester`. O servidor recusa grupos e atividades incompatíveis com a modalidade/bimestre. A conferência assina esses campos junto das datas e da lista de disciplinas. O calendário anterior continua legível e mantém suas datas; seus vínculos precisam ser classificados pelo NED. Não há migração que invente módulos a partir das datas antigas.
 
 | Modalidade | Chaves obrigatórias atuais |
 | --- | --- |

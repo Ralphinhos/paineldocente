@@ -228,6 +228,27 @@
 .ned-login > .app-footer { margin: 0 auto; padding-bottom: 20px; }
 .deadline-panel .ned-panel-heading { padding-bottom: 18px; }
 .deadline-panel .ned-panel-heading p { margin-top: 6px; }
+.deadline-calendar-selector { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; padding: 18px; border-bottom: 1px solid #e1eaf4; }
+.deadline-group-buttons { display: flex; flex: 1; flex-wrap: wrap; gap: 12px; }
+.deadline-group-button { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 160px; min-height: 56px; padding: 12px 16px; border: 1px solid #cadceb; border-radius: 7px; color: #123b62; background: #f2f8fc; text-align: left; font: inherit; cursor: pointer; }
+.deadline-group-1 { background: #f1f8f1; border-color: #cce2cf; color: #245f31; }
+.deadline-group-button.is-selected { outline: 2px solid currentColor; outline-offset: 2px; }
+.deadline-group-button:disabled { cursor: default; opacity: .65; }
+.deadline-bimester { display: grid; gap: 6px; color: #314d78; font-size: .8125rem; }
+.deadline-bimester select { min-height: 44px; border: 1px solid #cadceb; border-radius: 6px; background: #fff; color: #24416b; padding: 8px 12px; font: inherit; }
+.deadline-context-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 18px 18px 0; }
+.deadline-context-heading h3 { margin: 0; color: #173c62; font-size: 1rem; }
+.deadline-bindings { margin: 18px; padding: 14px; border: 1px solid #d3e0ef; border-radius: 6px; color: #314d78; font-size: .8125rem; }
+.deadline-bindings summary { cursor: pointer; min-height: 30px; }
+.deadline-bindings p, .deadline-agenda-heading p { margin-top: 6px; color: #61748f; font-size: .75rem; }
+.deadline-course-checklist { display: grid; gap: 8px; max-height: 240px; overflow: auto; margin-top: 12px; }
+.deadline-course-checklist label { display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 6px; }
+.deadline-course-checklist small { display: block; margin-top: 3px; overflow-wrap: anywhere; color: #61748f; }
+.deadline-course-checklist span { min-width: 0; overflow-wrap: anywhere; }
+.deadline-filters select { width: 100%; min-width: 0; }
+.deadline-course-checklist input { width: 18px; height: 18px; min-height: 18px; flex-shrink: 0; }
+.deadline-agenda-heading { padding: 20px 0 4px; }
+.deadline-agenda-heading h4 { margin: 0; color: #425c83; font-size: .875rem; }
 .deadline-filters { display: grid; grid-template-columns: .8fr 1fr 1.8fr; gap: 16px; padding: 18px; border-block: 1px solid #e5edf7; background: #f7fbff; }
 .deadline-filters label, .deadline-reason label { display: grid; gap: 7px; min-width: 0; color: #314d78; font-size: .8125rem; }
 .deadline-filters select, .deadline-date-inputs input, .deadline-reason textarea { border: 1px solid #d3e0ef; border-radius: 6px; color: #314567; background: #fff; padding: 9px 11px; min-height: 40px; font: inherit; }

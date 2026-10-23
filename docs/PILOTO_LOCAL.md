@@ -113,7 +113,9 @@ Referências da preparação das questões: [inclusão na avaliação](https://g
 
 Abra **http://127.0.0.1:8080/acompanhamento**. A entrada do NED é automática, somente neste piloto local. O cabeçalho identifica os dados reais em validação. A API também fica limitada a `127.0.0.1`; solicitações diretas à API não recebem a identidade local. Não publique nem exponha esse modo na rede.
 
-Sem prazo oficial, o item fica a validar. Use a aba **Prazos** para informar as datas da amostra, revise e salve. A primeira coleta com prazos salvos pode ainda não comprovar a data de entrega de material antigo. Use **Entregas → Registrar UA e videoaulas** para registrar o envio do pacote de UAs e a gravação de cada vídeo. Abra **Alta Gestão** para conferir a mesma amostra no panorama semestral.
+Sem prazo oficial, o item fica a validar. Use a aba **Prazos**: selecione semestre, modalidade e módulo M1/M2 (ou modelo EGI e bimestre no Semestral), vincule a disciplina correta, revise e salve. Em 2026/2, **Usar datas dos prints** preenche uma proposta para conferência; vídeos continuam sem prazo proposto porque não aparecem no calendário enviado. Os vínculos também são temporários no piloto. Veja `docs/PRAZOS.md` para o fluxo completo.
+
+A primeira coleta com prazos salvos pode ainda não comprovar a data de entrega de material antigo. Use **Entregas → Registrar UA e videoaulas** para registrar o envio do pacote de UAs e a gravação de cada vídeo. Abra **Alta Gestão** para conferir a mesma amostra no panorama semestral.
 
 ## 4. Conferir antes de aprovar
 
