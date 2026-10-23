@@ -13,7 +13,7 @@ const activitySchema = z.object({
   configurationTimeSource: z.enum(['DEMO_TRUSTED', 'SNAPSHOT_OBSERVED']).nullable().default(null),
   deadlineSource: z.enum(['DEMO_SCHEDULE', 'OFFICIAL_CATALOG']).nullable().default(null),
   mappingConfidence: z.enum(['EXACT', 'AMBIGUOUS', 'UNSUPPORTED']).default('EXACT'), events: z.array(eventSchema).default([]),
-  readyBy: z.object({ at: z.string().datetime(), kind: z.enum(['ASSIGN_STATE', 'FORUM_STARTER', 'QUIZ_FINISHED_ATTEMPT']), moduleId: z.string() }).nullable().default(null),
+  readyBy: z.object({ at: z.string().datetime(), kind: z.enum(['ASSIGN_STATE', 'FORUM_STARTER', 'QUIZ_QUESTIONS_PREPARED']), moduleId: z.string() }).nullable().default(null),
   readinessConfirmed: z.boolean().nullable().default(null),
 });
 const teacherSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), name: z.string(), email: z.string().email().nullable().default(null), assignedAt: z.string().datetime().nullable(), lastAccessAt: z.string().datetime().nullable(), environmentLastAccessAt: z.string().datetime().nullable().default(null), environmentAccessKnown: z.boolean().default(false), accessEvents: z.array(eventSchema).default([]) });
@@ -79,10 +79,10 @@ function evaluateRequirement({ requirement, activity, course, teacher, inherited
   if (!activity?.deadlineAt || activity.deadlineSource !== 'OFFICIAL_CATALOG' && activity.deadlineSource !== 'DEMO_SCHEDULE') return result('NOT_VERIFIABLE', 'DEADLINE_MISSING', 'Prazo oficial ausente; atraso não pode ser calculado com segurança.', activity, quantity, evidence);
   if (activity.readinessConfirmed === false) return result('NOT_VERIFIABLE', 'PREPARATION_NOT_CONFIRMED', 'O módulo existe, mas o conteúdo mínimo de preparo ainda precisa ser conferido. Presença do módulo não comprova entrega.', activity, quantity, evidence);
   const ready = Boolean(activity.visible && activity.observedQuantity >= quantity);
-  if (inheritedReady && ready) return result('INHERITED_READY', 'RESTORED_STRUCTURE_READY', 'Estrutura herdada estava pronta antes da responsabilidade deste docente.', activity, quantity, evidence);
-  if (!ready) { const overdue = calendarDays(generatedAt, activity.deadlineAt) > 0; return result('PENDING', overdue ? 'REQUIREMENT_OVERDUE' : 'REQUIREMENT_OPEN', overdue ? 'Requisito incompleto após o prazo.' : 'Requisito incompleto, ainda dentro do prazo.', activity, quantity, evidence, overdue); }
   const proof = activity.readyBy && new Date(activity.readyBy.at) <= new Date(generatedAt) ? activity.readyBy : null;
   if (proof) evidence.push(readyByEvidence(proof));
+  if (inheritedReady && ready) return result('INHERITED_READY', 'RESTORED_STRUCTURE_READY', 'Estrutura herdada estava pronta antes da responsabilidade deste docente.', activity, quantity, evidence, false, { readyByAt: proof?.at || null });
+  if (!ready) { const overdue = calendarDays(generatedAt, activity.deadlineAt) > 0; return result('PENDING', overdue ? 'REQUIREMENT_OVERDUE' : 'REQUIREMENT_OPEN', overdue ? 'Requisito incompleto após o prazo.' : 'Requisito incompleto, ainda dentro do prazo.', activity, quantity, evidence, overdue); }
   if (proof && calendarDays(proof.at, activity.deadlineAt) <= 0) return result('DELIVERED_ON_TIME', 'READY_CONFIRMED_BY_MOODLE', 'Há evidência de preparo até o prazo. A data inicial de entrega não foi determinada.', activity, quantity, evidence, false, { configuredAt: null, readyByAt: proof.at, timingSource: 'MOODLE_READY_BY_BOUND' });
   if (!activity.configuredAt || !activity.configurationTimeSource) return result('NOT_VERIFIABLE', 'CONFIGURATION_DATE_UNKNOWN', proof ? 'Há evidência de preparo posterior ao prazo, mas ela não determina a entrega inicial. O atraso permanece a validar.' : 'Estado atual está pronto, mas não há comprovação confiável de quando o preparo ficou completo.', activity, quantity, evidence, false, { readyByAt: proof?.at || null });
   const late = calendarDays(activity.configuredAt, activity.deadlineAt) > 0;
@@ -145,7 +145,19 @@ function reconcileObservedTiming(rows, source, previousSnapshot) {
     if (row.reasonCode !== 'CONFIGURATION_DATE_UNKNOWN' || !row.deadlineAt) continue;
     const key = `${row.course.id}:${row.teacher.id}:${row.requirement.id}`;
     const previous = prior.get(key);
-    if (previous && previous.deadlineAt === row.deadlineAt && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(previous.structureStatus)) {
+    const previousBound = (previous?.evidence || []).find((item) => item.supports === 'READY_BY_BOUND' && item.occurredAt === previous.readyByAt);
+    const sameBoundModule = previousBound?.moduleId && row.evidence.some((item) => item.moduleId === previousBound.moduleId);
+    const obsoleteQuizProof = row.requirement.baseId?.startsWith('avaliacao_') && previous?.timingSource === 'MOODLE_READY_BY_BOUND'
+      && !(previous.evidence || []).some((item) => item.type === 'MOODLE_READY_BY_QUIZ_QUESTIONS_PREPARED' && item.occurredAt === previous.readyByAt);
+    if (previous?.structureStatus === 'INHERITED_READY' && sameBoundModule && previous.deadlineAt === row.deadlineAt && row.provenance === 'RESTORED_NOT_EXEMPT'
+      && (previous.evidence || []).some((item) => item.type === 'MOODLE_READY_BY_QUIZ_QUESTIONS_PREPARED' && item.occurredAt === previous.readyByAt)) {
+      Object.assign(row, { structureStatus: 'INHERITED_READY', reasonCode: previous.reasonCode, reason: previous.reason, configuredAt: null,
+        timingSource: null, readyByAt: previous.readyByAt, provenance: 'INHERITED_VERIFIED' });
+      row.evidence.push(...previous.evidence.filter((item) => item.supports === 'READY_BY_BOUND' && item.occurredAt === previous.readyByAt));
+      continue;
+    }
+    if (previous && !obsoleteQuizProof && (previous.timingSource !== 'MOODLE_READY_BY_BOUND' || sameBoundModule)
+      && previous.deadlineAt === row.deadlineAt && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(previous.structureStatus)) {
       Object.assign(row, { structureStatus: previous.structureStatus, reasonCode: previous.reasonCode, reason: previous.reason, configuredAt: previous.configuredAt, timingSource: previous.timingSource, readyByAt: previous.readyByAt || null });
       if (previous.timingSource === 'MOODLE_READY_BY_BOUND') row.evidence.push(...(previous.evidence || []).filter((item) => item.supports === 'READY_BY_BOUND' && item.occurredAt === previous.readyByAt));
       continue;
@@ -199,12 +211,17 @@ function buildSnapshot(rawSource, catalog, options = {}) {
       const inheritedReady = Boolean(course.originalCourseId && course.restoredAt && teacher.assignedAt && new Date(course.restoredAt) <= new Date(teacher.assignedAt) && currentReady);
       for (const requirement of required) {
         const activity = course.activities.find((candidate) => candidate.requirementId === requirement.id);
+        const requirementInherited = source.source === 'moodle' && requirement.id.startsWith('avaliacao_')
+          ? Boolean(course.originalCourseId && course.restoredAt && teacher.assignedAt && course.restoredAt <= teacher.assignedAt
+            && activity?.deadlineAt && activity.mappingConfidence === 'EXACT' && activity.readinessConfirmed === true
+            && activity.readyBy?.kind === 'QUIZ_QUESTIONS_PREPARED' && activity.readyBy.at <= teacher.assignedAt)
+          : inheritedReady;
         const count = requirement.control === 'MANUAL_ITEM' ? expectedQuantity(requirement, course.workloadHours) ?? 1 : 1;
         for (let itemNumber = 1; itemNumber <= count; itemNumber += 1) {
           const manual = requirement.control === 'MANUAL_ITEM';
           const evaluation = manual
-            ? evaluateManualRequirement({ requirement, activity, course, teacher, inheritedReady, generatedAt, itemNumber, record: manualDeliveries.get(manualDeliveryKey(course.id, teacher.id, requirement.id, itemNumber)) })
-            : evaluateRequirement({ requirement, activity, course, teacher, inheritedReady, generatedAt });
+            ? evaluateManualRequirement({ requirement, activity, course, teacher, inheritedReady: requirementInherited, generatedAt, itemNumber, record: manualDeliveries.get(manualDeliveryKey(course.id, teacher.id, requirement.id, itemNumber)) })
+            : evaluateRequirement({ requirement, activity, course, teacher, inheritedReady: requirementInherited, generatedAt });
           const requirementKey = manual ? `${requirement.id}:${itemNumber}` : requirement.id;
           const requirementLabel = manual ? count === 1 ? requirement.itemLabel || requirement.label : `${requirement.itemLabel || requirement.label} ${itemNumber}` : requirement.label;
           const explicitOwner = course.requirementOwners[requirementKey] || course.requirementOwners[requirement.id];
@@ -214,7 +231,7 @@ function buildSnapshot(rawSource, catalog, options = {}) {
           }) : [];
           const owner = explicitOwner || (course.teachers.length === 1 ? teacher.id : manualOwners.length === 1 ? manualOwners[0].id : null);
           const validOwner = owner && course.teachers.some((candidate) => candidate.id === owner) ? owner : null;
-          rows.push({ rankingPolicy: catalog.ranking || null, snapshotId: null, course: { id: course.id, name: course.name, shortName: course.shortName, period: course.period, modality: course.modality, modalityLabel: modality.label, workloadHours: course.workloadHours, startsAt: course.startsAt, endsAt: course.endsAt }, teacher: { id: teacher.id, name: teacher.name, email: teacher.email }, environmentAccess, requirement: { id: requirementKey, baseId: requirement.id, label: requirementLabel, manualControl: manual, responsibleTeacherId: validOwner, responsibility: validOwner ? validOwner === teacher.id ? 'ASSIGNED' : 'OTHER_TEACHER' : 'UNCONFIRMED', itemNumber: manual ? itemNumber : null, evidenceType: manual ? requirement.evidenceType : null }, structureStatus: evaluation.status, accessStatus: access.status, lastAccessAt: access.lastAccessAt, daysSinceAccess: access.daysSinceAccess, provenance: inheritedReady ? 'INHERITED_VERIFIED' : course.originalCourseId ? 'RESTORED_NOT_EXEMPT' : 'CREATED_FOR_PERIOD', calculatedAt: source.generatedAt, rulesVersion: catalog.version, ...evaluation });
+          rows.push({ rankingPolicy: catalog.ranking || null, snapshotId: null, course: { id: course.id, name: course.name, shortName: course.shortName, period: course.period, modality: course.modality, modalityLabel: modality.label, workloadHours: course.workloadHours, startsAt: course.startsAt, endsAt: course.endsAt }, teacher: { id: teacher.id, name: teacher.name, email: teacher.email }, environmentAccess, requirement: { id: requirementKey, baseId: requirement.id, label: requirementLabel, manualControl: manual, responsibleTeacherId: validOwner, responsibility: validOwner ? validOwner === teacher.id ? 'ASSIGNED' : 'OTHER_TEACHER' : 'UNCONFIRMED', itemNumber: manual ? itemNumber : null, evidenceType: manual ? requirement.evidenceType : null }, structureStatus: evaluation.status, accessStatus: access.status, lastAccessAt: access.lastAccessAt, daysSinceAccess: access.daysSinceAccess, provenance: requirementInherited ? 'INHERITED_VERIFIED' : course.originalCourseId ? 'RESTORED_NOT_EXEMPT' : 'CREATED_FOR_PERIOD', calculatedAt: source.generatedAt, rulesVersion: catalog.version, ...evaluation });
         }
       }
     }

@@ -72,7 +72,7 @@ Chave de resultado: `snapshot_id + course_id + teacher_id + requirement_key`. Pa
 
 ## Disciplina restaurada
 
-A estrutura vira `INHERITED_READY` apenas quando todas as condições são verdadeiras:
+A estrutura geral vira `INHERITED_READY` quando todas as condições são verdadeiras:
 
 - Moodle informa curso de origem;
 - restauração ocorreu antes da atribuição do docente;
@@ -81,6 +81,8 @@ A estrutura vira `INHERITED_READY` apenas quando todas as condições são verda
 - mapeamento não é ambíguo.
 
 Isso isenta a entrega da estrutura. O acesso do docente continua independente e pode ficar crítico.
+
+Para avaliações reais do Moodle, a comprovação é individual: curso de origem/restauração anterior ao vínculo, questões prontas e evidência de preparo até antes da responsabilidade do docente. A situação de UAs/vídeos não impede reconhecer essa avaliação como reaproveitada. Questões antigas sem vínculo histórico suficiente permanecem a validar. Uma comprovação válida é preservada nas coletas seguintes para o mesmo prazo e versão de regras. A primeira resposta dos alunos não define a entrega.
 
 ## Evento de Tarefa
 

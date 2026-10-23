@@ -35,11 +35,14 @@ function validateSnapshot(snapshot) {
     }
     const activeRevision = row.requirement.manualControl && (Number(row.manualVersion) || 1) > 1;
     if (row.provenance === 'INHERITED_VERIFIED' && row.structureStatus !== 'INHERITED_READY' && !activeRevision) errors.push(`INHERITED_STATUS_INVALID:${key}`);
+    if (snapshot.source === 'moodle' && row.structureStatus === 'INHERITED_READY' && row.requirement.baseId?.startsWith('avaliacao_')
+      && (!row.readyByAt || !Number.isFinite(new Date(row.readyByAt).getTime()) || new Date(row.readyByAt) > new Date(snapshot.generatedAt)
+        || !(row.evidence || []).some((item) => item.type === 'MOODLE_READY_BY_QUIZ_QUESTIONS_PREPARED' && item.supports === 'READY_BY_BOUND' && item.occurredAt === row.readyByAt))) errors.push(`MOODLE_QUIZ_REUSE_INVALID:${key}`);
     if (snapshot.source === 'moodle' && row.deadlineSource && row.deadlineSource !== 'OFFICIAL_CATALOG' && !(activeRevision && row.deadlineSource === 'MANUAL_REVISION')) errors.push(`DEADLINE_SOURCE_INVALID:${key}`);
     if (snapshot.source === 'moodle' && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(row.structureStatus) && !['SNAPSHOT_OBSERVED', 'MANUAL_NED', 'MOODLE_READY_BY_BOUND'].includes(row.timingSource)) errors.push(`TIMING_SOURCE_INVALID:${key}`);
     if (row.timingSource === 'MOODLE_READY_BY_BOUND') {
       const bound = new Date(row.readyByAt);
-      const supported = ['MOODLE_READY_BY_ASSIGN_STATE', 'MOODLE_READY_BY_FORUM_STARTER', 'MOODLE_READY_BY_QUIZ_FINISHED_ATTEMPT'];
+      const supported = ['MOODLE_READY_BY_ASSIGN_STATE', 'MOODLE_READY_BY_FORUM_STARTER', 'MOODLE_READY_BY_QUIZ_QUESTIONS_PREPARED'];
       if (row.structureStatus !== 'DELIVERED_ON_TIME' || row.requirement.manualControl || row.configuredAt !== null || !row.readyByAt || !row.deadlineAt
         || !Number.isFinite(bound.getTime()) || !Number.isFinite(new Date(row.deadlineAt).getTime()) || bound > new Date(snapshot.generatedAt) || calendarDays(row.readyByAt, row.deadlineAt) > 0
         || !(row.evidence || []).some((item) => supported.includes(item.type) && item.supports === 'READY_BY_BOUND' && item.occurredAt === row.readyByAt)) errors.push(`MOODLE_BOUND_INVALID:${key}`);

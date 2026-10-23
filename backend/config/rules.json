@@ -1,5 +1,5 @@
 {
-  "version": "2026.2-piloto.3",
+  "version": "2026.2-piloto.4",
   "status": "PILOT",
   "description": "Catálogo inicial sujeito à homologação formal do NED antes de qualquer envio.",
   "accessThresholds": { "currentMaxDays": 7, "attentionMaxDays": 14 },

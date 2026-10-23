@@ -77,11 +77,11 @@ test('fórum usa o tópico inicial do docente mesmo sem descrição na instânci
   assert.equal(otherAuthor.structureStatus, 'NOT_VERIFIABLE');
 });
 
-test('uso concluído da avaliação comprova preparo até a data sem converter prévia ou contagem em entrega', () => {
+test('uso concluído, conclusão e contagem da avaliação não definem criação/importação docente', () => {
   const quiz = row({ cm_id: '60', module_name: 'quiz', activity_name: 'Avaliação final', activity_modified_at: unix('2026-07-07T15:00:00Z'), last_update_log_at: null,
     question_slot_count: 10, quiz_completed_attempts: 5, quiz_first_finished_at: unix('2026-09-20T15:00:00Z') });
   const current = snapshot([quiz]); const result = item(current, 'avaliacao_final');
-  assert.equal(result.structureStatus, 'DELIVERED_ON_TIME'); assert.equal(result.readyByAt, '2026-09-20T15:00:00.000Z');
+  assert.equal(result.structureStatus, 'NOT_VERIFIABLE'); assert.equal(result.readyByAt, null);
   assert.deepEqual(validateSnapshot(current), []);
   for (const changes of [{ quiz_completed_attempts: 0, quiz_first_finished_at: null }, { quiz_first_finished_at: unix('2026-09-23T15:00:00Z') }, { quiz_first_finished_at: unix('2026-06-01T15:00:00Z') }, { question_slot_count: 0 }]) {
     const unresolved = item(snapshot([{ ...quiz, ...changes }]), 'avaliacao_final');
