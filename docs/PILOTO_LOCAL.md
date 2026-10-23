@@ -67,6 +67,26 @@ A opção permite consultar disciplinas ocultas **somente dentre os 1 a 10 IDs s
 
 Depois de conferir e corrigir a configuração ou o mapeamento com a TI, execute novamente `npm run piloto`.
 
+### Datas técnicas do Moodle
+
+No detalhe da entrega, **Conferir evidências** mostra também a inclusão da atividade no curso, a última alteração da instância (Tarefa, Fórum e Questionário) e o último registro de alteração do módulo por qualquer usuário na janela consultada, quando disponíveis. Essas datas vêm automaticamente do Moodle e são identificadas como contexto técnico; não são preenchimento manual de entrega.
+
+### Validar as datas automáticas com uma disciplina real
+
+Mantenha o piloto aberto para preservar os prazos temporários e use outro CMD na pasta do projeto:
+
+```cmd
+npm run piloto:evidencias
+```
+
+O comando consulta os mesmos IDs e termina sem abrir servidor ou painel. O resumo mostra IDs de disciplina, módulo e docente; datas técnicas de criação/alteração; registros de edição, conclusão e visualização; contagem de posições de questões e tópicos, quando disponíveis. Não imprime nomes/e-mails, textos das atividades, questões ou credenciais. A descrição preenchida significa somente campo não vazio no banco, e as contagens não validam o conteúdo ou a autoria. A consulta usa somente leitura e mantém os filtros de categoria, papel, visibilidade/opção explícita de ocultas e limite da amostra.
+
+Os logs respeitam `MOODLE_QUERY_WINDOW_DAYS` (padrão 90); “sem registro” pode significar evento fora da janela ou histórico removido. Inclusão/última alteração da instância vêm dos campos atuais, independentemente dessa janela. A primeira edição mostrada é a primeira **na janela**, não a primeira edição de toda a vida da atividade.
+
+Compare essa saída com o histórico da mesma atividade no Moodle. O sistema ainda mantém **a validar** quando não há prova confiável de quando o preparo ficou completo. Não usar uma edição posterior, visualização ou alteração de conclusão como entrega/atraso presumido. UAs e videoaulas seguem com suas datas manuais de envio/gravação. Esta etapa coleta a evidência necessária para homologar o mapeamento da entrega automática.
+
+Referências do esquema Moodle 5.0: [course_modules](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/lib/db/install.xml), [Tarefa](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/mod/assign/db/install.xml), [Fórum](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/mod/forum/db/install.xml) e [Questionário](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/mod/quiz/db/install.xml).
+
 ### Conferir no painel
 
 Abra **http://127.0.0.1:8080/acompanhamento**. A entrada do NED é automática, somente neste piloto local. O cabeçalho identifica os dados reais em validação. A API também fica limitada a `127.0.0.1`; solicitações diretas à API não recebem a identidade local. Não publique nem exponha esse modo na rede.

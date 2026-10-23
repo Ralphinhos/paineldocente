@@ -39,6 +39,14 @@ async function main() {
   console.log('Testando conexão SQL Server com TLS e os IDs da amostra…');
   const connection = await source.testConnection();
   console.log(`Conexão OK. ${connection.courses} disciplina(s) encontrada(s).`);
+  if (process.argv.includes('--evidence-only')) {
+    const { pilotEvidenceReport } = require('../backend/core/moodle-evidence');
+    console.log('Consultando datas técnicas e registros da amostra. Nenhum dado é alterado.');
+    const raw = await source.fetch();
+    for (const line of pilotEvidenceReport(raw, config.moodle.queryWindowDays)) console.log(line);
+    await stop();
+    return;
+  }
   await source.close(); source = null;
   if (process.argv.includes('--connection-only')) return;
   if (stopped) return;

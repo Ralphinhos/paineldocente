@@ -46,6 +46,7 @@ function validateSnapshot(snapshot) {
     for (const evidence of row.evidence || []) {
       if (evidence.type === 'COMPLETION_CHANGED' && evidence.supports !== 'ACCESS_ONLY') errors.push(`COMPLETION_MISCLASSIFIED:${key}`);
       if (evidence.type === 'MODULE_VIEWED' && !['ACCESS_ONLY', 'TEACHER_INTERACTION'].includes(evidence.supports)) errors.push(`VIEW_MISCLASSIFIED:${key}`);
+      if (['MOODLE_MODULE_ADDED', 'MOODLE_ACTIVITY_MODIFIED', 'MOODLE_MODULE_UPDATE_LOG'].includes(evidence.type) && evidence.supports !== 'CONTEXT_ONLY') errors.push(`TECHNICAL_DATE_MISCLASSIFIED:${key}`);
     }
   }
   if (snapshot.publishAllowed && (snapshot.isDemo || snapshot.qualityStatus === 'BLOCKED')) errors.push('PUBLISH_GATE_INVALID');

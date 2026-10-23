@@ -3,8 +3,9 @@ const crypto = require('node:crypto');
 const { z } = require('zod');
 const { calendarDays, delayFacts, saoPauloDate } = require('./timing');
 const { calculateEnvironmentAccess } = require('./environmentAccess');
+const { technicalEvidence } = require('./moodle-evidence');
 
-const eventSchema = z.object({ name: z.string(), occurredAt: z.string().datetime(), actorId: z.union([z.string(), z.number()]).transform(String).optional(), relatedUserId: z.union([z.string(), z.number()]).transform(String).optional(), origin: z.string().optional() });
+const eventSchema = z.object({ name: z.string(), occurredAt: z.string().datetime(), actorId: z.union([z.string(), z.number()]).transform(String).optional(), relatedUserId: z.union([z.string(), z.number()]).transform(String).optional(), moduleId: z.union([z.string(), z.number()]).transform(String).optional(), origin: z.string().optional() });
 const activitySchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String), requirementId: z.string(), label: z.string(),
   observedQuantity: z.number().int().nonnegative().default(1), visible: z.boolean(),
@@ -55,6 +56,7 @@ function calculateAccess(teacher, course, asOf, thresholds) {
 function evidenceFor(activity, teacherId) {
   if (!activity) return [];
   return activity.events.map((event) => {
+    const metadata = technicalEvidence(event); if (metadata) return metadata;
     const actorMatches = event.actorId === teacherId;
     if (event.name === '\\core\\event\\course_module_updated') return { type: 'MODULE_UPDATED', occurredAt: event.occurredAt, supports: actorMatches ? 'TEACHER_INTERACTION' : 'MODULE_CHANGE', note: 'Confirma alteração; o estado atual continua sendo a prova da configuração.' };
     if (event.name === '\\core\\event\\course_module_completion_updated') return { type: 'COMPLETION_CHANGED', occurredAt: event.occurredAt, supports: 'ACCESS_ONLY', note: 'Conclusão alterada não comprova entrega/configuração docente.' };

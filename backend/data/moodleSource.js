@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const sql = require('mssql');
 const { officialDeadline } = require('../core/deadlines');
+const { activityFacts, metadataEvents } = require('../core/moodle-evidence');
 
 function fromUnix(value) { const n = Number(value); return n > 0 ? new Date(n * 1000).toISOString() : null; }
 function normalize(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
@@ -57,12 +58,17 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
     const teacher = course.teachers.get(teacherId);
     if (!row.cm_id) continue;
     const requirementId = classifyRequirement(row.activity_name, course.modality); if (!requirementId) continue;
+    const facts = { ...activityFacts(row, generatedAt), requirementId };
+    course.moodleActivityFacts ||= [];
+    if (!course.moodleActivityFacts.some((item) => item.moduleId === facts.moduleId && item.teacherId === facts.teacherId)) course.moodleActivityFacts.push(facts);
     const configuredDeadline = officialDeadline(deadlineCatalog, course.period, course.modality, courseId, requirementId);
     const group = course.groups.get(requirementId) || { id: `${courseId}:${requirementId}`, requirementId, label: row.activity_name, observedQuantity: 0, visible: false, configuredAt: null, configurationTimeSource: null, deadlineAt: Array.isArray(configuredDeadline) ? configuredDeadline[0] || null : configuredDeadline, deadlineSource: null, mappingConfidence: 'EXACT', events: [], moduleIds: new Set() };
     if (group.deadlineAt) group.deadlineSource = 'OFFICIAL_CATALOG';
     const moduleId = String(row.cm_id); if (!group.moduleIds.has(moduleId)) { group.observedQuantity += row.activity_visible ? 1 : 0; group.moduleIds.add(moduleId); }
     group.visible = group.observedQuantity > 0;
-    const events = buildEvents(row, teacherId); group.events.push(...events); teacher.accessEvents.push(...events); course.groups.set(requirementId, group);
+    const events = buildEvents(row, teacherId); group.events.push(...events);
+    for (const event of metadataEvents(facts)) if (!group.events.some((existing) => existing.name === event.name && existing.occurredAt === event.occurredAt && existing.moduleId === event.moduleId)) group.events.push(event);
+    teacher.accessEvents.push(...events); course.groups.set(requirementId, group);
   }
   return { source: 'moodle', generatedAt, sourceIssues, courses: [...courses.values()].map((course) => ({ ...course, teachers: [...course.teachers.values()], activities: [...course.groups.values()].map(({ moduleIds, ...group }) => ({ ...group, mappingConfidence: !['unidades_aprendizagem', 'videos'].includes(group.requirementId) && moduleIds.size > 1 ? 'AMBIGUOUS' : group.mappingConfidence })), groups: undefined })) };
 }
