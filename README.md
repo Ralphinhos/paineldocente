@@ -18,7 +18,7 @@ O teste usa dados fictícios em memória, coordenações fictícias e envio exte
 
 ## Piloto local com SQL Server real
 
-Para autenticação SQL Server por usuário e senha, use [docs/PILOTO_LOCAL.md](docs/PILOTO_LOCAL.md). Copie `.env.piloto.example` para `.env.piloto`, preencha localmente a conexão e de 1 a 10 IDs reais do Moodle. `npm run piloto:conexao` testa a conexão TLS e os IDs; `npm run piloto` coleta a amostra e abre o NED em http://127.0.0.1:8080. A entrada local é automática, as duas portas ficam restritas ao computador, os e-mails e a publicação permanecem desligados. O piloto usa memória: prazos, materiais manuais e histórico se perdem ao encerrar. Implantação institucional continua exigindo PostgreSQL, autenticação institucional e homologação.
+Para autenticação SQL Server por usuário e senha, use [docs/PILOTO_LOCAL.md](docs/PILOTO_LOCAL.md). Copie `.env.piloto.example` para `.env.piloto`, preencha localmente a conexão e de 1 a 10 IDs reais do Moodle. `npm run piloto:conexao` testa a conexão TLS e os IDs; `npm run piloto:diagnostico` identifica filtros de entrada que excluem disciplinas; `npm run piloto` coleta a amostra e abre o NED em http://127.0.0.1:8080. A entrada local é automática, as duas portas ficam restritas ao computador, os e-mails e a publicação permanecem desligados. O piloto usa memória: prazos, materiais manuais e histórico se perdem ao encerrar. Implantação institucional continua exigindo PostgreSQL, autenticação institucional e homologação.
 
 ## Quatro abas do NED
 

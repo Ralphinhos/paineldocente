@@ -27,6 +27,14 @@ async function main() {
   const sqlOptions = pilotRuntimeOptions(environment);
   if (sqlOptions.trustServerCertificate) console.warn('PILOTO LOCAL: TLS ativo, mas a identidade do servidor SQL não será verificada.');
   source = new MoodleSource(config.moodle, sqlOptions);
+  if (process.argv.includes('--diagnostic')) {
+    const { pilotScopeReport } = require('../backend/core/pilot-scope');
+    console.log('Verificando os filtros de entrada da amostra. Somente leitura; nomes e e-mails de docentes não são exibidos.');
+    const report = pilotScopeReport(await source.diagnoseCourseScope());
+    for (const line of report.lines) console.log(line);
+    await stop(report.ok ? 0 : 1);
+    return;
+  }
   console.log('Testando conexão SQL Server com TLS e os IDs da amostra…');
   const connection = await source.testConnection();
   console.log(`Conexão OK. ${connection.courses} disciplina(s) encontrada(s).`);

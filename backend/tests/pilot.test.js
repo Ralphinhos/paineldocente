@@ -7,6 +7,7 @@ const { once } = require('node:events');
 const { pathToFileURL } = require('node:url');
 const { loadConfig } = require('../config');
 const { pilotEnvironment, loadPilotEnvironment, pilotRuntimeOptions, pilotErrorMessage, APP_ORIGIN, LOOPBACK } = require('../core/pilot');
+const { pilotScopeReport } = require('../core/pilot-scope');
 const { MoodleSource } = require('../data/moodleSource');
 const { createRuntime } = require('../runtime');
 const { createApp } = require('../app');
@@ -108,6 +109,65 @@ test('coleta parametriza IDs, mantém acesso global e interrompe retorno fora da
   source.pool = fakePool([], {});
   await assert.rejects(source.testConnection(), (error) => error.code === 'PILOT_COURSES_MISSING');
   await source.close();
+});
+
+function scopeRow(overrides = {}) {
+  return { course_id: '10', course_exists: true, category_id: '420', category_exists: true, root_exists: true,
+    category_in_scope: true, course_visible: 1, context_count: 1, teacher_role_exists: true, teacher_count: 1,
+    roles_json: '[{"id":"3","shortname":"editingteacher","users":1}]', ...overrides };
+}
+
+test('diagnóstico parametriza apenas a amostra e recusa consulta sem escopo ou acima do limite', async () => {
+  const config = loadConfig(pilotEnvironment({ ...input, MOODLE_COURSE_IDS: '10,9007199254740993' }, root));
+  const source = new MoodleSource(config.moodle); const captures = {};
+  source.pool = fakePool([scopeRow()], captures);
+  const diagnosis = await source.diagnoseCourseScope();
+  assert.equal(captures.courseIds, '["10","9007199254740993"]');
+  assert.equal(captures.categoryRoot, 109); assert.equal(captures.teacherRoleId, 3);
+  assert.match(captures.sql, /OPENJSON\(@courseIds\)/); assert.match(captures.sql, /u\.deleted = 0/);
+  assert.equal(diagnosis.rows[0].course_id, '10');
+  for (const courseIds of [[], Array.from({ length: 11 }, (_, i) => String(i + 1))]) {
+    const invalid = new MoodleSource({ ...config.moodle, courseIds });
+    await assert.rejects(invalid.diagnoseCourseScope(), (error) => error.code === 'PILOT_CONFIG');
+    assert.equal(invalid.pool, null);
+  }
+  await source.close();
+});
+
+test('diagnóstico distingue filtros simultâneos e lista papéis sem expor pessoas ou aceitar controles de terminal', () => {
+  const report = pilotScopeReport({ categoryRoot: 109, teacherRoleId: 3, rows: [scopeRow({
+    category_in_scope: false, course_visible: 0, teacher_count: 0,
+    teacher_name: 'NOME QUE NAO DEVE SAIR', teacher_email: 'privado@example.invalid',
+    roles_json: JSON.stringify([{ id: '7', shortname: 'professor\u001b[31m\ncustomizado', users: 2 }]),
+  })] });
+  const output = report.lines.join('\n');
+  assert.equal(report.ok, false); assert.match(output, /Categoria 420 fora da raiz 109/);
+  assert.match(output, /Disciplina oculta/); assert.match(output, /Nenhum usuário não excluído com papel 3/);
+  assert.match(output, /7 \(professor/); assert.ok(!output.includes('\u001b'));
+  assert.ok(!output.includes('NOME QUE')); assert.ok(!output.includes('privado@example.invalid'));
+});
+
+test('diagnóstico permite subcategorias válidas e não confunde filtro aprovado com entrega validada', () => {
+  const report = pilotScopeReport({ categoryRoot: 109, teacherRoleId: 3, rows: [scopeRow(), scopeRow({ course_id: '11' })] });
+  assert.equal(report.ok, true); assert.match(report.lines.join('\n'), /validar também atividades, logs e prazos/);
+  assert.doesNotMatch(report.lines.join('\n'), /BLOQUEADA/);
+  // A coleta filtra pela atribuição; não exige uma linha correspondente em mdl_role.
+  assert.equal(pilotScopeReport({ categoryRoot: 109, teacherRoleId: 3, rows: [scopeRow({ teacher_role_exists: false })] }).ok, true);
+  assert.equal(pilotScopeReport({ categoryRoot: 109, teacherRoleId: 3, rows: [] }).ok, false);
+});
+
+test('diagnóstico diferencia ID ausente, raiz inexistente, contexto ausente e papel não encontrado', () => {
+  const describe = (row) => pilotScopeReport({ categoryRoot: 109, teacherRoleId: 3, rows: [row] }).lines.join('\n');
+  const missing = describe(scopeRow({ course_exists: false }));
+  assert.match(missing, /ID não encontrado/); assert.doesNotMatch(missing, /Motivo: Disciplina oculta/);
+  const rootMissing = describe(scopeRow({ root_exists: false, category_in_scope: false }));
+  assert.match(rootMissing, /Categoria raiz 109 não existe/); assert.doesNotMatch(rootMissing, /fora da raiz/);
+  const categoryMissing = describe(scopeRow({ category_exists: false, category_in_scope: false }));
+  assert.match(categoryMissing, /categoria da disciplina não foi encontrada/);
+  const contextMissing = describe(scopeRow({ context_count: 0, teacher_count: 0, roles_json: '[]' }));
+  assert.match(contextMissing, /Sem contexto de disciplina/); assert.doesNotMatch(contextMissing, /Motivo: Nenhum usuário/);
+  const roleMissing = describe(scopeRow({ teacher_role_exists: false, teacher_count: 0 }));
+  assert.match(roleMissing, /Papel docente configurado \(3\) não existe/);
 });
 
 test('proxy local abre o NED com dados Moodle, mantém API direta anônima e bloqueia demo, origem externa e envio', async (t) => {

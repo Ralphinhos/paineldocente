@@ -83,6 +83,16 @@ class MoodleSource {
     if (missing.length) throw Object.assign(new Error('Alguns IDs da amostra não foram encontrados no banco selecionado. Confira MOODLE_COURSE_IDS.'), { code: 'PILOT_COURSES_MISSING' });
     return { courses: found.size };
   }
+  async diagnoseCourseScope() {
+    const requested = this.config.courseIds || [];
+    if (!requested.length || requested.length > 10) throw Object.assign(new Error('O diagnóstico exige de 1 a 10 IDs em MOODLE_COURSE_IDS.'), { code: 'PILOT_CONFIG' });
+    const pool = await this.connect();
+    const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-course-scope.sql'), 'utf8');
+    const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot)
+      .input('teacherRoleId', sql.Int, this.config.teacherRoleId)
+      .input('courseIds', sql.NVarChar(sql.MAX), JSON.stringify(requested)).query(query);
+    return { categoryRoot: this.config.categoryRoot, teacherRoleId: this.config.teacherRoleId, rows: result.recordset };
+  }
   async fetch(deadlineCatalog = this.deadlines) {
     const generatedAt = new Date().toISOString(); const pool = await this.connect();
     const query = fs.readFileSync(path.join(__dirname, '..', 'sql', 'moodle-snapshot.sql'), 'utf8');
@@ -94,7 +104,7 @@ class MoodleSource {
     if (requested.length) {
       const found = new Set(result.recordset.map((row) => String(row.course_id)));
       if ([...found].some((id) => !requested.includes(id))) throw Object.assign(new Error('A coleta retornou uma disciplina fora da amostra. O piloto foi interrompido.'), { code: 'COURSE_SCOPE_VIOLATION' });
-      if (requested.some((id) => !found.has(id))) throw Object.assign(new Error('Amostra incompleta. Confira categoria, visibilidade e docente com papel configurado para cada disciplina.'), { code: 'COURSE_SCOPE_INCOMPLETE' });
+      if (requested.some((id) => !found.has(id))) throw Object.assign(new Error('Amostra incompleta. Execute npm run piloto:diagnostico para identificar os filtros de categoria, visibilidade e papel docente que excluem cada disciplina.'), { code: 'COURSE_SCOPE_INCOMPLETE' });
     }
     return normalizeRows(result.recordset, generatedAt, deadlineCatalog);
   }

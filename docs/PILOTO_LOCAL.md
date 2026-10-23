@@ -45,7 +45,21 @@ Para voltar à validação completa, use `PILOT_TRUST_SERVER_CERTIFICATE=false` 
 npm run piloto
 ```
 
-O comando verifica novamente a conexão, executa a consulta limitada à amostra e aplica o validador de consistência. A seleção dos IDs ocorre no SQL antes de consultar atividades e logs. Retorno fora da amostra ou ausência de alguma disciplina selecionada interrompem a coleta. Nesse último caso, confira também categoria 109, visibilidade e papel docente configurado. A coleta usa `READ COMMITTED`, sem leitura suja, e não escreve no Moodle.
+O comando verifica novamente a conexão, executa a consulta limitada à amostra e aplica o validador de consistência. A seleção dos IDs ocorre no SQL antes de consultar atividades e logs. Retorno fora da amostra ou ausência de alguma disciplina selecionada interrompem a coleta. A coleta usa `READ COMMITTED`, sem leitura suja, e não escreve no Moodle.
+
+### Conexão OK, mas amostra incompleta
+
+```cmd
+npm run piloto:diagnostico
+```
+
+O diagnóstico consulta somente os IDs selecionados e mostra, por disciplina: existência, categoria atual, inclusão na categoria raiz, visibilidade, contexto da disciplina e quantidade de usuários não excluídos com o papel docente configurado. Também lista IDs/nomes curtos dos papéis atribuídos diretamente e suas contagens, sem nomes ou e-mails de docentes. Não coleta logs, não abre o painel nem modifica dados/configurações. O comando termina com código 1 se houver algum bloqueio.
+
+`MOODLE_CATEGORY_ROOT=109` e `MOODLE_TEACHER_ROLE_ID=3` são valores iniciais que precisam corresponder à estrutura real. A raiz inclui subcategorias. Confirme os valores com NED/TI antes de editar `.env.piloto`; a lista de papéis não transforma automaticamente outro perfil em docente. A coleta atual exige disciplina visível e atribuição direta do papel no contexto da disciplina; atribuições herdadas de categoria/sistema não são usadas. Uma disciplina sem atividades ainda pode passar esses filtros, pois as atividades entram por junção opcional. Filtros de entrada OK não validam os logs, as entregas ou os prazos.
+
+Depois de conferir e corrigir a configuração ou o mapeamento com a TI, execute novamente `npm run piloto`.
+
+### Conferir no painel
 
 Abra **http://127.0.0.1:8080/acompanhamento**. A entrada do NED é automática, somente neste piloto local. O cabeçalho identifica os dados reais em validação. A API também fica limitada a `127.0.0.1`; solicitações diretas à API não recebem a identidade local. Não publique nem exponha esse modo na rede.
 
