@@ -55,7 +55,15 @@ npm run piloto:diagnostico
 
 O diagnóstico consulta somente os IDs selecionados e mostra, por disciplina: existência, categoria atual, inclusão na categoria raiz, visibilidade, contexto da disciplina e quantidade de usuários não excluídos com o papel docente configurado. Também lista IDs/nomes curtos dos papéis atribuídos diretamente e suas contagens, sem nomes ou e-mails de docentes. Não coleta logs, não abre o painel nem modifica dados/configurações. O comando termina com código 1 se houver algum bloqueio.
 
-`MOODLE_CATEGORY_ROOT=109` e `MOODLE_TEACHER_ROLE_ID=3` são valores iniciais que precisam corresponder à estrutura real. A raiz inclui subcategorias. Confirme os valores com NED/TI antes de editar `.env.piloto`; a lista de papéis não transforma automaticamente outro perfil em docente. A coleta atual exige disciplina visível e atribuição direta do papel no contexto da disciplina; atribuições herdadas de categoria/sistema não são usadas. Uma disciplina sem atividades ainda pode passar esses filtros, pois as atividades entram por junção opcional. Filtros de entrada OK não validam os logs, as entregas ou os prazos.
+`MOODLE_CATEGORY_ROOT=109` e `MOODLE_TEACHER_ROLE_ID=3` são valores iniciais que precisam corresponder à estrutura real. A raiz inclui subcategorias. Confirme os valores com NED/TI antes de editar `.env.piloto`; a lista de papéis não transforma automaticamente outro perfil em docente. A coleta exige, por padrão, disciplina visível e atribuição direta do papel no contexto da disciplina; atribuições herdadas de categoria/sistema não são usadas. Uma disciplina sem atividades ainda pode passar esses filtros, pois as atividades entram por junção opcional. Filtros de entrada OK não validam os logs, as entregas ou os prazos.
+
+Se o único bloqueio for **disciplina oculta**, você pode testar a mesma disciplina incluindo no `.env.piloto`:
+
+```env
+PILOT_INCLUDE_HIDDEN_COURSES=true
+```
+
+A opção permite consultar disciplinas ocultas **somente dentre os 1 a 10 IDs selecionados**. Não altera a visibilidade ou qualquer dado no Moodle. Os filtros de categoria, vínculo docente e escopo continuam valendo. Terminal, diagnóstico e faixa do painel identificam essa opção. O padrão é `false`, e a API/worker normais não usam essa variável do piloto. Para análise institucional de disciplinas encerradas, a regra definitiva de inclusão ainda precisa ser homologada com NED/TI.
 
 Depois de conferir e corrigir a configuração ou o mapeamento com a TI, execute novamente `npm run piloto`.
 

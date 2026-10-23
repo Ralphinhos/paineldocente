@@ -26,6 +26,7 @@ async function main() {
   const environment = loadPilotEnvironment(root); const config = loadConfig(environment);
   const sqlOptions = pilotRuntimeOptions(environment);
   if (sqlOptions.trustServerCertificate) console.warn('PILOTO LOCAL: TLS ativo, mas a identidade do servidor SQL não será verificada.');
+  if (sqlOptions.includeHiddenCourses) console.log('PILOTO LOCAL: a amostra permite disciplinas ocultas selecionadas. A visibilidade no Moodle permanece igual.');
   source = new MoodleSource(config.moodle, sqlOptions);
   if (process.argv.includes('--diagnostic')) {
     const { pilotScopeReport } = require('../backend/core/pilot-scope');

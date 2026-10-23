@@ -61,6 +61,19 @@ test('aceitar certificado exige opção explícita do piloto e é recusado fora 
   ]) await assert.rejects(createRuntime({ ...environment, ...changes }, options), (error) => error.code === 'PILOT_CONFIG');
 });
 
+test('incluir disciplinas ocultas exige opção explícita local e não muda a API normal', async (t) => {
+  assert.equal(pilotRuntimeOptions(pilotEnvironment(input, root)).includeHiddenCourses, false);
+  assert.throws(() => pilotEnvironment({ ...input, PILOT_INCLUDE_HIDDEN_COURSES: 'sim' }, root), (error) => error.code === 'PILOT_CONFIG');
+  const environment = pilotEnvironment({ ...input, PILOT_INCLUDE_HIDDEN_COURSES: 'true' }, root);
+  const options = pilotRuntimeOptions(environment);
+  assert.equal(options.includeHiddenCourses, true);
+  const normal = await createRuntime(environment); t.after(() => normal.close());
+  assert.equal(normal.services.snapshotService.source.includeHiddenCourses, false);
+  const local = await createRuntime(environment, options); t.after(() => local.close());
+  assert.equal(local.services.snapshotService.source.includeHiddenCourses, true);
+  await assert.rejects(createRuntime({ ...environment, APP_ORIGIN: 'http://0.0.0.0:8080' }, options), (error) => error.code === 'PILOT_CONFIG');
+});
+
 test('a opção do piloto altera só a confiança no certificado e mantém criptografia no driver SQL', async (t) => {
   const mssql = require('mssql'); const captured = [];
   t.mock.method(mssql, 'ConnectionPool', function (options) {
@@ -99,6 +112,7 @@ test('coleta parametriza IDs, mantém acesso global e interrompe retorno fora da
   source.pool = fakePool([fixtureRow()], captures);
   const raw = await source.fetch();
   assert.equal(captures.courseIds, '["10"]'); assert.match(captures.sql, /@courseIds/);
+  assert.equal(captures.includeHiddenCourses, false);
   assert.equal(raw.source, 'moodle'); assert.equal(raw.courses.length, 1);
   assert.ok(raw.courses[0].teachers[0].environmentAccessKnown);
   source.pool = fakePool([fixtureRow({ course_id: '11' })], {});
@@ -156,6 +170,32 @@ test('diagnóstico permite subcategorias válidas e não confunde filtro aprovad
   assert.equal(pilotScopeReport({ categoryRoot: 109, teacherRoleId: 3, rows: [] }).ok, false);
 });
 
+test('opção de ocultas preserva amostra e demais filtros, com aviso coerente no diagnóstico', async () => {
+  const config = loadConfig(pilotEnvironment({ ...input, PILOT_INCLUDE_HIDDEN_COURSES: 'true' }, root));
+  const source = new MoodleSource(config.moodle, { includeHiddenCourses: true }); const captures = {};
+  source.pool = fakePool([fixtureRow()], captures);
+  await source.fetch();
+  assert.equal(captures.courseIds, '["10"]'); assert.equal(captures.includeHiddenCourses, true);
+  assert.match(captures.sql, /@includeHiddenCourses = 1 AND @courseIds IS NOT NULL/);
+  assert.match(captures.sql, /INNER JOIN category_tree ct ON ct.id = c.category/);
+  source.pool = fakePool([scopeRow({ course_visible: 0 })], {});
+  const diagnosis = await source.diagnoseCourseScope();
+  const enabled = pilotScopeReport(diagnosis);
+  assert.equal(enabled.ok, true); assert.match(enabled.lines.join('\n'), /Oculta no Moodle; inclusão habilitada/);
+  const disabled = pilotScopeReport({ ...diagnosis, includeHiddenCourses: false });
+  assert.equal(disabled.ok, false); assert.match(disabled.lines.join('\n'), /PILOT_INCLUDE_HIDDEN_COURSES=true/);
+  const outside = pilotScopeReport({ ...diagnosis, rows: [scopeRow({ course_visible: 0, category_in_scope: false, teacher_count: 0 })] });
+  assert.equal(outside.ok, false); assert.match(outside.lines.join('\n'), /fora da raiz/);
+  assert.match(outside.lines.join('\n'), /Nenhum usuário não excluído/);
+  source.pool = fakePool([fixtureRow({ course_id: '11' })], {});
+  await assert.rejects(source.fetch(), (error) => error.code === 'COURSE_SCOPE_VIOLATION');
+  const unscoped = new MoodleSource({ ...config.moodle, courseIds: [] }, { includeHiddenCourses: true });
+  const unscopedCaptures = {}; unscoped.pool = fakePool([], unscopedCaptures);
+  await unscoped.fetch();
+  assert.equal(unscopedCaptures.includeHiddenCourses, false); assert.equal(unscopedCaptures.courseIds, null);
+  await source.close(); await unscoped.close();
+});
+
 test('diagnóstico diferencia ID ausente, raiz inexistente, contexto ausente e papel não encontrado', () => {
   const describe = (row) => pilotScopeReport({ categoryRoot: 109, teacherRoleId: 3, rows: [row] }).lines.join('\n');
   const missing = describe(scopeRow({ course_exists: false }));
@@ -171,7 +211,7 @@ test('diagnóstico diferencia ID ausente, raiz inexistente, contexto ausente e p
 });
 
 test('proxy local abre o NED com dados Moodle, mantém API direta anônima e bloqueia demo, origem externa e envio', async (t) => {
-  const environment = pilotEnvironment({ ...input, PILOT_TRUST_SERVER_CERTIFICATE: 'true' }, root); const config = loadConfig(environment);
+  const environment = pilotEnvironment({ ...input, PILOT_TRUST_SERVER_CERTIFICATE: 'true', PILOT_INCLUDE_HIDDEN_COURSES: 'true' }, root); const config = loadConfig(environment);
   const sqlOptions = pilotRuntimeOptions(environment);
   const runtime = await createRuntime(environment, sqlOptions); t.after(() => runtime.close());
   const catalog = loadCatalog(path.join(root, 'backend/config/rules.json'));
@@ -198,6 +238,7 @@ test('proxy local abre o NED com dados Moodle, mantém API direta anônima e blo
   const monitoring = await (await fetch(url + '/api/monitoring', { headers: { cookie } })).json();
   assert.equal(monitoring.meta.source, 'moodle'); assert.equal(monitoring.meta.isDemo, false);
   const html = await (await fetch(url)).text(); assert.match(html, /PILOTO LOCAL/); assert.match(html, /identidade do servidor SQL não verificada/); assert.ok(!html.includes(input.MOODLE_DB_PASSWORD)); assert.ok(!html.includes(config.auth.proxySharedSecret));
+  assert.match(html, /Amostra permite disciplinas ocultas selecionadas/);
   const external = await fetch(url + '/api/operations/snapshots', { method: 'POST', headers: { cookie, origin: 'https://externo.example.invalid', 'x-csrf-token': session.csrfToken } }); assert.equal(external.status, 403);
   const demo = await fetch(url + '/api/auth/demo-login', { method: 'POST', headers: { cookie, origin: APP_ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ profileId: 'ned' }) }); assert.equal(demo.status, 404);
   const send = await fetch(url + '/api/reports/send', { method: 'POST', headers: { cookie, origin: APP_ORIGIN, 'x-csrf-token': session.csrfToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ audience: 'coordinators', snapshotId: snapshot.id, recipientEmails: ['invalido@example.invalid'] }) }); assert.equal(send.status, 409);

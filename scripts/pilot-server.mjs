@@ -6,7 +6,8 @@ const { APP_ORIGIN, LOOPBACK, PILOT_EMAIL, assertLocalPilotConfig } = require('.
 export const PILOT_NOTICE = 'PILOTO LOCAL · dados reais em validação · e-mails desligados · prazos e registros manuais são temporários e se perdem ao encerrar.';
 
 export function pilotNotice(options = {}) {
-  return PILOT_NOTICE + (options.trustServerCertificate === true ? ' TLS ativo; identidade do servidor SQL não verificada.' : '');
+  return PILOT_NOTICE + (options.trustServerCertificate === true ? ' TLS ativo; identidade do servidor SQL não verificada.' : '')
+    + (options.includeHiddenCourses === true ? ' Amostra permite disciplinas ocultas selecionadas.' : '');
 }
 
 export function pilotServerOptions(root, config, localPilotOptions = {}) {

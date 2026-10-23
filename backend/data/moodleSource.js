@@ -68,7 +68,7 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
 }
 
 class MoodleSource {
-  constructor(config, options = {}) { this.config = config; this.trustServerCertificate = options.trustServerCertificate === true; this.pool = null; this.deadlines = JSON.parse(fs.readFileSync(config.deadlineCatalogPath, 'utf8')); }
+  constructor(config, options = {}) { this.config = config; this.trustServerCertificate = options.trustServerCertificate === true; this.includeHiddenCourses = options.includeHiddenCourses === true; this.pool = null; this.deadlines = JSON.parse(fs.readFileSync(config.deadlineCatalogPath, 'utf8')); }
   async connect() {
     if (this.pool) return this.pool; const ca = !this.trustServerCertificate && this.config.caFile ? fs.readFileSync(this.config.caFile, 'utf8') : undefined;
     this.pool = await new sql.ConnectionPool({ server: this.config.server, port: this.config.port, database: this.config.database, user: this.config.user, password: this.config.password, connectionTimeout: this.config.requestTimeoutMs, requestTimeout: this.config.requestTimeoutMs, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 }, options: { encrypt: true, trustServerCertificate: this.trustServerCertificate, enableArithAbort: true, ...(ca ? { cryptoCredentialsDetails: { ca } } : {}) } }).connect(); return this.pool;
@@ -91,7 +91,7 @@ class MoodleSource {
     const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot)
       .input('teacherRoleId', sql.Int, this.config.teacherRoleId)
       .input('courseIds', sql.NVarChar(sql.MAX), JSON.stringify(requested)).query(query);
-    return { categoryRoot: this.config.categoryRoot, teacherRoleId: this.config.teacherRoleId, rows: result.recordset };
+    return { categoryRoot: this.config.categoryRoot, teacherRoleId: this.config.teacherRoleId, includeHiddenCourses: this.includeHiddenCourses, rows: result.recordset };
   }
   async fetch(deadlineCatalog = this.deadlines) {
     const generatedAt = new Date().toISOString(); const pool = await this.connect();
@@ -99,6 +99,7 @@ class MoodleSource {
     const requested = this.config.courseIds || [];
     const result = await pool.request().input('categoryRoot', sql.Int, this.config.categoryRoot)
       .input('teacherRoleId', sql.Int, this.config.teacherRoleId)
+      .input('includeHiddenCourses', sql.Bit, this.includeHiddenCourses && requested.length > 0)
       .input('logFrom', sql.BigInt, Math.floor((Date.now() - this.config.queryWindowDays * 86400000) / 1000))
       .input('courseIds', sql.NVarChar(sql.MAX), requested.length ? JSON.stringify(requested) : null).query(query);
     if (requested.length) {

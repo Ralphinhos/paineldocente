@@ -58,7 +58,7 @@ teacher_courses AS (
   INNER JOIN dbo.mdl_role_assignments ra ON ra.contextid = ctx.id AND ra.roleid = @teacherRoleId
   INNER JOIN dbo.mdl_user u ON u.id = ra.userid AND u.deleted = 0
   LEFT JOIN course_fields cf ON cf.course_id = c.id
-  WHERE c.visible = 1
+  WHERE (c.visible = 1 OR (@includeHiddenCourses = 1 AND @courseIds IS NOT NULL))
     AND (@courseIds IS NULL OR c.id IN (SELECT CONVERT(bigint, [value]) FROM OPENJSON(@courseIds)))
   GROUP BY c.id, c.fullname, c.shortname, c.startdate, c.enddate, c.originalcourseid, c.timecreated,
     cc.name, cf.modality_field_value, cf.category_field_value, cf.workload_value, u.id, u.firstname, u.lastname, u.email
