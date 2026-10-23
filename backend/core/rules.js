@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const { z } = require('zod');
 const { calendarDays, delayFacts, saoPauloDate } = require('./timing');
 const { calculateEnvironmentAccess } = require('./environmentAccess');
-const { technicalEvidence } = require('./moodle-evidence');
+const { technicalEvidence, readyByEvidence } = require('./moodle-evidence');
 
 const eventSchema = z.object({ name: z.string(), occurredAt: z.string().datetime(), actorId: z.union([z.string(), z.number()]).transform(String).optional(), relatedUserId: z.union([z.string(), z.number()]).transform(String).optional(), moduleId: z.union([z.string(), z.number()]).transform(String).optional(), origin: z.string().optional() });
 const activitySchema = z.object({
@@ -12,7 +12,9 @@ const activitySchema = z.object({
   configuredAt: z.string().datetime().nullable(), deadlineAt: z.string().datetime().nullable(),
   configurationTimeSource: z.enum(['DEMO_TRUSTED', 'SNAPSHOT_OBSERVED']).nullable().default(null),
   deadlineSource: z.enum(['DEMO_SCHEDULE', 'OFFICIAL_CATALOG']).nullable().default(null),
-  mappingConfidence: z.enum(['EXACT', 'AMBIGUOUS']).default('EXACT'), events: z.array(eventSchema).default([]),
+  mappingConfidence: z.enum(['EXACT', 'AMBIGUOUS', 'UNSUPPORTED']).default('EXACT'), events: z.array(eventSchema).default([]),
+  readyBy: z.object({ at: z.string().datetime(), kind: z.enum(['ASSIGN_STATE', 'FORUM_STARTER', 'QUIZ_FINISHED_ATTEMPT']), moduleId: z.string() }).nullable().default(null),
+  readinessConfirmed: z.boolean().nullable().default(null),
 });
 const teacherSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), name: z.string(), email: z.string().email().nullable().default(null), assignedAt: z.string().datetime().nullable(), lastAccessAt: z.string().datetime().nullable(), environmentLastAccessAt: z.string().datetime().nullable().default(null), environmentAccessKnown: z.boolean().default(false), accessEvents: z.array(eventSchema).default([]) });
 const deadlineValueSchema = z.union([z.string().datetime(), z.array(z.string().datetime())]);
@@ -66,18 +68,23 @@ function evidenceFor(activity, teacherId) {
 }
 function result(status, reasonCode, reason, activity, quantity, evidence, overdue = false, extras = {}) {
   const timingTrusted = Boolean(activity?.configuredAt && activity?.configurationTimeSource);
-  return { status, reasonCode, reason, overdue, deadlineAt: activity?.deadlineAt ?? null, deadlineSource: activity?.deadlineSource ?? null, configuredAt: timingTrusted ? activity.configuredAt : null, timingSource: timingTrusted ? activity.configurationTimeSource : null, expectedQuantity: quantity, observedQuantity: activity?.observedQuantity ?? 0, evidence, ...extras };
+  return { status, reasonCode, reason, overdue, deadlineAt: activity?.deadlineAt ?? null, deadlineSource: activity?.deadlineSource ?? null, configuredAt: timingTrusted ? activity.configuredAt : null, readyByAt: null, timingSource: timingTrusted ? activity.configurationTimeSource : null, expectedQuantity: quantity, observedQuantity: activity?.observedQuantity ?? 0, evidence, ...extras };
 }
 function evaluateRequirement({ requirement, activity, course, teacher, inheritedReady, generatedAt }) {
   const quantity = expectedQuantity(requirement, course.workloadHours);
   const evidence = evidenceFor(activity, teacher.id);
   if (quantity === null) return result('NOT_VERIFIABLE', 'WORKLOAD_RULE_MISSING', `Carga horária ${course.workloadHours}h sem quantidade homologada.`, activity, null, evidence);
   if (activity?.mappingConfidence === 'AMBIGUOUS') return result('NOT_VERIFIABLE', 'AMBIGUOUS_MAPPING', 'Mais de uma atividade pode representar este requisito.', activity, quantity, evidence);
+  if (activity?.mappingConfidence === 'UNSUPPORTED') return result('NOT_VERIFIABLE', 'ACTIVITY_TYPE_UNSUPPORTED', 'Atividade encontrada com tipo diferente do esperado. O vínculo precisa ser conferido pelo NED.', activity, quantity, evidence);
   if (!activity?.deadlineAt || activity.deadlineSource !== 'OFFICIAL_CATALOG' && activity.deadlineSource !== 'DEMO_SCHEDULE') return result('NOT_VERIFIABLE', 'DEADLINE_MISSING', 'Prazo oficial ausente; atraso não pode ser calculado com segurança.', activity, quantity, evidence);
+  if (activity.readinessConfirmed === false) return result('NOT_VERIFIABLE', 'PREPARATION_NOT_CONFIRMED', 'O módulo existe, mas o conteúdo mínimo de preparo ainda precisa ser conferido. Presença do módulo não comprova entrega.', activity, quantity, evidence);
   const ready = Boolean(activity.visible && activity.observedQuantity >= quantity);
   if (inheritedReady && ready) return result('INHERITED_READY', 'RESTORED_STRUCTURE_READY', 'Estrutura herdada estava pronta antes da responsabilidade deste docente.', activity, quantity, evidence);
   if (!ready) { const overdue = calendarDays(generatedAt, activity.deadlineAt) > 0; return result('PENDING', overdue ? 'REQUIREMENT_OVERDUE' : 'REQUIREMENT_OPEN', overdue ? 'Requisito incompleto após o prazo.' : 'Requisito incompleto, ainda dentro do prazo.', activity, quantity, evidence, overdue); }
-  if (!activity.configuredAt || !activity.configurationTimeSource) return result('NOT_VERIFIABLE', 'CONFIGURATION_DATE_UNKNOWN', 'Estado atual está pronto, mas não há fotografia confiável para classificar o prazo.', activity, quantity, evidence);
+  const proof = activity.readyBy && new Date(activity.readyBy.at) <= new Date(generatedAt) ? activity.readyBy : null;
+  if (proof) evidence.push(readyByEvidence(proof));
+  if (proof && calendarDays(proof.at, activity.deadlineAt) <= 0) return result('DELIVERED_ON_TIME', 'READY_CONFIRMED_BY_MOODLE', 'Há evidência de preparo até o prazo. A data inicial de entrega não foi determinada.', activity, quantity, evidence, false, { configuredAt: null, readyByAt: proof.at, timingSource: 'MOODLE_READY_BY_BOUND' });
+  if (!activity.configuredAt || !activity.configurationTimeSource) return result('NOT_VERIFIABLE', 'CONFIGURATION_DATE_UNKNOWN', proof ? 'Há evidência de preparo posterior ao prazo, mas ela não determina a entrega inicial. O atraso permanece a validar.' : 'Estado atual está pronto, mas não há comprovação confiável de quando o preparo ficou completo.', activity, quantity, evidence, false, { readyByAt: proof?.at || null });
   const late = calendarDays(activity.configuredAt, activity.deadlineAt) > 0;
   return result(late ? 'DELIVERED_LATE' : 'DELIVERED_ON_TIME', late ? 'CONFIGURED_AFTER_DEADLINE' : 'CONFIGURED_BY_DEADLINE', late ? 'Configuração válida concluída após o prazo.' : 'Configuração válida concluída até o prazo.', activity, quantity, evidence);
 }
@@ -139,7 +146,8 @@ function reconcileObservedTiming(rows, source, previousSnapshot) {
     const key = `${row.course.id}:${row.teacher.id}:${row.requirement.id}`;
     const previous = prior.get(key);
     if (previous && previous.deadlineAt === row.deadlineAt && ['DELIVERED_ON_TIME', 'DELIVERED_LATE'].includes(previous.structureStatus)) {
-      Object.assign(row, { structureStatus: previous.structureStatus, reasonCode: previous.reasonCode, reason: previous.reason, configuredAt: previous.configuredAt, timingSource: previous.timingSource });
+      Object.assign(row, { structureStatus: previous.structureStatus, reasonCode: previous.reasonCode, reason: previous.reason, configuredAt: previous.configuredAt, timingSource: previous.timingSource, readyByAt: previous.readyByAt || null });
+      if (previous.timingSource === 'MOODLE_READY_BY_BOUND') row.evidence.push(...(previous.evidence || []).filter((item) => item.supports === 'READY_BY_BOUND' && item.occurredAt === previous.readyByAt));
       continue;
     }
     const deadline = new Date(row.deadlineAt);
@@ -187,7 +195,7 @@ function buildSnapshot(rawSource, catalog, options = {}) {
       const environmentFact = JSON.stringify(environmentAccess);
       if (environmentByTeacher.has(teacher.id) && environmentByTeacher.get(teacher.id) !== environmentFact) qualityIssues.push({ code: 'ENVIRONMENT_ACCESS_CONFLICT', message: `${teacher.name}: a coleta retornou acessos globais conflitantes. Atualize e valide antes de enviar.`, severity: 'CRITICAL', courseId: course.id });
       environmentByTeacher.set(teacher.id, environmentFact);
-      const currentReady = required.every((requirement) => { const activity = course.activities.find((candidate) => candidate.requirementId === requirement.id); const quantity = expectedQuantity(requirement, course.workloadHours); return quantity !== null && activity?.mappingConfidence === 'EXACT' && activity.visible && activity.observedQuantity >= quantity; });
+      const currentReady = required.every((requirement) => { const activity = course.activities.find((candidate) => candidate.requirementId === requirement.id); const quantity = expectedQuantity(requirement, course.workloadHours); return quantity !== null && activity?.mappingConfidence === 'EXACT' && activity.readinessConfirmed !== false && activity.visible && activity.observedQuantity >= quantity; });
       const inheritedReady = Boolean(course.originalCourseId && course.restoredAt && teacher.assignedAt && new Date(course.restoredAt) <= new Date(teacher.assignedAt) && currentReady);
       for (const requirement of required) {
         const activity = course.activities.find((candidate) => candidate.requirementId === requirement.id);

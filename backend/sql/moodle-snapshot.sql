@@ -66,23 +66,26 @@ teacher_courses AS (
 activity_instances AS (
   SELECT 'assign' AS module_name, id AS instance_id, name, timemodified AS modified_at,
     CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0
-      OR LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), activity), N'')))) > 0 THEN 1 ELSE 0 END AS description_present
+      OR LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), activity), N'')))) > 0 THEN 1 ELSE 0 END AS description_present,
+    CONCAT(CONVERT(nvarchar(max), intro), N' ', CONVERT(nvarchar(max), activity)) AS content_text
   FROM dbo.mdl_assign
   UNION ALL SELECT 'forum', id, name, timemodified,
-    CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0 THEN 1 ELSE 0 END FROM dbo.mdl_forum
+    CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0 THEN 1 ELSE 0 END,
+    CONVERT(nvarchar(max), intro) FROM dbo.mdl_forum
   UNION ALL SELECT 'quiz', id, name, timemodified,
-    CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0 THEN 1 ELSE 0 END FROM dbo.mdl_quiz
-  UNION ALL SELECT 'page', id, name, NULL, NULL FROM dbo.mdl_page
-  UNION ALL SELECT 'url', id, name, NULL, NULL FROM dbo.mdl_url
-  UNION ALL SELECT 'resource', id, name, NULL, NULL FROM dbo.mdl_resource
-  UNION ALL SELECT 'label', id, name, NULL, NULL FROM dbo.mdl_label
-  UNION ALL SELECT 'h5pactivity', id, name, NULL, NULL FROM dbo.mdl_h5pactivity
-  UNION ALL SELECT 'lti', id, name, NULL, NULL FROM dbo.mdl_lti
+    CASE WHEN LEN(LTRIM(RTRIM(COALESCE(CONVERT(nvarchar(max), intro), N'')))) > 0 THEN 1 ELSE 0 END,
+    CONVERT(nvarchar(max), intro) FROM dbo.mdl_quiz
+  UNION ALL SELECT 'page', id, name, NULL, NULL, NULL FROM dbo.mdl_page
+  UNION ALL SELECT 'url', id, name, NULL, NULL, NULL FROM dbo.mdl_url
+  UNION ALL SELECT 'resource', id, name, NULL, NULL, NULL FROM dbo.mdl_resource
+  UNION ALL SELECT 'label', id, name, NULL, NULL, NULL FROM dbo.mdl_label
+  UNION ALL SELECT 'h5pactivity', id, name, NULL, NULL, NULL FROM dbo.mdl_h5pactivity
+  UNION ALL SELECT 'lti', id, name, NULL, NULL, NULL FROM dbo.mdl_lti
 ),
 course_activities AS (
   SELECT cm.id AS cm_id, cm.course AS course_id, cm.added AS cm_created_at,
     m.name AS module_name, ai.instance_id, ai.name AS activity_name, cm.visible,
-    ai.modified_at AS activity_modified_at, ai.description_present AS activity_description_present
+    ai.modified_at AS activity_modified_at, ai.description_present AS activity_description_present, ai.content_text AS activity_content
   FROM dbo.mdl_course_modules cm
   INNER JOIN dbo.mdl_modules m ON m.id = cm.module
   INNER JOIN activity_instances ai ON ai.module_name = m.name AND ai.instance_id = cm.instance
@@ -124,7 +127,11 @@ relevant_logs AS (
 )
 SELECT tc.*, ca.cm_id, ca.module_name, ca.activity_name, ca.visible AS activity_visible,
   ca.cm_created_at, ca.activity_modified_at, ca.activity_description_present,
+  ca.activity_content,
   qs.question_slot_count, fs.discussion_count,
+  starter.post_id AS forum_starter_id, starter.author_id AS forum_starter_author_id,
+  starter.created_at AS forum_starter_created_at, starter.modified_at AS forum_starter_modified_at, starter.content_text AS forum_starter_content,
+  attempts.completed_attempts AS quiz_completed_attempts, attempts.first_finished_at AS quiz_first_finished_at,
   rl.creation_log_at, rl.first_update_log_at, rl.last_update_log_at,
   ula.timeaccess AS last_access_at, rl.module_updated_at, rl.completion_updated_at,
   rl.completion_related_user_id, rl.module_viewed_at
@@ -134,4 +141,21 @@ LEFT JOIN quiz_structure qs ON qs.cm_id = ca.cm_id
 LEFT JOIN forum_structure fs ON fs.cm_id = ca.cm_id
 LEFT JOIN dbo.mdl_user_lastaccess ula ON ula.courseid = tc.course_id AND ula.userid = tc.teacher_id
 LEFT JOIN relevant_logs rl ON rl.courseid = tc.course_id AND rl.userid = tc.teacher_id AND rl.cm_id = ca.cm_id
+OUTER APPLY (
+  SELECT TOP (1) fp.id AS post_id, fp.userid AS author_id, fp.created AS created_at, fp.modified AS modified_at,
+    CONVERT(nvarchar(max), fp.message) AS content_text
+  FROM dbo.mdl_forum_discussions discussion
+  INNER JOIN dbo.mdl_forum_posts fp ON fp.id = discussion.firstpost AND fp.discussion = discussion.id
+  WHERE ca.module_name = 'forum' AND discussion.forum = ca.instance_id AND fp.deleted = 0 AND fp.privatereplyto = 0
+  ORDER BY CASE WHEN fp.userid = tc.teacher_id THEN 0 ELSE 1 END,
+    CASE WHEN fp.modified > fp.created THEN fp.modified ELSE fp.created END, fp.id
+) starter
+OUTER APPLY (
+  SELECT COUNT_BIG(*) AS completed_attempts, MIN(attempt.timefinish) AS first_finished_at
+  FROM dbo.mdl_quiz_attempts attempt
+  WHERE ca.module_name = 'quiz' AND attempt.quiz = ca.instance_id
+    AND attempt.preview = 0 AND attempt.state = 'finished' AND attempt.timefinish > 0
+    AND tc.startdate > 0 AND attempt.timestart >= tc.startdate AND attempt.timefinish >= attempt.timestart
+    AND NOT EXISTS (SELECT 1 FROM teacher_courses teachers WHERE teachers.course_id = tc.course_id AND teachers.teacher_id = attempt.userid)
+) attempts
 OPTION (MAXRECURSION 100);

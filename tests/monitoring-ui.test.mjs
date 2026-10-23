@@ -56,6 +56,16 @@ test('resolvidas e antecipadas possuem rótulos corretos; nomes externos são es
   assert.match(details, /&lt;img/);
 });
 
+test('comprovação até uma data não é mostrada como entrega exata ou antecipada', async () => {
+  const data = await runtime.services.monitoringService.getMonitoring(admin, { ...filters, deliveryStatus: 'ALL' });
+  const row = structuredClone(data.deliveries.rows[0]);
+  Object.assign(row.item, { baseId: 'desafio', label: 'Desafio', manualControl: false, status: 'DELIVERED_ON_TIME', overdue: false,
+    configuredAt: null, manualEvidenceDate: null, readyByAt: '2026-08-24T15:00:00Z', deadlineAt: '2026-08-25T15:00:00Z', timingSource: 'MOODLE_READY_BY_BOUND', delayPrecision: 'EXACT', daysLate: 0 });
+  const html = render(modules[3].DeliveryDetails, { row, onClose: noop });
+  assert.match(html, /<dt>Preparo comprovado até<\/dt><dd>24\/08\/2026<\/dd>/);
+  assert.match(html, /Entregue no prazo/); assert.doesNotMatch(html, /Entregue antecipadamente/);
+});
+
 test('gráfico distingue acesso medido de zero dias de ausência de data', () => {
   const html = render(modules[4].MonitoringChart, {
     title: 'Acessos', description: 'Último acesso ao ambiente', unit: 'dias sem acessar',

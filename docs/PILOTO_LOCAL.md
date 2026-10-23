@@ -71,6 +71,22 @@ Depois de conferir e corrigir a configuração ou o mapeamento com a TI, execute
 
 No detalhe da entrega, **Conferir evidências** mostra também a inclusão da atividade no curso, a última alteração da instância (Tarefa, Fórum e Questionário) e o último registro de alteração do módulo por qualquer usuário na janela consultada, quando disponíveis. Essas datas vêm automaticamente do Moodle e são identificadas como contexto técnico; não são preenchimento manual de entrega.
 
+### Seleção da atividade e comprovação de preparo
+
+O nome da atividade é combinado com seu tipo: **Desafio → Tarefa (`assign`)**, **fóruns → Fórum (`forum`)** e **avaliações → Questionário (`quiz`)**. Quando existe atividade do tipo esperado, um LTI/URL de mesmo nome não entra na contagem desse requisito. Dois candidatos do tipo esperado continuam ambíguos. Se só houver tipo diferente, o item fica **a validar**, sem virar falta docente. Conflito entre módulo esperado oculto e outro tipo visível também exige conferência.
+
+O sistema pode reconhecer **entrega no prazo** quando há comprovação de preparo até uma data que pertence ao prazo definido pelo NED:
+
+| Tipo | Comprovação usada |
+| --- | --- |
+| Tarefa | Conteúdo na descrição/instruções, última alteração da instância e registro de alteração do módulo compatível; vale a mais recente dessas datas e da inclusão no curso |
+| Fórum | Tópico inicial de docente vinculado, não excluído/nem privado, com conteúdo; considera criação/edição do post, alteração da instância e registro de alteração do módulo |
+| Questionário | Posições de questões existentes e tentativa concluída sem prévia por usuário fora dos docentes vinculados, iniciada a partir do início da disciplina; o término comprova que o questionário era utilizável até aquela data |
+
+Essa comprovação é um **limite de data**, não o instante da primeira entrega. O detalhe mostra **Preparo comprovado até**; não concede antecipação nem calcula atraso exato a partir desse limite. Evidência posterior ao prazo permanece **a validar**, pois a atividade pode ter ficado pronta antes e recebido ajustes depois. Uma comprovação anterior é preservada nas coletas seguintes, para o mesmo prazo. Mudança de prazo exige nova avaliação.
+
+Módulo visível vazio não comprova preparo. A descrição do Fórum pode estar vazia quando o enunciado está no tópico inicial. A qualidade pedagógica do conteúdo não é avaliada por essas verificações estruturais. Datas de UAs e videoaulas continuam exclusivamente manuais; os critérios de observação entre coletas e de material herdado continuam aplicáveis.
+
 ### Validar as datas automáticas com uma disciplina real
 
 Mantenha o piloto aberto para preservar os prazos temporários e use outro CMD na pasta do projeto:
@@ -79,11 +95,11 @@ Mantenha o piloto aberto para preservar os prazos temporários e use outro CMD n
 npm run piloto:evidencias
 ```
 
-O comando consulta os mesmos IDs e termina sem abrir servidor ou painel. O resumo mostra IDs de disciplina, módulo e docente; datas técnicas de criação/alteração; registros de edição, conclusão e visualização; contagem de posições de questões e tópicos, quando disponíveis. Não imprime nomes/e-mails, textos das atividades, questões ou credenciais. A descrição preenchida significa somente campo não vazio no banco, e as contagens não validam o conteúdo ou a autoria. A consulta usa somente leitura e mantém os filtros de categoria, papel, visibilidade/opção explícita de ocultas e limite da amostra.
+O comando consulta os mesmos IDs e termina sem abrir servidor ou painel. O resumo mostra IDs de disciplina, módulo e docente; datas técnicas de criação/alteração; registros de edição, conclusão e visualização; contagem de posições de questões e tópicos, quando disponíveis. Também indica o candidato selecionado/excluído, se o tópico inicial pertence ao docente do vínculo e suas datas, o primeiro uso concluído da avaliação e eventual comprovação de preparo por data. Não imprime nomes/e-mails, textos das atividades, questões ou credenciais. O conteúdo usado na verificação é lido temporariamente, sem ser gravado no histórico ou incluído nas respostas do painel. A descrição preenchida significa somente campo não vazio no banco, e as contagens isoladas não validam o conteúdo ou a autoria. A consulta usa somente leitura e mantém os filtros de categoria, papel, visibilidade/opção explícita de ocultas e limite da amostra.
 
-Os logs respeitam `MOODLE_QUERY_WINDOW_DAYS` (padrão 90); “sem registro” pode significar evento fora da janela ou histórico removido. Inclusão/última alteração da instância vêm dos campos atuais, independentemente dessa janela. A primeira edição mostrada é a primeira **na janela**, não a primeira edição de toda a vida da atividade.
+Os logs respeitam `MOODLE_QUERY_WINDOW_DAYS` (padrão 90); “sem registro” pode significar evento fora da janela ou histórico removido. Inclusão/última alteração da instância, tópico inicial e usos concluídos vêm dos registros atuais, independentemente dessa janela; os usos considerados foram iniciados a partir do início da disciplina. A primeira edição mostrada é a primeira **na janela**, não a primeira edição de toda a vida da atividade.
 
-Compare essa saída com o histórico da mesma atividade no Moodle. O sistema ainda mantém **a validar** quando não há prova confiável de quando o preparo ficou completo. Não usar uma edição posterior, visualização ou alteração de conclusão como entrega/atraso presumido. UAs e videoaulas seguem com suas datas manuais de envio/gravação. Esta etapa coleta a evidência necessária para homologar o mapeamento da entrega automática.
+Compare essa saída com o histórico da mesma atividade no Moodle e com a planilha oficial. O sistema mantém **a validar** quando não consegue comprovar preparo até o prazo nem inferir atraso com observações confiáveis. Não usar uma edição posterior, visualização ou alteração de conclusão como entrega/atraso presumido. UAs e videoaulas seguem com suas datas manuais de envio/gravação. A homologação final desse mapeamento depende da conferência da amostra real pelo NED.
 
 Referências do esquema Moodle 5.0: [course_modules](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/lib/db/install.xml), [Tarefa](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/mod/assign/db/install.xml), [Fórum](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/mod/forum/db/install.xml) e [Questionário](https://github.com/moodle/moodle/blob/MOODLE_500_STABLE/mod/quiz/db/install.xml).
 

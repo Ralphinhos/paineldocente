@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const sql = require('mssql');
 const { officialDeadline } = require('../core/deadlines');
-const { activityFacts, metadataEvents } = require('../core/moodle-evidence');
+const { activityFacts, metadataEvents, expectedModuleFor, readyBy, readinessConfirmed } = require('../core/moodle-evidence');
 
 function fromUnix(value) { const n = Number(value); return n > 0 ? new Date(n * 1000).toISOString() : null; }
 function normalize(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
@@ -30,6 +30,39 @@ function classifyRequirement(name, modality) {
 function derivePeriod(shortName, startsAt) { const match = String(shortName || '').match(/(20\d{2})[^0-9]?([12])/); if (match) return `${match[1]}/${match[2]}`; const date = new Date(startsAt); return Number.isNaN(date.getTime()) ? null : `${date.getUTCFullYear()}/${date.getUTCMonth() < 6 ? 1 : 2}`; }
 function deriveWorkload(value, shortName, courseName) { const match = `${value || ''} ${shortName} ${courseName}`.match(/(?:^|\D)(20|40|60|80)\s*h?(?:\D|$)/i); return match ? Number(match[1]) : null; }
 function buildEvents(row, teacherId) { return [row.module_updated_at && { name: '\\core\\event\\course_module_updated', occurredAt: fromUnix(row.module_updated_at), actorId: teacherId, origin: 'web' }, row.completion_updated_at && { name: '\\core\\event\\course_module_completion_updated', occurredAt: fromUnix(row.completion_updated_at), actorId: teacherId, relatedUserId: row.completion_related_user_id ? String(row.completion_related_user_id) : undefined, origin: 'web' }, row.module_viewed_at && { name: `\\mod_${row.module_name}\\event\\course_module_viewed`, occurredAt: fromUnix(row.module_viewed_at), actorId: teacherId, origin: 'web' }].filter(Boolean); }
+
+function selectActivities(course, deadlineCatalog) {
+  const activities = [];
+  for (const [requirementId, candidates] of course.groups) {
+    const expectedModule = expectedModuleFor(requirementId);
+    const preferred = expectedModule ? candidates.filter(({ row }) => row.module_name === expectedModule) : candidates;
+    const selected = preferred.length ? preferred : candidates;
+    const supported = !expectedModule || preferred.length > 0;
+    const selectedIds = new Set(selected.map(({ row }) => String(row.cm_id)));
+    for (const candidate of candidates) candidate.facts.selection = !supported ? 'unsupported' : selectedIds.has(String(candidate.row.cm_id)) ? 'selected' : 'excluded';
+    const observedIds = new Set(selected.filter(({ row }) => Number(row.activity_visible) === 1).map(({ row }) => String(row.cm_id)));
+    const deadline = officialDeadline(deadlineCatalog, course.period, course.modality, course.id, requirementId);
+    const deadlineAt = Array.isArray(deadline) ? deadline[0] || null : deadline;
+    const events = []; const metadataKeys = new Set();
+    for (const { row, facts } of selected) {
+      events.push(...buildEvents(row, String(row.teacher_id)));
+      for (const event of metadataEvents(facts)) {
+        const key = `${event.name}:${event.moduleId}:${event.occurredAt}`;
+        if (!metadataKeys.has(key)) { events.push(event); metadataKeys.add(key); }
+      }
+    }
+    const manual = ['unidades_aprendizagem', 'videos'].includes(requirementId);
+    const conflict = expectedModule && preferred.length && !observedIds.size && candidates.some(({ row }) => row.module_name !== expectedModule && Number(row.activity_visible) === 1);
+    const mappingConfidence = !supported ? 'UNSUPPORTED' : !manual && (selectedIds.size > 1 || conflict) ? 'AMBIGUOUS' : 'EXACT';
+    const readiness = manual ? [] : selected.map(({ facts }) => readinessConfirmed(facts));
+    const readinessValue = readiness.includes(true) ? true : readiness.includes(false) ? false : null;
+    const proofs = !manual && mappingConfidence === 'EXACT' ? selected.map(({ facts }) => readyBy(facts)).filter(Boolean).sort((a, b) => a.at.localeCompare(b.at)) : [];
+    activities.push({ id: `${course.id}:${requirementId}`, requirementId, label: selected[0].row.activity_name,
+      observedQuantity: observedIds.size, visible: observedIds.size > 0, configuredAt: null, configurationTimeSource: null,
+      deadlineAt, deadlineSource: deadlineAt ? 'OFFICIAL_CATALOG' : null, mappingConfidence, events, readyBy: proofs[0] || null, readinessConfirmed: readinessValue });
+  }
+  return activities;
+}
 
 function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }) {
   const courses = new Map(); const sourceIssues = [];
@@ -61,16 +94,14 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
     const facts = { ...activityFacts(row, generatedAt), requirementId };
     course.moodleActivityFacts ||= [];
     if (!course.moodleActivityFacts.some((item) => item.moduleId === facts.moduleId && item.teacherId === facts.teacherId)) course.moodleActivityFacts.push(facts);
-    const configuredDeadline = officialDeadline(deadlineCatalog, course.period, course.modality, courseId, requirementId);
-    const group = course.groups.get(requirementId) || { id: `${courseId}:${requirementId}`, requirementId, label: row.activity_name, observedQuantity: 0, visible: false, configuredAt: null, configurationTimeSource: null, deadlineAt: Array.isArray(configuredDeadline) ? configuredDeadline[0] || null : configuredDeadline, deadlineSource: null, mappingConfidence: 'EXACT', events: [], moduleIds: new Set() };
-    if (group.deadlineAt) group.deadlineSource = 'OFFICIAL_CATALOG';
-    const moduleId = String(row.cm_id); if (!group.moduleIds.has(moduleId)) { group.observedQuantity += row.activity_visible ? 1 : 0; group.moduleIds.add(moduleId); }
-    group.visible = group.observedQuantity > 0;
-    const events = buildEvents(row, teacherId); group.events.push(...events);
-    for (const event of metadataEvents(facts)) if (!group.events.some((existing) => existing.name === event.name && existing.occurredAt === event.occurredAt && existing.moduleId === event.moduleId)) group.events.push(event);
-    teacher.accessEvents.push(...events); course.groups.set(requirementId, group);
+    const group = course.groups.get(requirementId) || [];
+    group.push({ row, facts }); course.groups.set(requirementId, group);
+    teacher.accessEvents.push(...buildEvents(row, teacherId));
   }
-  return { source: 'moodle', generatedAt, sourceIssues, courses: [...courses.values()].map((course) => ({ ...course, teachers: [...course.teachers.values()], activities: [...course.groups.values()].map(({ moduleIds, ...group }) => ({ ...group, mappingConfidence: !['unidades_aprendizagem', 'videos'].includes(group.requirementId) && moduleIds.size > 1 ? 'AMBIGUOUS' : group.mappingConfidence })), groups: undefined })) };
+  return { source: 'moodle', generatedAt, sourceIssues, courses: [...courses.values()].map((course) => {
+    const activities = selectActivities(course, deadlineCatalog);
+    return { ...course, teachers: [...course.teachers.values()], activities, groups: undefined };
+  }) };
 }
 
 class MoodleSource {

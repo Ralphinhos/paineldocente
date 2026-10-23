@@ -60,7 +60,7 @@ function deliveryRecord(row, asOf) {
     reasonCode: unassigned ? 'OWNER_UNCONFIRMED' : row.reasonCode,
     reason: unassigned ? 'Responsável pela entrega precisa ser confirmado pelo NED.' : row.reason,
     overdue: !unassigned && row.overdue, deadlineAt: row.deadlineAt, deadlineSource: row.deadlineSource,
-    configuredAt: row.configuredAt, timingSource: row.timingSource, expectedQuantity: row.expectedQuantity,
+    configuredAt: row.configuredAt, readyByAt: row.readyByAt || null, timingSource: row.timingSource, expectedQuantity: row.expectedQuantity,
     observedQuantity: row.observedQuantity, evidence: row.evidence || [],
     manualEvidenceDate: row.manualEvidenceDate || null, publishedDate: row.publishedDate || null,
     manualVersion: row.manualVersion || null, manualJustification: row.manualJustification || null,
