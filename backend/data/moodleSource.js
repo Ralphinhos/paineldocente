@@ -68,10 +68,10 @@ function normalizeRows(recordset, generatedAt, deadlineCatalog = { periods: {} }
 }
 
 class MoodleSource {
-  constructor(config) { this.config = config; this.pool = null; this.deadlines = JSON.parse(fs.readFileSync(config.deadlineCatalogPath, 'utf8')); }
+  constructor(config, options = {}) { this.config = config; this.trustServerCertificate = options.trustServerCertificate === true; this.pool = null; this.deadlines = JSON.parse(fs.readFileSync(config.deadlineCatalogPath, 'utf8')); }
   async connect() {
-    if (this.pool) return this.pool; const ca = this.config.caFile ? fs.readFileSync(this.config.caFile, 'utf8') : undefined;
-    this.pool = await new sql.ConnectionPool({ server: this.config.server, port: this.config.port, database: this.config.database, user: this.config.user, password: this.config.password, connectionTimeout: this.config.requestTimeoutMs, requestTimeout: this.config.requestTimeoutMs, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 }, options: { encrypt: true, trustServerCertificate: false, enableArithAbort: true, ...(ca ? { cryptoCredentialsDetails: { ca } } : {}) } }).connect(); return this.pool;
+    if (this.pool) return this.pool; const ca = !this.trustServerCertificate && this.config.caFile ? fs.readFileSync(this.config.caFile, 'utf8') : undefined;
+    this.pool = await new sql.ConnectionPool({ server: this.config.server, port: this.config.port, database: this.config.database, user: this.config.user, password: this.config.password, connectionTimeout: this.config.requestTimeoutMs, requestTimeout: this.config.requestTimeoutMs, pool: { max: 2, min: 0, idleTimeoutMillis: 30000 }, options: { encrypt: true, trustServerCertificate: this.trustServerCertificate, enableArithAbort: true, ...(ca ? { cryptoCredentialsDetails: { ca } } : {}) } }).connect(); return this.pool;
   }
   async testConnection() {
     const pool = await this.connect();

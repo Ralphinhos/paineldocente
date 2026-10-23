@@ -13,6 +13,8 @@ const configError = (message) => Object.assign(new Error(message), { code: 'PILO
 
 function pilotEnvironment(input, root) {
   if (input.NODE_ENV === 'production') throw configError('O piloto local não pode ser iniciado em produção.');
+  const trustCertificate = (input.PILOT_TRUST_SERVER_CERTIFICATE || 'false').trim().toLowerCase();
+  if (!['true', 'false'].includes(trustCertificate)) throw configError('PILOT_TRUST_SERVER_CERTIFICATE deve ser true ou false.');
   for (const field of ['MOODLE_DB_SERVER', 'MOODLE_DB_DATABASE', 'MOODLE_DB_USER', 'MOODLE_DB_PASSWORD']) {
     if (!input[field]?.trim() || /^(SEU_|PREENCHA_|SUBSTITUIR)/i.test(input[field])) throw configError('Preencha ' + field + ' no arquivo .env.piloto.');
   }
@@ -28,11 +30,24 @@ function pilotEnvironment(input, root) {
     RULE_CATALOG_PATH: path.join(root, 'backend/config/rules.json'),
     MOODLE_DEADLINE_CATALOG_PATH: path.join(root, 'backend/config/deadlines.json'),
     EMAIL_SEND_ENABLED: 'false', REPORT_RECIPIENTS_JSON: '[]',
+    PILOT_TRUST_SERVER_CERTIFICATE: trustCertificate,
   };
   let config;
   try { config = loadConfig(environment); } catch { throw configError('Confira os campos de .env.piloto: porta, limites e até 10 IDs numéricos de disciplinas.'); }
   if (!config.moodle.courseIds.length) throw configError('Informe de 1 a 10 IDs reais em MOODLE_COURSE_IDS. Nenhuma consulta ampla é executada sem a amostra.');
   return environment;
+}
+
+function assertLocalPilotConfig(config) {
+  if (config.production || config.appOrigin !== APP_ORIGIN || config.dataSource !== 'moodle' || config.snapshotStore !== 'memory'
+    || config.auth.mode !== 'proxy' || config.auth.demoEnabled || config.reports.emailEnabled || config.rules.approved || !config.moodle.courseIds.length) {
+    throw configError('As opções do piloto só podem ser usadas no teste local, com amostra limitada, e-mails e publicação desligados.');
+  }
+}
+
+function pilotRuntimeOptions(environment) {
+  assertLocalPilotConfig(loadConfig(environment));
+  return { trustServerCertificate: environment.PILOT_TRUST_SERVER_CERTIFICATE === 'true' };
 }
 
 function loadPilotEnvironment(root, environment = process.env) {
@@ -57,4 +72,4 @@ function pilotErrorMessage(error) {
   return 'Falha ao iniciar o piloto. Confira configuração, rede e compatibilidade do SQL com a TI. Credenciais não são exibidas no diagnóstico.';
 }
 
-module.exports = { APP_ORIGIN, LOOPBACK, PILOT_EMAIL, loadPilotEnvironment, pilotEnvironment, pilotErrorMessage };
+module.exports = { APP_ORIGIN, LOOPBACK, PILOT_EMAIL, assertLocalPilotConfig, loadPilotEnvironment, pilotEnvironment, pilotRuntimeOptions, pilotErrorMessage };

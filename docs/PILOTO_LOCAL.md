@@ -25,7 +25,19 @@ Informe de **1 a 10 IDs de disciplinas Moodle**, separados por vírgula, em `MOO
 npm run piloto:conexao
 ```
 
-O resultado esperado é **Conexão OK**, seguido da quantidade de disciplinas encontradas. Este teste lê os IDs em `mdl_course`; ainda não valida o mapeamento das atividades ou o cálculo dos indicadores. A senha não é impressa. Erros de certificado exigem a CA/nome DNS corretos; não desative a validação TLS.
+O resultado esperado é **Conexão OK**, seguido da quantidade de disciplinas encontradas. Este teste lê os IDs em `mdl_course`; ainda não valida o mapeamento das atividades ou o cálculo dos indicadores. A senha não é impressa. Para validar o certificado, configure a CA/nome DNS corretos. A alternativa temporária do piloto é descrita abaixo.
+
+### Certificado interno durante o piloto
+
+Algumas ferramentas já confiam na CA do ambiente ou permitem aceitar o certificado do servidor. O painel valida o certificado por padrão. Se a falha for de certificado e você quiser prosseguir com o teste isolado na rede conhecida da Universidade, adicione ao `.env.piloto`:
+
+```env
+PILOT_TRUST_SERVER_CERTIFICATE=true
+```
+
+Essa opção mantém **TLS/criptografia**, mas dispensa verificar a identidade do servidor SQL. Ela funciona somente nos comandos do piloto local, fica desligada por padrão e aparece no terminal e no aviso do painel quando habilitada. O caminho de CA pode ficar vazio nessa modalidade de teste. Salve e execute novamente `npm run piloto:conexao`; depois de **Conexão OK**, use `npm run piloto`.
+
+Para voltar à validação completa, use `PILOT_TRUST_SERVER_CERTIFICATE=false` e configure o nome DNS e a CA confiável. Na implantação institucional, a conexão continua validando o certificado; a API e o worker normais não usam essa opção do arquivo de piloto.
 
 ## 3. Abrir a amostra real
 

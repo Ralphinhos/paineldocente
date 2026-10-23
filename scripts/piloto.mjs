@@ -21,10 +21,12 @@ process.on('SIGTERM', () => void stop());
 
 async function main() {
   const { loadConfig } = require('../backend/config');
-  const { loadPilotEnvironment, APP_ORIGIN, LOOPBACK } = require('../backend/core/pilot');
+  const { loadPilotEnvironment, pilotRuntimeOptions, APP_ORIGIN, LOOPBACK } = require('../backend/core/pilot');
   const { MoodleSource } = require('../backend/data/moodleSource');
   const environment = loadPilotEnvironment(root); const config = loadConfig(environment);
-  source = new MoodleSource(config.moodle);
+  const sqlOptions = pilotRuntimeOptions(environment);
+  if (sqlOptions.trustServerCertificate) console.warn('PILOTO LOCAL: TLS ativo, mas a identidade do servidor SQL não será verificada.');
+  source = new MoodleSource(config.moodle, sqlOptions);
   console.log('Testando conexão SQL Server com TLS e os IDs da amostra…');
   const connection = await source.testConnection();
   console.log(`Conexão OK. ${connection.courses} disciplina(s) encontrada(s).`);
@@ -35,7 +37,7 @@ async function main() {
   const { createRuntime } = require('../backend/runtime');
   const { createApp } = require('../backend/app');
   const { validateSnapshot } = require('../backend/scripts/validate-snapshot');
-  runtime = await createRuntime(environment);
+  runtime = await createRuntime(environment, sqlOptions);
   if (stopped) { await runtime.close(); runtime = null; return; }
   console.log('Coletando somente as disciplinas selecionadas…');
   const snapshot = await runtime.services.snapshotService.run();
@@ -47,14 +49,14 @@ async function main() {
   server = createApp(runtime).listen(3001, LOOPBACK);
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
   if (stopped) return;
-  const [{ createServer }, { pilotServerOptions, PILOT_NOTICE }] = await Promise.all([import('vite'), import('./pilot-server.mjs')]);
+  const [{ createServer }, { pilotServerOptions, pilotNotice }] = await Promise.all([import('vite'), import('./pilot-server.mjs')]);
   if (stopped) return;
-  frontend = await createServer(pilotServerOptions(root, config));
+  frontend = await createServer(pilotServerOptions(root, config, sqlOptions));
   if (stopped) { await frontend.close(); frontend = null; return; }
   await frontend.listen();
   if (stopped) return;
   console.log(`\nAbra ${APP_ORIGIN}/acompanhamento. A entrada local do NED é automática.`);
-  console.log(PILOT_NOTICE);
+  console.log(pilotNotice(sqlOptions));
   console.log('Use Prazos para cadastrar as datas, Entregas para UA/vídeos e Alta Gestão para o resumo.');
   console.log('Ctrl+C encerra o piloto. Esta configuração não serve para publicar no servidor.\n');
 }

@@ -6,7 +6,7 @@ const path = require('node:path');
 const { once } = require('node:events');
 const { pathToFileURL } = require('node:url');
 const { loadConfig } = require('../config');
-const { pilotEnvironment, loadPilotEnvironment, pilotErrorMessage, APP_ORIGIN, LOOPBACK } = require('../core/pilot');
+const { pilotEnvironment, loadPilotEnvironment, pilotRuntimeOptions, pilotErrorMessage, APP_ORIGIN, LOOPBACK } = require('../core/pilot');
 const { MoodleSource } = require('../data/moodleSource');
 const { createRuntime } = require('../runtime');
 const { createApp } = require('../app');
@@ -39,7 +39,38 @@ test('arquivo local preserva senha entre aspas e não habilita e-mails, contas d
   assert.equal(config.reports.emailEnabled, false); assert.deepEqual(config.reports.recipients, []);
   assert.equal(config.rules.approved, false); assert.equal(config.appDatabaseUrl, undefined);
   assert.equal(config.moodle.server, input.MOODLE_DB_SERVER);
+  assert.equal(pilotRuntimeOptions(loadPilotEnvironment(dir, {})).trustServerCertificate, false);
   assert.throws(() => loadPilotEnvironment(dir, { NODE_ENV: 'production' }), (error) => error.code === 'PILOT_CONFIG');
+});
+
+test('aceitar certificado exige opção explícita do piloto e é recusado fora do contexto local', async (t) => {
+  assert.throws(() => pilotEnvironment({ ...input, PILOT_TRUST_SERVER_CERTIFICATE: 'talvez' }, root), (error) => error.code === 'PILOT_CONFIG');
+  const environment = pilotEnvironment({ ...input, PILOT_TRUST_SERVER_CERTIFICATE: 'true' }, root);
+  const options = pilotRuntimeOptions(environment);
+  assert.equal(options.trustServerCertificate, true);
+  const regular = await createRuntime(environment); t.after(() => regular.close());
+  assert.equal(regular.services.snapshotService.source.trustServerCertificate, false);
+  const pilot = await createRuntime(environment, options); t.after(() => pilot.close());
+  assert.equal(pilot.services.snapshotService.source.trustServerCertificate, true);
+  for (const changes of [
+    { APP_ORIGIN: 'http://0.0.0.0:8080' },
+    { SNAPSHOT_STORE: 'postgres', APP_DATABASE_URL: 'postgres://fake@example.invalid/app' },
+    { NODE_ENV: 'production', SNAPSHOT_STORE: 'postgres', APP_DATABASE_URL: 'postgres://fake@example.invalid/app', COOKIE_SECURE: 'true' },
+    { EMAIL_SEND_ENABLED: 'true', SMTP_HOST: 'smtp.example.invalid', SMTP_FROM: 'ned@example.invalid' },
+  ]) await assert.rejects(createRuntime({ ...environment, ...changes }, options), (error) => error.code === 'PILOT_CONFIG');
+});
+
+test('a opção do piloto altera só a confiança no certificado e mantém criptografia no driver SQL', async (t) => {
+  const mssql = require('mssql'); const captured = [];
+  t.mock.method(mssql, 'ConnectionPool', function (options) {
+    captured.push(options);
+    return { async connect() { return { async close() {} }; } };
+  });
+  const config = loadConfig(pilotEnvironment(input, root));
+  const strict = new MoodleSource(config.moodle); await strict.connect(); await strict.close();
+  const local = new MoodleSource({ ...config.moodle, caFile: 'arquivo-inexistente.pem' }, { trustServerCertificate: true }); await local.connect(); await local.close();
+  assert.equal(captured[0].options.encrypt, true); assert.equal(captured[0].options.trustServerCertificate, false);
+  assert.equal(captured[1].options.encrypt, true); assert.equal(captured[1].options.trustServerCertificate, true);
 });
 
 test('diagnóstico substitui erro do driver e não imprime senha nem string de conexão', () => {
@@ -80,8 +111,9 @@ test('coleta parametriza IDs, mantém acesso global e interrompe retorno fora da
 });
 
 test('proxy local abre o NED com dados Moodle, mantém API direta anônima e bloqueia demo, origem externa e envio', async (t) => {
-  const environment = pilotEnvironment(input, root); const config = loadConfig(environment);
-  const runtime = await createRuntime(environment); t.after(() => runtime.close());
+  const environment = pilotEnvironment({ ...input, PILOT_TRUST_SERVER_CERTIFICATE: 'true' }, root); const config = loadConfig(environment);
+  const sqlOptions = pilotRuntimeOptions(environment);
+  const runtime = await createRuntime(environment, sqlOptions); t.after(() => runtime.close());
   const catalog = loadCatalog(path.join(root, 'backend/config/rules.json'));
   const snapshot = buildSnapshot(normalizeRows([fixtureRow()], new Date().toISOString()), catalog, { rulesApproved: false });
   assert.deepEqual(validateSnapshot(snapshot), []); assert.equal(snapshot.isDemo, false); assert.equal(snapshot.publishAllowed, false);
@@ -89,7 +121,7 @@ test('proxy local abre o NED com dados Moodle, mantém API direta anônima e blo
   const server = createApp(runtime).listen(0, LOOPBACK); await once(server, 'listening');
   const { createServer } = await import('vite');
   const { pilotServerOptions } = await import(pathToFileURL(path.join(root, 'scripts/pilot-server.mjs')).href);
-  const options = pilotServerOptions(root, config);
+  const options = pilotServerOptions(root, config, sqlOptions);
   assert.equal(options.server.host, LOOPBACK); assert.equal(options.server.strictPort, true);
   options.server.port = 0; options.server.hmr = false;
   options.optimizeDeps = { noDiscovery: true, include: [] };
@@ -105,7 +137,7 @@ test('proxy local abre o NED com dados Moodle, mantém API direta anônima e blo
   const cookie = response.headers.get('set-cookie').split(';')[0];
   const monitoring = await (await fetch(url + '/api/monitoring', { headers: { cookie } })).json();
   assert.equal(monitoring.meta.source, 'moodle'); assert.equal(monitoring.meta.isDemo, false);
-  const html = await (await fetch(url)).text(); assert.match(html, /PILOTO LOCAL/); assert.ok(!html.includes(input.MOODLE_DB_PASSWORD)); assert.ok(!html.includes(config.auth.proxySharedSecret));
+  const html = await (await fetch(url)).text(); assert.match(html, /PILOTO LOCAL/); assert.match(html, /identidade do servidor SQL não verificada/); assert.ok(!html.includes(input.MOODLE_DB_PASSWORD)); assert.ok(!html.includes(config.auth.proxySharedSecret));
   const external = await fetch(url + '/api/operations/snapshots', { method: 'POST', headers: { cookie, origin: 'https://externo.example.invalid', 'x-csrf-token': session.csrfToken } }); assert.equal(external.status, 403);
   const demo = await fetch(url + '/api/auth/demo-login', { method: 'POST', headers: { cookie, origin: APP_ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ profileId: 'ned' }) }); assert.equal(demo.status, 404);
   const send = await fetch(url + '/api/reports/send', { method: 'POST', headers: { cookie, origin: APP_ORIGIN, 'x-csrf-token': session.csrfToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ audience: 'coordinators', snapshotId: snapshot.id, recipientEmails: ['invalido@example.invalid'] }) }); assert.equal(send.status, 409);
